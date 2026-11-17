@@ -1,0 +1,44 @@
+PROPRIETARY SOFTWARE LICENSE — ALL RIGHTS RESERVED
+
+Copyright (c) 2026 Ahmed Emad El-Din (mr.electron1915@gmail.com)
+All Rights Reserved.
+
+NOTICE: THIS SOFTWARE IS PROPRIETARY AND IS NOT FREE TO USE.
+
+1. Ownership
+This repository, including all source code, algorithms, physics and magnetics
+solvers, component databases, user interface designs, documentation, roadmap
+specifications, and associated assets (collectively, the "Software"), is the
+exclusive intellectual property of Ahmed Emad El-Din ("Copyright Holder").
+
+2. No License Granted
+Viewing or accessing this repository does NOT grant any license, right, or
+permission—express or implied—to use, copy, execute, modify, merge, publish,
+distribute, sublicense, sell, or create derivative works from the Software or
+any portion thereof for personal, academic, internal, or commercial purposes.
+
+3. Prohibited Actions
+Without a separate, prior, signed written license agreement from the Copyright
+Holder, you may NOT:
+  (a) Use, run, deploy, or host the Software in any environment;
+  (b) Copy, reproduce, fork, redistribute, or mirror the Software in whole or
+      in part;
+  (c) Modify, adapt, translate, reverse-engineer, decompile, or create
+      derivative works based on the Software;
+  (d) Incorporate any code, equations, databases, or assets from the Software
+      into another product, service, dataset, or AI/ML training corpus;
+  (e) Rent, lease, lend, sell, sublicense, or commercially exploit the Software.
+
+4. Commercial Licensing & Inquiries
+To request a commercial, enterprise, or academic license, please contact the
+Copyright Holder at:
+  Email: mr.electron1915@gmail.com
+  GitHub: https://github.com/Ahmed-Emad-EL-Din/Power-Electronics-studio
+
+5. Disclaimer
+UNLESS OTHERWISE AGREED IN A SEPARATE WRITTEN LICENSE, THE SOFTWARE IS PROVIDED
+"AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE,
+AND NON-INFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY
+CLAIM, DAMAGES, OR OTHER LIABILITY ARISING OUT OF OR IN CONNECTION WITH THE
+SOFTWARE.
