@@ -242,7 +242,7 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
         };
       });
 
-      setSearchSummary(data.searchSummary || '');
+      setSearchSummary(typeof data.searchSummary === 'string' ? data.searchSummary : '');
       setResults(normalized);
       setSources(Array.isArray(data.sources) ? data.sources : []);
       setSelectedIdx(0);
