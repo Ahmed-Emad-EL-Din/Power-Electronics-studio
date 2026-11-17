@@ -12,6 +12,7 @@ import {
   Play,
   RefreshCw,
   Send,
+  Settings,
   ShieldAlert,
   ShieldCheck,
   SkipForward,
@@ -28,6 +29,8 @@ import {
   simulateSequentialSafeBatch,
 } from '../engine/aiAgentEngine';
 import { DesignAlertFix, DesignAlertItem } from '../engine/designAlerts';
+import { AI_PROVIDER_META, AiProviderConfig } from '../engine/aiProviderConfig';
+import { AiProviderSettingsPanel } from './AiProviderSettingsPanel';
 
 export interface AiChatMessage {
   id: string;
@@ -64,6 +67,8 @@ interface AiEngineerDrawerProps {
   onSendChat: (question: string) => void;
   onJumpToAlertId: (alertId: string, domain: 'dcdc' | 'acdc') => void;
   onJumpToAlertObj: (alert: DesignAlertItem) => void;
+  aiConfig: AiProviderConfig;
+  onChangeAiConfig: (next: AiProviderConfig) => void;
 }
 
 export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
@@ -91,8 +96,11 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
   onUndoLastBatch,
   onSendChat,
   onJumpToAlertId,
+  aiConfig,
+  onChangeAiConfig,
 }) => {
   const [activeTab, setActiveTab] = useState<'plan' | 'chat'>('plan');
+  const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
   const [chatInput, setChatInput] = useState<string>('');
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
 
@@ -216,6 +224,26 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
         <div className="flex items-center gap-1 shrink-0">
           <button
             type="button"
+            onClick={() => setSettingsOpen((s) => !s)}
+            aria-expanded={settingsOpen}
+            className={`h-7 px-2 rounded border text-[11px] font-medium inline-flex items-center gap-1 cursor-pointer transition-colors whitespace-nowrap ${
+              settingsOpen
+                ? 'bg-cyan-600 border-cyan-500 text-white'
+                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-[#131A26] text-slate-700 dark:text-slate-200 hover:border-cyan-500'
+            }`}
+            title={`Configure AI Provider & API Key (${AI_PROVIDER_META[aiConfig.provider].label} · ${aiConfig.model})`}
+          >
+            <Settings className="w-3 h-3" />
+            <span>{AI_PROVIDER_META[aiConfig.provider].shortLabel}</span>
+            {aiConfig.apiKey && (
+              <span
+                className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"
+                title="Custom API key configured"
+              />
+            )}
+          </button>
+          <button
+            type="button"
             onClick={onRunAudit}
             disabled={isAuditing}
             className="h-7 px-2 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#131A26] text-[11px] font-medium text-slate-700 dark:text-slate-200 hover:border-cyan-500 disabled:opacity-50 inline-flex items-center gap-1 cursor-pointer transition-colors whitespace-nowrap"
@@ -287,6 +315,18 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
         )}
       </div>
 
+      {/* EXPANDABLE AI PROVIDER & API KEY SETTINGS */}
+      {settingsOpen && (
+        <div className="p-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0E131D]">
+          <AiProviderSettingsPanel
+            aiConfig={aiConfig}
+            onChangeAiConfig={onChangeAiConfig}
+            compact
+            onClose={() => setSettingsOpen(false)}
+          />
+        </div>
+      )}
+
       {/* STALE AUDIT NOTICE */}
       {isAuditStale && !isAuditing && (
         <div className="px-4 py-2 bg-amber-50 dark:bg-amber-950/20 border-b border-amber-200 dark:border-amber-800/60 flex items-center justify-between gap-2">
@@ -316,13 +356,22 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
               <p className="text-xs text-rose-700 dark:text-rose-300 leading-relaxed">
                 {auditError}
               </p>
-              <button
-                type="button"
-                onClick={onRunAudit}
-                className="px-3 py-1.5 rounded bg-rose-600 hover:bg-rose-500 text-white text-xs font-medium cursor-pointer"
-              >
-                Retry Audit
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onRunAudit}
+                  className="px-3 py-1.5 rounded bg-rose-600 hover:bg-rose-500 text-white text-xs font-medium cursor-pointer"
+                >
+                  Retry Audit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettingsOpen(true)}
+                  className="px-3 py-1.5 rounded border border-rose-300 dark:border-rose-700 bg-white dark:bg-[#131A26] text-rose-700 dark:text-rose-200 hover:border-cyan-500 text-xs font-medium cursor-pointer"
+                >
+                  AI Provider &amp; API Key
+                </button>
+              </div>
             </div>
           )}
 
@@ -621,6 +670,17 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
                       <span className="tabular-nums">{msg.timestamp}</span>
                     </div>
                     <div>{msg.text}</div>
+                    {msg.error && (
+                      <div className="mt-2">
+                        <button
+                          type="button"
+                          onClick={() => setSettingsOpen(true)}
+                          className="px-2.5 py-1 rounded border border-rose-300 dark:border-rose-700 bg-white dark:bg-[#131A26] text-rose-700 dark:text-rose-200 hover:border-cyan-500 text-[11px] font-medium cursor-pointer"
+                        >
+                          Configure AI Provider &amp; API Key
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Inline Executable Patches Attached to AI Q&A Reply */}

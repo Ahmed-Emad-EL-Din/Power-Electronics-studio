@@ -20,7 +20,15 @@ import {
   Package,
   Filter,
   Sliders,
+  Settings,
 } from 'lucide-react';
+import {
+  AI_PROVIDER_META,
+  AiProviderConfig,
+  toServerAiConfig,
+  validateAiProviderConfig,
+} from '../engine/aiProviderConfig';
+import { AiProviderSettingsPanel } from './AiProviderSettingsPanel';
 
 interface GroundingSource {
   uri: string;
@@ -45,6 +53,8 @@ interface ComponentSearchDrawerProps {
   onEquipDcDcPrimary: (spec: SemiconductorSpec) => void;
   onEquipDcDcSecondary: (spec: SemiconductorSpec) => void;
   onEquipAcDcFastSwitch: (spec: SemiconductorSpec) => void;
+  aiConfig: AiProviderConfig;
+  onChangeAiConfig: (next: AiProviderConfig) => void;
 }
 
 const QUICK_LCSC_CHIPS = [
@@ -85,8 +95,11 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
   onEquipDcDcPrimary,
   onEquipDcDcSecondary,
   onEquipAcDcFastSwitch,
+  aiConfig,
+  onChangeAiConfig,
 }) => {
   const [drawerTab, setDrawerTab] = useState<'lcsc-catalog' | 'live-search' | 'jlcpcb-bom'>('lcsc-catalog');
+  const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
 
   // Local LCSC Catalog Filters
   const [catalogFilter, setCatalogFilter] = useState<string>('');
@@ -133,6 +146,14 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
   const runGroundedSearch = async (searchQuery: string) => {
     if (!searchQuery.trim()) return;
     setDrawerTab('live-search');
+
+    const cfgError = validateAiProviderConfig(aiConfig);
+    if (cfgError) {
+      setError(cfgError);
+      setSettingsOpen(true);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setEquippedBanner(null);
@@ -147,6 +168,7 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
             domain: activeDomain,
             ...operatingContext,
           },
+          aiConfig: toServerAiConfig(aiConfig),
         }),
       });
 
@@ -454,7 +476,9 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
                   {SEMICONDUCTOR_DATABASE.length} Power Switches + C-Numbers
                 </span>
                 <span className="px-1.5 py-0.5 text-[10px] rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                  Live Search Grounded
+                  {AI_PROVIDER_META[aiConfig.provider].supportsWebSearch
+                    ? 'Live Search Grounded'
+                    : `${AI_PROVIDER_META[aiConfig.provider].shortLabel} Datasheet Lookup`}
                 </span>
               </div>
               <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
@@ -463,6 +487,18 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                setDrawerTab('live-search');
+                setSettingsOpen((s) => !s);
+              }}
+              className="px-2.5 py-1.5 text-[11px] font-mono font-medium rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:border-cyan-500 inline-flex items-center gap-1 cursor-pointer"
+              title={`Configure AI Provider & API Key (${AI_PROVIDER_META[aiConfig.provider].label})`}
+            >
+              <Settings className="w-3.5 h-3.5 text-cyan-500" />
+              <span>{AI_PROVIDER_META[aiConfig.provider].shortLabel} Key</span>
+            </button>
             <button
               type="button"
               onClick={handleExportJlcpcbBomCsv}
@@ -821,6 +857,35 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
              ===================================================================== */}
           {drawerTab === 'live-search' && (
             <div className="space-y-4">
+              {/* Active AI Provider Bar & Expandable Settings */}
+              <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-[#111827] border border-slate-200 dark:border-slate-800 space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono">
+                  <div className="text-slate-600 dark:text-slate-300 truncate">
+                    AI Engine:{' '}
+                    <span className="font-semibold text-cyan-600 dark:text-cyan-400">
+                      {AI_PROVIDER_META[aiConfig.provider].label}
+                    </span>{' '}
+                    · <span className="text-slate-500 dark:text-slate-400">{aiConfig.model}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSettingsOpen((s) => !s)}
+                    className="px-2.5 py-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-cyan-500 text-[11px] font-medium text-slate-700 dark:text-slate-200 inline-flex items-center gap-1 cursor-pointer"
+                  >
+                    <Settings className="w-3 h-3 text-cyan-500" />
+                    <span>{settingsOpen ? 'Hide Provider Settings' : 'Provider & API Key'}</span>
+                  </button>
+                </div>
+                {settingsOpen && (
+                  <AiProviderSettingsPanel
+                    aiConfig={aiConfig}
+                    onChangeAiConfig={onChangeAiConfig}
+                    compact
+                    onClose={() => setSettingsOpen(false)}
+                  />
+                )}
+              </div>
+
               <div className="space-y-2">
                 <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400">
                   Live Search by LCSC Part Number (Cxxxxxx), MPN, or Converter Spec
@@ -895,9 +960,18 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
 
               {/* Error Banner */}
               {error && (
-                <div className="p-3 rounded bg-rose-500/15 border border-rose-500/40 text-xs font-mono text-rose-300 flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                  <div>{error}</div>
+                <div className="p-3 rounded bg-rose-500/15 border border-rose-500/40 text-xs font-mono text-rose-300 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                    <div>{error}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSettingsOpen(true)}
+                    className="px-2.5 py-1 rounded border border-rose-400/50 bg-rose-950/40 hover:border-cyan-400 text-[11px] font-medium text-rose-200 cursor-pointer shrink-0"
+                  >
+                    Configure API Key
+                  </button>
                 </div>
               )}
 

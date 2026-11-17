@@ -5,6 +5,7 @@ import {
   MATERIAL_DATABASE,
   SEMICONDUCTOR_DATABASE,
 } from '../data/databases';
+import { solveDcDcDesign } from './dcdcEngine';
 
 export type DcDcLockableKey =
   | 'Vin_nom_V'
@@ -414,10 +415,18 @@ export function optimizeDcDcUnlocked(
   const targetDeff = 0.72;
   const bridgeFactor = isHalfBridge ? 0.5 : 1.0;
   const cdrFactor = isCDR ? 2.0 : 1.0;
+  const userEditedTurns = changedKey === 'Np_turns' || changedKey === 'Ns_turns';
 
-  if (locked.Np_turns && locked.Ns_turns && isCanEdit('turnsRatio_n')) {
+  if (userEditedTurns && isCanEdit('turnsRatio_n')) {
     const nFromTurns = clamp(
-      Number((next.Np_turns / Math.max(1, next.Ns_turns)).toFixed(2)),
+      Number((next.Np_turns / Math.max(1, next.Ns_turns)).toFixed(4)),
+      0.25,
+      20
+    );
+    applyNum('turnsRatio_n', 'Turns Ratio n', nFromTurns, ':1', 'Derived from edited integer turns Np / Ns');
+  } else if (locked.Np_turns && locked.Ns_turns && isCanEdit('turnsRatio_n')) {
+    const nFromTurns = clamp(
+      Number((next.Np_turns / Math.max(1, next.Ns_turns)).toFixed(4)),
       0.25,
       20
     );
@@ -465,95 +474,57 @@ export function optimizeDcDcUnlocked(
     ? 0.94
     : clamp(isCDR ? (2 * n * Vout) / Vin : (n * Vout) / Vin, 0.15, 0.92);
 
-  // 6. Core Geometry Selection via Area Product Ap + Radial Window Fit Guard (if unlocked)
   const material = MATERIAL_DATABASE.find((m) => m.id === next.materialId) || MATERIAL_DATABASE[0];
-  const Ap_req_cm4 = (() => {
-    const P_per_core = Pout / nPhases;
-    const Kf = 4.0;
-    const Ku = 0.32;
-    const B_op_T = 0.45 * material.Bsat_100C_T;
-    const J_A_cm2 = 450;
-    return (P_per_core * 1.12 * 1e4) / (Kf * Ku * B_op_T * fsw * J_A_cm2);
-  })();
-  if (isCanEdit('coreId')) {
-    const nonPlanarCores = CORE_DATABASE.filter((c) => c.id !== 'elp64').sort(
-      (a, b) => a.Ap_cm4 - b.Ap_cm4
-    );
-    const estAwg: 38 | 40 | 42 = next.fsw_kHz > 180 ? 42 : next.fsw_kHz > 100 ? 40 : 38;
-    const estStrandArea = AWG_AREA_MM2[estAwg];
-    const estPriStrands = clamp(Math.round(Ipri_est / 4.6 / estStrandArea), 20, 1200);
-    const iSecEst = Iout_phase * (next.txType === 'center-tapped' ? 0.72 : 1.0);
-    const estSecStrands = clamp(Math.round(iSecEst / 4.6 / estStrandArea), 30, 2000);
-    const estGap = isLLC ? 1.2 : 0.2;
-    const estInterleaving = locked.interleaving
-      ? next.interleaving
-      : Pout >= 1500 || next.fsw_kHz >= 140
-      ? 'full-interleaved'
-      : 'split-pri';
 
-    const chosen =
-      nonPlanarCores.find((c) => {
-        if (c.Ap_cm4 < Ap_req_cm4) return false;
-        const voltSecHalfEst = V_bridge * (Deff_est * Tsw * 0.5);
-        const npEst = Math.max(
-          4,
-          Math.round(voltSecHalfEst / (2 * 0.55 * material.Bsat_100C_T * (c.Ae_mm2 * 1e-6)))
-        );
-        const nsEst = Math.max(1, Math.round(npEst / n));
-        const radialEst = estimateTransformerRadialBuildMm({
-          bw_mm: c.bw_mm,
-          Ve_mm3: c.Ve_mm3,
-          Vin_nom_V: next.Vin_nom_V,
-          Np: npEst,
-          Ns: nsEst,
-          isCenterTapped: next.txType === 'center-tapped',
-          priStrands: estPriStrands,
-          secStrands: estSecStrands,
-          litzAwg: estAwg,
-          interleaving: estInterleaving,
-          insulationThickness_mm: next.insulationThickness_mm,
-          estAirGap_mm: estGap,
-        });
-        return radialEst <= c.hw_mm * 0.92;
-      }) ||
-      nonPlanarCores.find((c) => c.Ap_cm4 >= Ap_req_cm4) ||
-      nonPlanarCores[nonPlanarCores.length - 1];
-    applyStr(
-      'coreId',
-      'Core Geometry',
-      chosen.id,
-      `Ap=${chosen.Ap_cm4} cm⁴ ≥ ${Ap_req_cm4.toFixed(2)} cm⁴ & fits hw=${chosen.hw_mm}mm window`
-    );
-  }
-  let core = CORE_DATABASE.find((c) => c.id === next.coreId) || CORE_DATABASE[3];
-
-  // 7. Secondary Rectifier Auto-Selection (if unlocked)
+  // 6. Secondary Rectifier Auto-Selection (with unclamped ringing & clamp-fault margin)
   const vSecPkEst =
     next.txType === 'center-tapped'
       ? (2 * next.Vin_max_V) / n
       : next.Vin_max_V / n;
   if (isCanEdit('secDeviceId')) {
     const wantDiode = next.rectMode === 'schottky-diode';
-    const vSecReq = vSecPkEst * 1.42;
-    const secCandidates = SEMICONDUCTOR_DATABASE.filter(
+    const clampMult =
+      next.clampVariant === 'active-clamp'
+        ? 1.14
+        : next.clampVariant === 'pri-diode-clamp'
+        ? 1.24
+        : 1.44;
+    const vSecReqStrict = isLLC
+      ? vSecPkEst * 1.28
+      : Math.max(vSecPkEst * clampMult * 1.25, vSecPkEst * 1.88 * 1.12);
+    const vSecReqFallback = vSecPkEst * clampMult * 1.25;
+    const pool = SEMICONDUCTOR_DATABASE.filter(
       (d) =>
         (d.role === 'secondary' || d.role === 'both') &&
-        (wantDiode ? d.tech === 'SiC Schottky' : d.tech !== 'SiC Schottky') &&
-        d.Vds_max_V >= vSecReq
-    ).sort((a, b) => a.Rds_on_25C_mOhm - b.Rds_on_25C_mOhm);
+        (wantDiode ? d.tech === 'SiC Schottky' : d.tech !== 'SiC Schottky')
+    );
+    const strictCands = pool.filter((d) => d.Vds_max_V >= vSecReqStrict);
+    const fallbackCands =
+      strictCands.length > 0
+        ? strictCands
+        : pool.filter((d) => d.Vds_max_V >= vSecReqFallback);
+    const secCandidates = (
+      fallbackCands.length > 0
+        ? fallbackCands
+        : pool.filter((d) => d.Vds_max_V >= vSecPkEst * 1.12)
+    ).sort((a, b) => {
+      const scoreA = a.Rds_on_25C_mOhm * (1 + a.Qg_nC / 400);
+      const scoreB = b.Rds_on_25C_mOhm * (1 + b.Qg_nC / 400);
+      return scoreA - scoreB || a.Rds_on_25C_mOhm - b.Rds_on_25C_mOhm;
+    });
     if (secCandidates.length > 0) {
       applyStr(
         'secDeviceId',
         'Secondary Rectifier',
         secCandidates[0].id,
-        `Lowest Rds (${secCandidates[0].Rds_on_25C_mOhm} mΩ) rated ≥ ${Math.round(vSecReq)} V`
+        `Rated ${secCandidates[0].Vds_max_V}V (${secCandidates[0].Rds_on_25C_mOhm} mΩ) with unclamped ringing headroom ≥ ${Math.round(vSecReqStrict)} V`
       );
     }
   }
   const secDevice =
     SEMICONDUCTOR_DATABASE.find((d) => d.id === next.secDeviceId) || SEMICONDUCTOR_DATABASE[14];
 
-  // 8. Device Paralleling (nParallelPri, nParallelSec)
+  // 7. Device Paralleling (nParallelPri, nParallelSec) with Thermal & Current Headroom
   if (isCanEdit('nParallelPri')) {
     const idMaxPri = priDevice.Id_max_A ?? 50;
     const nParPriOpt = clamp(Math.ceil((Ipri_est * 1.25) / (0.62 * idMaxPri)), 1, 4);
@@ -561,12 +532,37 @@ export function optimizeDcDcUnlocked(
   }
   if (isCanEdit('nParallelSec')) {
     const idMaxSec = secDevice.Id_max_A ?? 80;
-    const iSecPerLeg = Iout_phase * (next.txType === 'center-tapped' ? 0.72 : 0.78);
-    const nParSecOpt = clamp(Math.ceil((iSecPerLeg * 1.15) / (0.60 * idMaxSec)), 1, 6);
-    applyNum('nParallelSec', 'Parallel Sec FETs', nParSecOpt, '×', 'Shares secondary RMS current safely');
+    const iSecRmsEst =
+      next.txType === 'center-tapped'
+        ? Iout_phase / Math.SQRT2
+        : next.txType === 'current-doubler'
+        ? Iout_phase * 0.58
+        : Iout_phase / Math.SQRT2;
+    let nParSecOpt = clamp(Math.ceil((iSecRmsEst * 1.15) / (0.60 * idMaxSec)), 1, 6);
+    if (secDevice.Rds_on_25C_mOhm > 7 && iSecRmsEst > 18 && nParSecOpt < 2) {
+      nParSecOpt = 2;
+    }
+    const isSecTht = /to-?220|to-?247|hip247/i.test(secDevice.packageType ?? '');
+    const rthTimSec = next.Rth_TIM_CW ?? (isSecTht ? 0.75 : 0.25);
+    const rthPerFet = secDevice.Rth_JC_CW + rthTimSec;
+    const secSwitches = next.txType === 'full-bridge' ? 4 : 2;
+    while (nParSecOpt < 6) {
+      const iPerFet = iSecRmsEst / nParSecOpt;
+      const pPerFet =
+        iPerFet * iPerFet * (secDevice.Rds_on_25C_mOhm * 1e-3 * 1.45) +
+        (next.rectMode === 'schottky-diode' ? iPerFet * secDevice.Vsd_V * 0.45 : 0);
+      const pTotalSecApprox = pPerFet * nParSecOpt * secSwitches;
+      const tjEst =
+        next.Tamb_C +
+        (pTotalSecApprox / (secSwitches * nPhases)) * (next.Rth_heatsink_CW || 0.75) +
+        pPerFet * rthPerFet;
+      if (tjEst <= 102) break;
+      nParSecOpt += 1;
+    }
+    applyNum('nParallelSec', 'Parallel Sec FETs', nParSecOpt, '×', 'Shares secondary RMS current & R_ds(on) heat safely');
   }
 
-  // 9. Leakage / Resonant Inductance (Llk_uH / Lr) & Resonant Capacitor (Cr_nF)
+  // 8. Leakage / Resonant Inductance (Llk_uH / Lr) & Resonant Capacitor (Cr_nF)
   const Coss_lag_J =
     0.5 *
     (2 * priDevice.Coss_er_pF * 1e-12 * Math.max(1, next.nParallelPri)) *
@@ -609,7 +605,7 @@ export function optimizeDcDcUnlocked(
     }
   }
 
-  // 10. Magnetizing Inductance Lm_uH
+  // 9. Magnetizing Inductance Lm_uH
   if (isCanEdit('Lm_uH')) {
     if (isLLC) {
       const lmFromLn = 5.5 * next.Llk_uH;
@@ -626,7 +622,7 @@ export function optimizeDcDcUnlocked(
     }
   }
 
-  // 11. Output Filter Inductor Lo_uH (PSFB) & Output Filter Capacitor Co_uF + ESR
+  // 10. Output Filter Inductor Lo_uH (PSFB) & Output Filter Capacitor Co_uF + ESR
   if (!isLLC && isCanEdit('Lo_uH')) {
     const V_lo_on = Math.max(2, Vin / n - (isCDR ? Vout * 0.5 : Vout));
     const deltaIL_target = Math.max(0.5, 0.22 * Iout_phase);
@@ -659,119 +655,7 @@ export function optimizeDcDcUnlocked(
     applyNum('ESR_Co_mOhm', 'ESR Co', esrOpt, 'mΩ', 'Parallel low-ESR polymer/MLCC bank scaling');
   }
 
-  // 12. Primary & Secondary Transformer Turns (Np_turns, Ns_turns)
-  const Ae_m2 = core.Ae_mm2 * 1e-6;
-  const voltSecHalf = V_bridge * (Deff_est * Tsw * 0.5);
-  if (isCanEdit('Np_turns') && isCanEdit('Ns_turns')) {
-    const B_target_T = 0.55 * material.Bsat_100C_T;
-    let nsOpt = Math.max(1, Math.round(voltSecHalf / (2 * B_target_T * Ae_m2 * n)));
-    let npOpt = Math.max(2, Math.round(nsOpt * n));
-    while (voltSecHalf / (2 * npOpt * Ae_m2) > 0.78 * material.Bsat_100C_T && npOpt < 200) {
-      nsOpt += 1;
-      npOpt = Math.max(2, Math.round(nsOpt * n));
-    }
-    applyNum(
-      'Np_turns',
-      'Np Turns',
-      npOpt,
-      'T',
-      `Sized for ~55% ${material.id} B_sat (${(material.Bsat_100C_T * 1000).toFixed(0)} mT)`
-    );
-    applyNum('Ns_turns', 'Ns Turns', nsOpt, 'T', 'Matched integer turns to turns ratio n');
-  } else if (isCanEdit('Np_turns')) {
-    const npOpt = clamp(Math.round(next.Ns_turns * n), 2, 200);
-    applyNum('Np_turns', 'Np Turns', npOpt, 'T', 'Matched Np = n · Ns_locked');
-  } else if (isCanEdit('Ns_turns')) {
-    const nsOpt = clamp(Math.round(next.Np_turns / n), 1, 100);
-    applyNum('Ns_turns', 'Ns Turns', nsOpt, 'T', 'Matched Ns = Np_locked / n');
-  }
-
-  // 13. Litz Winding Build (litzStrandAWG, priStrands, secStrands)
-  if (isCanEdit('litzStrandAWG')) {
-    const awgOpt: 38 | 40 | 42 = next.fsw_kHz > 180 ? 42 : next.fsw_kHz > 100 ? 40 : 38;
-    applyNum('litzStrandAWG', 'Litz AWG', awgOpt, 'AWG', `Skin-depth optimal at ${next.fsw_kHz} kHz`);
-  }
-  const strandArea = AWG_AREA_MM2[next.litzStrandAWG];
-  const J_target_A_mm2 = 4.6;
-  if (isCanEdit('priStrands')) {
-    const reqAreaPri = Ipri_est / J_target_A_mm2;
-    const rawPri = Math.max(20, Math.round(reqAreaPri / strandArea / 10) * 10);
-    const maxWindowPri = Math.max(40, Math.floor((core.Aw_mm2 * 0.28) / (next.Np_turns * strandArea)));
-    const priOpt = clamp(Math.min(rawPri, maxWindowPri), 20, 1200);
-    applyNum('priStrands', 'Pri Strands', priOpt, '', `J ≈ ${J_target_A_mm2} A/mm² inside bobbin`);
-  }
-  if (isCanEdit('secStrands')) {
-    const iSecRms = Iout_phase * (next.txType === 'center-tapped' ? 0.72 : 1.0);
-    const reqAreaSec = iSecRms / J_target_A_mm2;
-    const rawSec = Math.max(30, Math.round(reqAreaSec / strandArea / 10) * 10);
-    const maxWindowSec = Math.max(60, Math.floor((core.Aw_mm2 * 0.32) / (Math.max(1, next.Ns_turns) * strandArea)));
-    const secOpt = clamp(Math.min(rawSec, maxWindowSec), 30, 2000);
-    applyNum('secStrands', 'Sec Strands', secOpt, '', `J ≈ ${J_target_A_mm2} A/mm² inside bobbin`);
-  }
-  if (isCanEdit('interleaving')) {
-    const interleaveOpt = Pout >= 1500 || next.fsw_kHz >= 140 ? 'full-interleaved' : 'split-pri';
-    applyStr('interleaving', 'Interleaving', interleaveOpt, 'Minimized Dowell proximity loss & MMF peak');
-  }
-  if (isCanEdit('insulationThickness_mm')) {
-    const insOpt = next.Vin_max_V >= 450 ? 0.36 : next.Vin_max_V >= 200 ? 0.24 : 0.16;
-    applyNum('insulationThickness_mm', 'Pri-Sec Tape', insOpt, 'mm', `IEC 62368-1 reinforced barrier for ${next.Vin_max_V}V`);
-  }
-
-  // Radial fit verification after final strand/interleaving selection
-  const finalRadialEst = estimateTransformerRadialBuildMm({
-    bw_mm: core.bw_mm,
-    Ve_mm3: core.Ve_mm3,
-    Vin_nom_V: next.Vin_nom_V,
-    Np: next.Np_turns,
-    Ns: next.Ns_turns,
-    isCenterTapped: next.txType === 'center-tapped',
-    priStrands: next.priStrands,
-    secStrands: next.secStrands,
-    litzAwg: next.litzStrandAWG,
-    interleaving: next.interleaving,
-    insulationThickness_mm: next.insulationThickness_mm,
-    estAirGap_mm: isLLC ? 1.2 : 0.2,
-  });
-  if (finalRadialEst > core.hw_mm * 0.92 && isCanEdit('coreId')) {
-    const largerFitCore = CORE_DATABASE
-      .filter((c) => c.id !== 'elp64' && c.Ap_cm4 >= Ap_req_cm4)
-      .sort((a, b) => a.hw_mm * a.Aw_mm2 - b.hw_mm * b.Aw_mm2)
-      .find((c) => {
-        const rTry = estimateTransformerRadialBuildMm({
-          bw_mm: c.bw_mm,
-          Ve_mm3: c.Ve_mm3,
-          Vin_nom_V: next.Vin_nom_V,
-          Np: next.Np_turns,
-          Ns: next.Ns_turns,
-          isCenterTapped: next.txType === 'center-tapped',
-          priStrands: next.priStrands,
-          secStrands: next.secStrands,
-          litzAwg: next.litzStrandAWG,
-          interleaving: next.interleaving,
-          insulationThickness_mm: next.insulationThickness_mm,
-          estAirGap_mm: isLLC ? 1.2 : 0.2,
-        });
-        return rTry <= c.hw_mm * 0.92;
-      });
-    if (largerFitCore) {
-      core = largerFitCore;
-      applyStr(
-        'coreId',
-        'Core Geometry',
-        largerFitCore.id,
-        `Stepped to ${largerFitCore.name} (hw=${largerFitCore.hw_mm}mm) to prevent radial window overflow`
-      );
-    }
-  } else if (finalRadialEst > core.hw_mm * 0.94 && !isCanEdit('coreId') && isCanEdit('interleaving') && next.interleaving === 'full-interleaved') {
-    applyStr(
-      'interleaving',
-      'Interleaving',
-      'split-pri',
-      `Relaxed to P/2-S-P/2 so winding fits locked ${core.name} window`
-    );
-  }
-
-  // 14. Gate Drive & Dead-Time (Vgs_drive_V, Rg_ext_Ohm, deadTime_ns)
+  // 11. Gate Drive & Dead-Time (Vgs_drive_V, Rg_ext_Ohm, deadTime_ns)
   if (isCanEdit('Vgs_drive_V')) {
     const vgsOpt =
       priDevice.tech === 'GaN HEMT' ? 6.5 : priDevice.tech === 'SiC MOSFET' ? 18 : 12;
@@ -791,7 +675,7 @@ export function optimizeDcDcUnlocked(
     applyNum('deadTime_ns', 't_dead', tdOpt, 'ns', 'Quarter-wave LC resonant ZVS commutation');
   }
 
-  // 15. Electro-Thermal Targets (Tj_max_limit_C, Rth_TIM_CW, Rth_heatsink_CW)
+  // 12. Electro-Thermal Targets (Tj_max_limit_C, Rth_TIM_CW, Rth_heatsink_CW)
   if (isCanEdit('Tj_max_limit_C')) {
     const tjLimOpt = priDevice.tech === 'SiC MOSFET' ? 150 : 125;
     applyNum('Tj_max_limit_C', 'Tj Limit', tjLimOpt, '°C', `Safe SOA ceiling for ${priDevice.tech}`);
@@ -801,7 +685,7 @@ export function optimizeDcDcUnlocked(
   }
   if (isCanEdit('Rth_heatsink_CW')) {
     const tjLim = next.Tj_max_limit_C ?? (priDevice.tech === 'SiC MOSFET' ? 150 : 125);
-    const tjTarget = Math.min(115, tjLim - 28);
+    const tjTarget = Math.min(108, tjLim - 20);
     const rdsHot_Ohm = (priDevice.Rds_on_25C_mOhm * 1e-3 * 1.45) / Math.max(1, next.nParallelPri);
     const iPosRms = Ipri_est / Math.sqrt(2);
     const pCondPos = iPosRms * iPosRms * rdsHot_Ohm;
@@ -809,32 +693,352 @@ export function optimizeDcDcUnlocked(
       0.5 * Vin * Ipri_est * (priDevice.tf_ns * 1e-9) * fsw * (isLLC ? 0.25 : 0.45) +
       (priDevice.Qg_nC * 1e-9) * next.Vgs_drive_V * fsw;
     const pPosTotal = Math.max(1.5, pCondPos + pSwPos);
-    const rthTim = next.Rth_TIM_CW ?? 0.12;
-    const rthAvail = (tjTarget - next.Tamb_C) / pPosTotal - priDevice.Rth_JC_CW - rthTim;
+    const isPriTht = /to-?220|to-?247|hip247/i.test(priDevice.packageType ?? '');
+    const rthTimPri = next.Rth_TIM_CW ?? (isPriTht ? 0.75 : 0.25);
+    const rthAvailPri = (tjTarget - next.Tamb_C) / pPosTotal - priDevice.Rth_JC_CW - rthTimPri;
+
+    // Also include secondary rectifier thermal budget so SR FETs never exceed tjTarget
+    const nSecSw = next.txType === 'full-bridge' ? 4 : 2;
+    const iSecRms =
+      next.txType === 'center-tapped'
+        ? Iout_phase / Math.SQRT2
+        : next.txType === 'current-doubler'
+        ? Iout_phase * 0.58
+        : Iout_phase / Math.SQRT2;
+    const rdsSecHot_Ohm = (secDevice.Rds_on_25C_mOhm * 1e-3 * 1.55) / Math.max(1, next.nParallelSec);
+    const pSecCondPerPos = iSecRms * iSecRms * rdsSecHot_Ohm;
+    const pSecDtPerPos =
+      next.rectMode === 'sync-fet'
+        ? (2 * Iout_phase * secDevice.Vsd_V * (next.deadTime_ns * 1e-9) * fsw) / nSecSw
+        : 0;
+    const pSecRrPerPos = 0.5 * fsw * vSecPkEst * (secDevice.Qrr_nC * 1e-9);
+    const pSecPosTotal = Math.max(1.0, pSecCondPerPos + pSecDtPerPos + pSecRrPerPos);
+    const isSecTht = /to-?220|to-?247|hip247/i.test(secDevice.packageType ?? '');
+    const rthTimSec = next.Rth_TIM_CW ?? (isSecTht ? 0.85 : 0.25);
+    const rthAvailSec = (tjTarget - next.Tamb_C) / pSecPosTotal - secDevice.Rth_JC_CW - rthTimSec;
+
+    const rthAvail = Math.min(rthAvailPri, rthAvailSec);
     const rthOpt = clamp(Number(roundTo(rthAvail, 0.05).toFixed(2)), 0.12, 2.5);
     applyNum(
       'Rth_heatsink_CW',
       'Heatsink Rth',
       rthOpt,
       '°C/W',
-      `Holds Tj ≤ ${tjTarget}°C at Tamb=${next.Tamb_C}°C`
+      `Holds both Tj,pri & Tj,sec ≤ ${tjTarget}°C at Tamb=${next.Tamb_C}°C`
+    );
+  }
+
+  // 13. Joint Transformer Core + Winding Turns + Litz Build Co-Optimization
+  if (isCanEdit('litzStrandAWG')) {
+    const awgOpt: 38 | 40 | 42 = next.fsw_kHz > 180 ? 42 : next.fsw_kHz > 100 ? 40 : 38;
+    applyNum('litzStrandAWG', 'Litz AWG', awgOpt, 'AWG', `Skin-depth optimal at ${next.fsw_kHz} kHz`);
+  }
+  if (isCanEdit('insulationThickness_mm')) {
+    const insOpt = next.Vin_max_V >= 450 ? 0.36 : next.Vin_max_V >= 200 ? 0.24 : 0.16;
+    applyNum('insulationThickness_mm', 'Pri-Sec Tape', insOpt, 'mm', `IEC 62368-1 reinforced barrier for ${next.Vin_max_V}V`);
+  }
+
+  const strandArea = AWG_AREA_MM2[next.litzStrandAWG];
+  const J_target_A_mm2 = 4.6;
+  const Ap_req_cm4 = (() => {
+    const P_per_core = Pout / nPhases;
+    const Kf = 4.0;
+    const Ku = 0.32;
+    const B_op_T = Math.min(0.45 * material.Bsat_100C_T, Math.max(0.05, 0.14 * Math.pow(100 / Math.max(25, next.fsw_kHz), 0.52)));
+    const J_A_cm2 = 450;
+    return (P_per_core * 1.12 * 1e4) / (Kf * Ku * B_op_T * fsw * J_A_cm2);
+  })();
+
+  const lockedCore = CORE_DATABASE.find((c) => c.id === next.coreId) || CORE_DATABASE[3];
+  const nonPlanarCores = CORE_DATABASE.filter((c) => c.id !== 'elp64').sort(
+    (a, b) => a.Ap_cm4 - b.Ap_cm4
+  );
+  const filteredCores = nonPlanarCores.filter((c) => c.Ap_cm4 >= Ap_req_cm4 * 0.65);
+  const candidateCores = isCanEdit('coreId')
+    ? filteredCores.length > 0
+      ? filteredCores
+      : nonPlanarCores
+    : [lockedCore];
+
+  const voltSecHalf = V_bridge * (Deff_est * Tsw * 0.5);
+  const bHfTarget_T = Math.min(
+    0.48 * material.Bsat_100C_T,
+    Math.max(0.045, 0.14 * Math.pow(100 / Math.max(25, next.fsw_kHz), 0.52))
+  );
+  const baseInterleave: 'none' | 'split-pri' | 'full-interleaved' = isCanEdit('interleaving')
+    ? Pout >= 1500 || next.fsw_kHz >= 140
+      ? 'full-interleaved'
+      : 'split-pri'
+    : next.interleaving;
+
+  interface TxOptCandidate {
+    coreId: string;
+    Np: number;
+    Ns: number;
+    priStrands: number;
+    secStrands: number;
+    interleaving: 'none' | 'split-pri' | 'full-interleaved';
+    fits: boolean;
+    safe: boolean;
+    score: number;
+    Bpk_mT: number;
+    utilPct: number;
+    Tcore_C: number;
+  }
+
+  let bestSafe: TxOptCandidate | null = null;
+  let bestFallback: TxOptCandidate | null = null;
+
+  for (const candCore of candidateCores) {
+    const Ae_m2 = candCore.Ae_mm2 * 1e-6;
+    const turnPairs: { np: number; ns: number }[] = [];
+
+    if (isCanEdit('Np_turns') && isCanEdit('Ns_turns')) {
+      const seen = new Set<string>();
+      for (const bScale of [0.82, 1.0, 1.25]) {
+        const bTry = Math.min(0.58 * material.Bsat_100C_T, Math.max(0.035, bHfTarget_T * bScale));
+        let nsCenter = Math.max(1, Math.round(voltSecHalf / (2 * bTry * Ae_m2 * n)));
+        const nsStart = Math.max(1, nsCenter - 1);
+        const nsEnd = Math.min(24, nsCenter + 2);
+        for (let nsTry = nsStart; nsTry <= nsEnd; nsTry++) {
+          let npTry = clamp(Math.round(nsTry * n), 2, 200);
+          while (voltSecHalf / (2 * npTry * Ae_m2) > 0.78 * material.Bsat_100C_T && npTry < 200) {
+            npTry += 1;
+          }
+          const key = `${npTry}:${nsTry}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            turnPairs.push({ np: npTry, ns: nsTry });
+          }
+        }
+      }
+    } else if (isCanEdit('Np_turns')) {
+      const nsFixed = Math.max(1, Math.round(next.Ns_turns));
+      const npMatched = clamp(Math.round(nsFixed * n), 2, 200);
+      turnPairs.push({ np: npMatched, ns: nsFixed });
+    } else if (isCanEdit('Ns_turns')) {
+      const npFixed = Math.max(2, Math.round(next.Np_turns));
+      const nsMatched = clamp(Math.round(npFixed / n), 1, 100);
+      turnPairs.push({ np: npFixed, ns: nsMatched });
+    } else {
+      turnPairs.push({ np: Math.max(1, Math.round(next.Np_turns)), ns: Math.max(1, Math.round(next.Ns_turns)) });
+    }
+
+    const interleaveModes: ('none' | 'split-pri' | 'full-interleaved')[] = isCanEdit('interleaving')
+      ? baseInterleave === 'full-interleaved'
+        ? ['full-interleaved', 'split-pri']
+        : [baseInterleave]
+      : [next.interleaving];
+
+    for (const pair of turnPairs) {
+      const reqAreaPri = Ipri_est / J_target_A_mm2;
+      const rawPri = Math.max(20, Math.round(reqAreaPri / strandArea / 10) * 10);
+      const maxWindowPri = Math.max(40, Math.floor((candCore.Aw_mm2 * 0.28) / (pair.np * strandArea)));
+      const priTry = isCanEdit('priStrands')
+        ? clamp(Math.min(rawPri, maxWindowPri), 20, 1200)
+        : next.priStrands;
+
+      const iSecRms = Iout_phase * (next.txType === 'center-tapped' ? 0.72 : 1.0);
+      const reqAreaSec = iSecRms / J_target_A_mm2;
+      const rawSec = Math.max(30, Math.round(reqAreaSec / strandArea / 10) * 10);
+      const maxWindowSec = Math.max(
+        60,
+        Math.floor((candCore.Aw_mm2 * 0.30) / (Math.max(1, pair.ns) * strandArea))
+      );
+      const secTryBase = isCanEdit('secStrands')
+        ? clamp(Math.min(rawSec, maxWindowSec), 30, 1400)
+        : next.secStrands;
+      const secTryVariants = isCanEdit('secStrands') && secTryBase >= 240
+        ? [secTryBase, clamp(Math.round((secTryBase * 0.76) / 10) * 10, 60, 1400)]
+        : [secTryBase];
+
+      for (const secTry of secTryVariants) {
+        for (const intMode of interleaveModes) {
+          const ratioTry = Number((pair.np / Math.max(1, pair.ns)).toFixed(4));
+          const trialState: DcDcDesignState = {
+            ...next,
+            coreId: candCore.id,
+            Np_turns: pair.np,
+            Ns_turns: pair.ns,
+            turnsRatio_n: ratioTry,
+            priStrands: priTry,
+            secStrands: secTry,
+            interleaving: intMode,
+          };
+          const trialRes = solveDcDcDesign(trialState);
+          const radialEst = estimateTransformerRadialBuildMm({
+            bw_mm: candCore.bw_mm,
+            Ve_mm3: candCore.Ve_mm3,
+            Vin_nom_V: next.Vin_nom_V,
+            Np: pair.np,
+            Ns: pair.ns,
+            isCenterTapped: next.txType === 'center-tapped',
+            priStrands: priTry,
+            secStrands: secTry,
+            litzAwg: next.litzStrandAWG,
+            interleaving: intMode,
+            insulationThickness_mm: next.insulationThickness_mm,
+            estAirGap_mm: Math.max(0.2, trialRes.airGap_mm),
+          });
+          const fits = radialEst <= candCore.hw_mm * 0.90;
+          const fitsComfortably = radialEst <= candCore.hw_mm * 0.77;
+          if (
+            !fitsComfortably &&
+            isCanEdit('interleaving') &&
+            intMode === 'full-interleaved' &&
+            interleaveModes.length > 1
+          ) {
+            continue;
+          }
+
+          const utilPct = trialRes.saturationCheck.utilization_100C_pct;
+          const tCore = trialRes.coreThermalAnalysis.Tcore_hotspot_C;
+          const safe =
+            fitsComfortably &&
+            trialRes.saturationCheck.status !== 'critical' &&
+            trialRes.coreThermalAnalysis.coreThermalStable &&
+            tCore <= 108 &&
+            utilPct <= 78;
+
+        const ratioDriftPenalty = locked.turnsRatio_n
+          ? Math.abs(ratioTry - n) * 40
+          : Math.abs(ratioTry - n) * 2.5;
+        const oversizePenalty =
+          utilPct < 12 && trialRes.Pcu_W > 3.5 * Math.max(0.25, trialRes.Pcore_W) ? 4.5 : 0;
+        const score =
+          trialRes.Pcore_W +
+          trialRes.Pcu_W +
+          0.00018 * candCore.Ve_mm3 +
+          oversizePenalty +
+          ratioDriftPenalty +
+          (utilPct > 75 ? (utilPct - 75) * 0.4 : 0) +
+          (tCore > 100 ? (tCore - 100) * 0.6 : 0) +
+          (fits ? 0 : 120) +
+          (fitsComfortably ? 0 : 18) +
+          (trialRes.saturationCheck.status === 'critical' ? 200 : 0) +
+          (trialRes.coreThermalAnalysis.coreThermalStable ? 0 : 200);
+
+        const item: TxOptCandidate = {
+          coreId: candCore.id,
+          Np: pair.np,
+          Ns: pair.ns,
+          priStrands: priTry,
+          secStrands: secTry,
+          interleaving: intMode,
+          fits,
+          safe,
+          score,
+          Bpk_mT: trialRes.Bpk_mT,
+          utilPct,
+          Tcore_C: tCore,
+        };
+
+        if (safe && (!bestSafe || item.score < bestSafe.score)) {
+          bestSafe = item;
+        }
+        if (!bestFallback || item.score < bestFallback.score) {
+          bestFallback = item;
+        }
+        }
+      }
+    }
+  }
+
+  const txWinner = bestSafe || bestFallback;
+  if (txWinner) {
+    const winCore = CORE_DATABASE.find((c) => c.id === txWinner.coreId) || lockedCore;
+    if (isCanEdit('coreId')) {
+      applyStr(
+        'coreId',
+        'Core Geometry',
+        txWinner.coreId,
+        `Compact ${winCore.name} (Bpk=${txWinner.Bpk_mT.toFixed(0)} mT, ${txWinner.utilPct.toFixed(0)}% B_sat, T_core=${txWinner.Tcore_C.toFixed(0)}°C)`
+      );
+    }
+    if (isCanEdit('Np_turns')) {
+      applyNum(
+        'Np_turns',
+        'Np Turns',
+        txWinner.Np,
+        'T',
+        `Joint core/loss optimal (${txWinner.utilPct.toFixed(0)}% of ${(material.Bsat_100C_T * 1000).toFixed(0)} mT B_sat)`
+      );
+    }
+    if (isCanEdit('Ns_turns')) {
+      applyNum('Ns_turns', 'Ns Turns', txWinner.Ns, 'T', 'Matched integer turns to turns ratio n');
+    }
+    if (isCanEdit('priStrands')) {
+      applyNum('priStrands', 'Pri Strands', txWinner.priStrands, '', `J ≈ ${J_target_A_mm2} A/mm² inside bobbin`);
+    }
+    if (isCanEdit('secStrands')) {
+      applyNum('secStrands', 'Sec Strands', txWinner.secStrands, '', `J ≈ ${J_target_A_mm2} A/mm² inside bobbin`);
+    }
+    if (isCanEdit('interleaving')) {
+      applyStr('interleaving', 'Interleaving', txWinner.interleaving, 'Minimized Dowell proximity loss & window fit');
+    }
+  }
+
+  // Keep turnsRatio_n synchronized with finalized integer turns whenever unlocked or turns were edited
+  const actualRatio = Number((next.Np_turns / Math.max(1, next.Ns_turns)).toFixed(4));
+  if ((isCanEdit('turnsRatio_n') || userEditedTurns) && Math.abs(next.turnsRatio_n - actualRatio) > 1e-4) {
+    applyNum(
+      'turnsRatio_n',
+      'Turns Ratio n',
+      actualRatio,
+      ':1',
+      `Synced exact Np/Ns ratio (${next.Np_turns}/${next.Ns_turns})`
     );
   }
 
   // 16. Control Loop & Current Sense Auto-Tuning
+  const nActual = Math.max(0.2, next.Np_turns / Math.max(1, next.Ns_turns));
   if (isCanEdit('fc_target_kHz')) {
+    const Lo_eq_H = Math.max(1e-6, (next.Lo_uH * 1e-6) / nPhases);
+    const Co_H = Math.max(10e-6, next.Co_uF * 1e-6);
+    const f0_est_kHz = 1 / (2 * Math.PI * Math.sqrt(Lo_eq_H * Co_H)) / 1e3;
+    const fcFloor = isLLC ? 2.5 : Math.max(4.5, f0_est_kHz * 2.2);
+    const fcCeiling = Math.min(25, Math.max(fcFloor, next.fsw_kHz / 8));
     const fcOpt = clamp(
-      Number((isLLC ? Math.min(next.fsw_kHz / 12, 12) : Math.min(next.fsw_kHz / 10, 15)).toFixed(1)),
+      Number(roundTo(Math.min(fcCeiling, Math.max(fcFloor, next.fsw_kHz / 10)), 0.5).toFixed(1)),
       1.5,
       25
     );
-    applyNum('fc_target_kHz', 'fc', fcOpt, 'kHz', 'Bounded ≤ f_sw/10 for Nyquist phase margin');
+    applyNum(
+      'fc_target_kHz',
+      'fc',
+      fcOpt,
+      'kHz',
+      `Decoupled well above LC f_0 (${f0_est_kHz.toFixed(1)} kHz) & bounded ≤ f_sw/8`
+    );
   }
   if (isCanEdit('pm_target_deg')) {
     applyNum('pm_target_deg', 'PM', 58, '°', 'Optimal damping target (58° phase margin)');
   }
   if (isCanEdit('slopeFactor_mc')) {
-    applyNum('slopeFactor_mc', 'Slope mc', 1.8, '', 'Subharmonic-free slope compensation (Qp < 0.7)');
+    const Deff_nom_est = isLLC
+      ? 0.94
+      : clamp(isCDR ? (2 * nActual * Vout) / Vin : (nActual * Vout) / Vin, 0.15, 0.92);
+    const Deff_wc_est = isLLC
+      ? 0.94
+      : clamp(
+          isCDR
+            ? (2 * nActual * Vout) / Math.max(24, next.Vin_min_V)
+            : (nActual * Vout) / Math.max(24, next.Vin_min_V),
+          0.15,
+          0.94
+        );
+    const dPrimeNom = Math.max(0.08, 1 - (isLLC ? Deff_nom_est * 0.5 : Deff_nom_est));
+    const dPrimeWc = Math.max(0.06, 1 - (isLLC ? Deff_wc_est * 0.5 : Deff_wc_est));
+    const mcNom = (0.5 + 1 / (Math.PI * 1.15)) / dPrimeNom;
+    const mcWc = (0.5 + 1 / (Math.PI * 2.2)) / dPrimeWc;
+    const mcOpt = clamp(Number(roundTo(Math.max(1.5, mcNom, mcWc), 0.05).toFixed(2)), 1.5, 4.5);
+    applyNum(
+      'slopeFactor_mc',
+      'Slope mc',
+      mcOpt,
+      '',
+      `Ridley subharmonic damping Q_p ≤ 1.15 at ${(Deff_nom_est * 100).toFixed(0)}% duty & low-line headroom`
+    );
   }
   if (isCanEdit('Rsense_mOhm')) {
     const rsOpt = clamp(Math.round((2100 / Math.max(4, Ipri_est * 1.4)) / 5) * 5, 5, 100);
@@ -843,6 +1047,45 @@ export function optimizeDcDcUnlocked(
   if (isCanEdit('fs_digital_kHz')) {
     const fsDigOpt = clamp(roundTo(Math.min(400, next.fsw_kHz * 2), 10), 50, 500);
     applyNum('fs_digital_kHz', 'fs Digital', fsDigOpt, 'kHz', 'Double-update PWM/ADC sampling');
+  }
+
+  // 17. Final Exact Electro-Thermal Verification Guard (nParallelSec & Rth_heatsink_CW)
+  const tjVerifyCeiling = Math.min(108, (next.Tj_max_limit_C ?? 125) - 17);
+  let verifyRes = solveDcDcDesign(next);
+  if (isCanEdit('nParallelSec') && verifyRes.Tj_sec_C > tjVerifyCeiling) {
+    let nParTry = next.nParallelSec;
+    while (nParTry < 6 && verifyRes.Tj_sec_C > tjVerifyCeiling) {
+      nParTry += 1;
+      verifyRes = solveDcDcDesign({ ...next, nParallelSec: nParTry });
+    }
+    if (nParTry !== next.nParallelSec) {
+      applyNum(
+        'nParallelSec',
+        'Parallel Sec FETs',
+        nParTry,
+        '×',
+        `Verified secondary Tj ≤ ${tjVerifyCeiling}°C across exact electro-thermal loop`
+      );
+    }
+  }
+  if (
+    isCanEdit('Rth_heatsink_CW') &&
+    Math.max(verifyRes.Tj_pri_C, verifyRes.Tj_sec_C) > tjVerifyCeiling
+  ) {
+    let rthTry = next.Rth_heatsink_CW;
+    while (rthTry > 0.12 && Math.max(verifyRes.Tj_pri_C, verifyRes.Tj_sec_C) > tjVerifyCeiling) {
+      rthTry = Math.max(0.1, Number((rthTry - 0.05).toFixed(2)));
+      verifyRes = solveDcDcDesign({ ...next, Rth_heatsink_CW: rthTry });
+    }
+    if (rthTry !== next.Rth_heatsink_CW) {
+      applyNum(
+        'Rth_heatsink_CW',
+        'Heatsink Rth',
+        rthTry,
+        '°C/W',
+        `Verified primary & secondary Tj ≤ ${tjVerifyCeiling}°C`
+      );
+    }
   }
 
   return { nextState: next, changes };

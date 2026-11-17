@@ -26,6 +26,7 @@ import {
   DesignAlertFix,
   synthesizeAcDcFixes,
   synthesizeCapacitorAlertFixes,
+  synthesizeDcdcCompactCoreFixes,
   synthesizeDcdcCoreThermalFixes,
   synthesizeDcdcSaturationFixes,
   synthesizeDcdcSemiThermalFixes,
@@ -271,6 +272,27 @@ export function evaluateDesignAlerts(params: {
     });
   }
 
+  if (
+    dcdcRes.saturationCheck.utilization_100C_pct < 12 &&
+    dcdcRes.Pcu_W > 4 * Math.max(0.25, dcdcRes.Pcore_W) &&
+    dcdcRes.Pcu_W > 4.0
+  ) {
+    const compactFixes = synthesizeDcdcCompactCoreFixes(dcdcState, dcdcRes);
+    alerts.push({
+      id: 'dcdc-core-oversized',
+      severity: 'warning',
+      domain: 'dcdc',
+      domainLabel: 'DC-DC',
+      subTab: 'magnetics',
+      subTabLabel: 'Tx Magnetics (iGSE)',
+      title: 'Oversized Transformer Core (Copper-Loss Dominated)',
+      metric: `B_pk = ${dcdcRes.Bpk_mT.toFixed(1)} mT (${dcdcRes.saturationCheck.utilization_100C_pct.toFixed(1)}% B_sat) · P_cu = ${dcdcRes.Pcu_W.toFixed(2)} W vs P_core = ${dcdcRes.Pcore_W.toFixed(2)} W`,
+      actionHint:
+        'Downsize to a compact core with balanced flux density (~20–45% B_sat) to shorten mean turn length and reduce copper loss.',
+      fixes: compactFixes.length > 0 ? compactFixes : undefined,
+    });
+  }
+
   // 1e. Primary & Secondary Switch Voltage Breakdown Margin
   const priVdsUtil = (dcdcState.Vin_max_V / Math.max(1, dcdcRes.priDevice.Vds_max_V)) * 100;
   if (priVdsUtil > 90) {
@@ -316,7 +338,7 @@ export function evaluateDesignAlerts(params: {
       actionHint: 'Upgrade secondary MOSFETs to 200 V class (e.g. IPP110N20N3), use Full-Bridge secondary, or tune active clamp.',
       fixes: synthesizeDcdcVoltageFixes('sec', dcdcState, dcdcRes),
     });
-  } else if (secVdsUtil > 80 || secUnclampedUtil > 98) {
+  } else if (secVdsUtil > 80 || secUnclampedUtil > 88) {
     alerts.push({
       id: 'dcdc-sec-vds-warn',
       severity: 'warning',
@@ -324,7 +346,10 @@ export function evaluateDesignAlerts(params: {
       domainLabel: 'DC-DC',
       subTab: 'graphs',
       subTabLabel: 'ZVS & Tank Graphs',
-      title: 'Zero Unclamped Margin on Secondary MOSFETs at High Line',
+      title:
+        secUnclampedUtil > 98
+          ? 'Zero Unclamped Margin on Secondary MOSFETs at High Line'
+          : 'Low Unclamped Margin on Secondary MOSFETs at High Line',
       metric: `V_unclamped = ${dcdcRes.Vsec_unclamped_pk_V.toFixed(1)} V (${secUnclampedUtil.toFixed(0)}% of ${dcdcRes.secDevice.Vds_max_V} V) · Clamped ${dcdcRes.Vsec_overshoot_V.toFixed(1)} V`,
       actionHint: 'Upgrade to 200 V secondary MOSFETs for ≥20% margin against clamp fault or load-dump transients.',
       fixes: synthesizeDcdcVoltageFixes('sec', dcdcState, dcdcRes),
@@ -359,24 +384,31 @@ export function evaluateDesignAlerts(params: {
   }
 
   // 1g. Control Loop Stability & Subharmonic Peaking
-  if (dcdcState.controlType === 'pcmc' && !dcdcRes.slopeStable) {
+  const fcFloor = dcdcRes.isLLC
+    ? 2.5
+    : Math.max(2.5, Number((dcdcRes.f0_lc_kHz * 1.6).toFixed(1)));
+
+  if (dcdcState.controlType === 'pcmc' && (!dcdcRes.slopeStable || dcdcRes.Qp_subharmonic > 1.8)) {
     const dPrime = Math.max(0.12, 1 - (dcdcRes.isLLC ? dcdcRes.Deff_nom * 0.5 : dcdcRes.Deff_nom));
-    const mcTarget = Math.max(1.85, Number(((0.5 + 1 / (Math.PI * 1.25)) / dPrime).toFixed(2)));
+    const mcTarget = Math.max(1.85, Number(((0.5 + 1 / (Math.PI * 1.15)) / dPrime).toFixed(2)));
+    const isCritSlope = !dcdcRes.slopeStable || dcdcRes.Qp_subharmonic > 2.0;
     alerts.push({
       id: 'dcdc-pcmc-slope',
-      severity: 'danger',
+      severity: isCritSlope ? 'danger' : 'warning',
       domain: 'dcdc',
       domainLabel: 'DC-DC',
       subTab: 'control',
       subTabLabel: 'Control & DSP',
-      title: 'PCMC Subharmonic Oscillation Instability',
+      title: isCritSlope
+        ? 'PCMC Subharmonic Oscillation Instability'
+        : 'Elevated PCMC Subharmonic Peaking Q_p',
       metric: `Qp = ${dcdcRes.Qp_subharmonic.toFixed(2)} (mc = ${dcdcState.slopeFactor_mc.toFixed(2)}, D_eff = ${(dcdcRes.Deff_nom * 100).toFixed(0)}%)`,
-      actionHint: `Increase slope compensation multiplier m_c ≥ ${mcTarget.toFixed(2)} to clamp Ridley Q_p ≤ 1.25.`,
+      actionHint: `Increase slope compensation multiplier m_c ≥ ${mcTarget.toFixed(2)} to clamp Ridley Q_p ≤ 1.15.`,
       fixes: [
         {
           id: 'dcdc-slope-fix',
           label: `Set Slope Compensation m_c = ${mcTarget.toFixed(2)}`,
-          impact: 'Restores Q_p ≤ 1.25 and eliminates subharmonic double-pulsing',
+          impact: 'Restores Q_p ≤ 1.15 and eliminates subharmonic double-pulsing',
           targetKind: 'dcdc',
           dcdcPatch: { slopeFactor_mc: mcTarget },
         },
@@ -385,6 +417,9 @@ export function evaluateDesignAlerts(params: {
   }
 
   if (dcdcRes.pm_actual_deg < 30 || dcdcRes.pm_wc_min_deg < 20 || dcdcRes.gm_actual_dB < 4) {
+    const fcRetune = Number(
+      Math.min(Math.max(fcFloor, 8), Math.max(fcFloor, dcdcState.fc_target_kHz * 0.65)).toFixed(1)
+    );
     alerts.push({
       id: 'dcdc-ctrl-unstable',
       severity: 'danger',
@@ -394,15 +429,15 @@ export function evaluateDesignAlerts(params: {
       subTabLabel: 'Control & DSP',
       title: 'Control Loop Phase / Gain Margin Critically Low',
       metric: `PM = ${dcdcRes.pm_actual_deg.toFixed(0)}° (WC ${dcdcRes.pm_wc_min_deg.toFixed(0)}°) · GM = ${dcdcRes.gm_actual_dB.toFixed(1)} dB`,
-      actionHint: 'Lower crossover frequency fc or increase target phase margin to ≥50°.',
+      actionHint: 'Lower crossover frequency fc (staying above f_0) or increase target phase margin to ≥50°.',
       fixes: [
         {
           id: 'dcdc-ctrl-retune',
-          label: `Retune Loop: fc = ${Math.min(8, Math.max(2.5, Number((dcdcState.fc_target_kHz * 0.65).toFixed(1))))} kHz & PM = 55°`,
+          label: `Retune Loop: fc = ${fcRetune} kHz & PM = 55°`,
           impact: 'Restores robust phase & gain margin across worst-case tolerances',
           targetKind: 'dcdc',
           dcdcPatch: {
-            fc_target_kHz: Math.min(8, Math.max(2.5, Number((dcdcState.fc_target_kHz * 0.65).toFixed(1)))),
+            fc_target_kHz: fcRetune,
             pm_target_deg: 55,
           },
         },
@@ -431,9 +466,45 @@ export function evaluateDesignAlerts(params: {
     });
   }
 
+  if (
+    !dcdcRes.isLLC &&
+    dcdcState.fc_target_kHz < dcdcRes.f0_lc_kHz * 1.45 &&
+    dcdcRes.f0_lc_kHz * 2.0 <= dcdcState.fsw_kHz / 6
+  ) {
+    const fcTargetNext = Number(
+      Math.min(
+        dcdcState.fsw_kHz / 8,
+        Math.max(6.0, Math.round(dcdcRes.f0_lc_kHz * 2.2 * 2) / 2)
+      ).toFixed(1)
+    );
+    alerts.push({
+      id: 'dcdc-ctrl-fc-near-f0',
+      severity: 'warning',
+      domain: 'dcdc',
+      domainLabel: 'DC-DC',
+      subTab: 'control',
+      subTabLabel: 'Control & DSP',
+      title: 'Crossover Bandwidth f_c Too Close to Output LC Pole f_0',
+      metric: `f_c = ${dcdcState.fc_target_kHz.toFixed(1)} kHz vs f_0 = ${dcdcRes.f0_lc_kHz.toFixed(2)} kHz (${(dcdcState.fc_target_kHz / Math.max(0.1, dcdcRes.f0_lc_kHz)).toFixed(2)}× f_0)`,
+      actionHint: `Raise crossover toward ${fcTargetNext.toFixed(1)} kHz (>1.5× f_0) to avoid sluggish load-step recovery.`,
+      fixes:
+        fcTargetNext > dcdcState.fc_target_kHz + 0.3
+          ? [
+              {
+                id: 'dcdc-ctrl-fc-up',
+                label: `Raise Crossover Bandwidth f_c = ${dcdcState.fc_target_kHz.toFixed(1)} → ${fcTargetNext.toFixed(1)} kHz`,
+                impact: 'Improves load-step transient recovery while maintaining ≥55° phase margin',
+                targetKind: 'dcdc',
+                dcdcPatch: { fc_target_kHz: fcTargetNext },
+              },
+            ]
+          : undefined,
+    });
+  }
+
   // 1h. Middlebrook Input EMI Impedance Interaction
   if (!dcdcRes.middlebrookStable) {
-    const fcNext = Math.max(2.5, Number((dcdcState.fc_target_kHz * 0.5).toFixed(1)));
+    const fcNext = Math.max(fcFloor, Number((dcdcState.fc_target_kHz * 0.5).toFixed(1)));
     alerts.push({
       id: 'dcdc-emi-middlebrook',
       severity: dcdcRes.middlebrookMargin_dB < 3 ? 'danger' : 'warning',
@@ -448,7 +519,7 @@ export function evaluateDesignAlerts(params: {
       metric: `ΔZ_MB = ${dcdcRes.middlebrookMargin_dB.toFixed(1)} dB vs L=${dcdcRes.L_emi_uH.toFixed(0)}µH / C=${dcdcRes.C_emi_uF.toFixed(0)}µF (Require ≥ 6.0 dB)`,
       actionHint: `Separate loop bandwidth f_c below EMI filter resonance (or add R_d ≈ ${dcdcRes.Rd_emi_Ohm.toFixed(2)} Ω damping).`,
       fixes:
-        fcNext < dcdcState.fc_target_kHz
+        fcNext < dcdcState.fc_target_kHz - 0.1
           ? [
               {
                 id: 'dcdc-emi-fc-sep',

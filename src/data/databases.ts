@@ -215,7 +215,7 @@ export const MATERIAL_DATABASE: CoreMaterialSpec[] = [
   { id: 'N95', name: 'TDK N95 (Flat-Temp)', k_si: 2.65, alpha: 1.45, beta: 2.64, Bsat_100C_T: 0.41, T_opt_C: 85, tempCoeff_c2: 0.00005 },
   { id: '3C95', name: 'Ferroxcube 3C95', k_si: 2.52, alpha: 1.45, beta: 2.63, Bsat_100C_T: 0.41, T_opt_C: 85, tempCoeff_c2: 0.00006 },
   { id: '3C97', name: 'Ferroxcube 3C97', k_si: 2.38, alpha: 1.46, beta: 2.65, Bsat_100C_T: 0.42, T_opt_C: 95, tempCoeff_c2: 0.00007 },
-  { id: 'PC95', name: 'TDK PC95 (HF)', k_si: 0.72, alpha: 1.54, beta: 2.68, Bsat_100C_T: 0.41, T_opt_C: 90, tempCoeff_c2: 0.00006 },
+  { id: 'PC95', name: 'TDK PC95 (HF)', k_si: 2.78, alpha: 1.54, beta: 2.68, Bsat_100C_T: 0.41, T_opt_C: 90, tempCoeff_c2: 0.00006 },
 ];
 
 export const SEMICONDUCTOR_DATABASE: SemiconductorSpec[] = [

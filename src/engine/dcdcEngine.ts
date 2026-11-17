@@ -455,6 +455,74 @@ function calcBsatAtTemp_mT(materialId: string, Bsat_100C_T: number, temp_C: numb
   return Bsat_100_mT * Math.pow(Math.max(0.01, (Tc - T_clamped) / (Tc - 100)), gamma);
 }
 
+/**
+ * Keeps integer transformer turns (Np_turns, Ns_turns) and turnsRatio_n strictly
+ * synchronized across manual edits, 1-click fixes, and AI patches.
+ */
+export function syncDcdcTurnsRatioState(
+  patch: Partial<DcDcDesignState>,
+  candidate: DcDcDesignState,
+  changedKey: keyof DcDcDesignState | null,
+  locks?: { Np_turns?: boolean; Ns_turns?: boolean }
+): DcDcDesignState {
+  const next = { ...candidate };
+  const touchedNpNs =
+    changedKey === 'Np_turns' ||
+    changedKey === 'Ns_turns' ||
+    patch.Np_turns !== undefined ||
+    patch.Ns_turns !== undefined;
+  const touchedRatio =
+    changedKey === 'turnsRatio_n' ||
+    (patch.turnsRatio_n !== undefined && !touchedNpNs);
+
+  if (touchedRatio && patch.Np_turns === undefined && patch.Ns_turns === undefined) {
+    const nTarget = Math.max(0.2, Math.min(25, next.turnsRatio_n));
+    if (locks?.Np_turns && !locks?.Ns_turns) {
+      const npFixed = Math.max(1, Math.round(next.Np_turns));
+      const nsMatched = Math.max(1, Math.round(npFixed / nTarget));
+      next.Np_turns = npFixed;
+      next.Ns_turns = nsMatched;
+      next.turnsRatio_n = Number((npFixed / nsMatched).toFixed(4));
+    } else if (locks?.Ns_turns && !locks?.Np_turns) {
+      const nsFixed = Math.max(1, Math.round(next.Ns_turns));
+      const npMatched = Math.max(2, Math.round(nsFixed * nTarget));
+      next.Np_turns = npMatched;
+      next.Ns_turns = nsFixed;
+      next.turnsRatio_n = Number((npMatched / nsFixed).toFixed(4));
+    } else {
+      const nsBase = Math.max(1, Math.round(next.Ns_turns));
+      const npBase = Math.max(2, Math.round(nsBase * nTarget));
+      let bestNp = npBase;
+      let bestNs = nsBase;
+      let bestErr = Math.abs(npBase / nsBase - nTarget);
+      if (bestErr > 0.015) {
+        const minNs = Math.max(1, nsBase - 2);
+        const maxNs = Math.min(24, nsBase + 6);
+        for (let nsTry = minNs; nsTry <= maxNs; nsTry++) {
+          const npTry = Math.max(2, Math.round(nsTry * nTarget));
+          const err = Math.abs(npTry / nsTry - nTarget) + Math.abs(nsTry - nsBase) * 0.002;
+          if (err < bestErr) {
+            bestErr = err;
+            bestNp = npTry;
+            bestNs = nsTry;
+          }
+        }
+      }
+      next.Np_turns = bestNp;
+      next.Ns_turns = bestNs;
+      next.turnsRatio_n = Number((bestNp / bestNs).toFixed(4));
+    }
+    return next;
+  }
+
+  const npActual = Math.max(1, Math.round(next.Np_turns));
+  const nsActual = Math.max(1, Math.round(next.Ns_turns));
+  next.Np_turns = npActual;
+  next.Ns_turns = nsActual;
+  next.turnsRatio_n = Number((npActual / nsActual).toFixed(4));
+  return next;
+}
+
 export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
   const core = CORE_DATABASE.find((c) => c.id === state.coreId) || CORE_DATABASE[3];
   const material = MATERIAL_DATABASE.find((m) => m.id === state.materialId) || MATERIAL_DATABASE[0];
@@ -473,7 +541,10 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
   const Iout_total_A = Pout / Math.max(Vout, 1);
   const Iout_phase_A = Iout_total_A / nPhases;
 
-  const n = Math.max(state.turnsRatio_n, 0.2);
+  // Derive physical transformer turns ratio strictly from actual integer winding turns
+  const Np_actual = Math.max(1, Math.round(state.Np_turns));
+  const Ns_actual = Math.max(1, Math.round(state.Ns_turns));
+  const n = Math.max(Np_actual / Ns_actual, 0.2);
   const Llk = Math.max(state.Llk_uH * 1e-6, 0.1e-6);
   const Lm = Math.max(state.Lm_uH * 1e-6, 5e-6);
   const Cr = Math.max(state.Cr_nF * 1e-9, 1e-9);
@@ -684,8 +755,6 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
   // ============================================================================
   // MAGNETICS (iGSE + 1D HYPERBOLIC DOWELL + CORE SATURATION)
   // ============================================================================
-  const Np_actual = Math.max(1, Math.round(state.Np_turns));
-  const Ns_actual = Math.max(1, Math.round(state.Ns_turns));
   const Ae_m2 = core.Ae_mm2 * 1e-6;
   const le_m = core.le_mm * 1e-3;
   const Ve_m3 = core.Ve_mm3 * 1e-9;
@@ -769,23 +838,21 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
 
   const ki_igse = computeKiFromSteinmetz(k_eff, alpha_eff, beta_eff);
 
-  const k_scale = 18;
   const Pv_se_base_W_m3 =
-    k_eff * Math.pow(fsw, alpha_eff) * Math.pow(Bpk_T, beta_eff) * k_scale;
+    k_eff * Math.pow(fsw, alpha_eff) * Math.pow(Bpk_T, beta_eff);
 
   const calcIgseCoreLossBaseW = (d_duty: number): { pIgse: number; pSe: number; pvIgse_W_m3: number; pvSe_W_m3: number } => {
     const dClamped = Math.max(0.05, Math.min(0.98, d_duty));
     const vs = V_bridge * (dClamped * Tsw * 0.5);
     const dB = vs / (Np_actual * Ae_m2);
     const bPk = dB / 2;
-    const pvSe = k_eff * Math.pow(fsw, alpha_eff) * Math.pow(bPk, beta_eff) * k_scale;
+    const pvSe = k_eff * Math.pow(fsw, alpha_eff) * Math.pow(bPk, beta_eff);
     const dbdt_active = (2 * dB) / (dClamped * Tsw);
     const pvIgse =
       ki_igse *
       Math.pow(dB, beta_eff - alpha_eff) *
       dClamped *
-      Math.pow(dbdt_active, alpha_eff) *
-      k_scale;
+      Math.pow(dbdt_active, alpha_eff);
     return {
       pIgse: Math.max(0.15, pvIgse * Ve_m3 * nPhases),
       pSe: Math.max(0.15, pvSe * Ve_m3 * nPhases),
@@ -1342,7 +1409,6 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
       Math.pow(deltaB_T, beta_eff - alpha_eff) *
       dClamped *
       Math.pow(dbdt_fixedB, alpha_eff) *
-      k_scale *
       tempFactor_F;
     const pCore_fixedB_W = Math.max(0.05, pv_fixedB * Ve_m3 * nPhases);
     const tCore_fixedB_C = Math.min(
@@ -1373,7 +1439,6 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
       Math.pow(dB_T_val, beta_eff - alpha_eff) *
       dClamped *
       Math.pow(dbdt_val, alpha_eff) *
-      k_scale *
       tempFactor_F;
     const pCore_val_W = Math.max(0.05, pv_igse_val * Ve_m3 * nPhases);
     const tCore_val_C = Math.min(
@@ -1419,13 +1484,12 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
     const ki_mat = computeKiFromSteinmetz(mat.k_si, mat.alpha, mat.beta);
     const dClamped = Math.max(0.05, Math.min(0.98, Deff_nom));
     const dbdt_act = (2 * deltaB_T) / (dClamped * Tsw);
-    const pv_se_base = mat.k_si * Math.pow(fsw, mat.alpha) * Math.pow(Bpk_T, mat.beta) * k_scale;
+    const pv_se_base = mat.k_si * Math.pow(fsw, mat.alpha) * Math.pow(Bpk_T, mat.beta);
     const pv_igse_base =
       ki_mat *
       Math.pow(deltaB_T, mat.beta - mat.alpha) *
       dClamped *
-      Math.pow(dbdt_act, mat.alpha) *
-      k_scale;
+      Math.pow(dbdt_act, mat.alpha);
     let t_eq = state.Tamb_C + ((pv_igse_base * Ve_m3 * nPhases + Pcu_W) / nPhases) * core.Rth_core_CW;
     let f_t = 1.0;
     for (let it = 0; it < 5; it++) {
@@ -1633,7 +1697,8 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
   const D_prime = Math.max(0.05, 1 - D_ind_pcmc);
   const denom_Qp = Math.PI * (mc_slope * D_prime - 0.5);
   const Qp_subharmonic = denom_Qp > 0.04 ? 1 / denom_Qp : 12.0;
-  const slopeStable = denom_Qp > 0.12 && Qp_subharmonic <= 2.5;
+  const slopeStable = denom_Qp > 0.12 && Qp_subharmonic <= 2.0;
+  const mc_min_hint = Math.max(1.5, (0.5 + 1 / (Math.PI * 1.25)) / D_prime);
 
   const Q_charge_nC = ((Ipri_rms_A * Math.sqrt(2)) / (Math.PI * fsw)) * 1e9;
   const Vth_charge_V = (Q_charge_nC * 1e-9) / Cr;
@@ -1766,14 +1831,42 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
   const Ki_ctrl = 1 / Math.max(plantAtWc.mag * compAtWc.mag, 1e-6);
   const Kp_ctrl = Ki_ctrl / wz1;
 
-  // Analog Type-III Op-Amp RC Network Synthesis (assuming R1 = 10 kOhm)
-  const R1_kOhm = 10.0;
-  const R1_Ohm = R1_kOhm * 1e3;
-  const C2_F = 1 / (wp1 * Kp_ctrl * R1_Ohm);
-  const C1_F = Math.max(100e-12, C2_F * (wp1 / wz1 - 1));
-  const R2_Ohm = 1 / (wz1 * C1_F);
-  const R3_Ohm = R1_Ohm / Math.max(wp2 / wz2 - 1, 1.2);
-  const C3_F = 1 / (wp2 * R3_Ohm);
+  // Analog Type-II / Type-III Op-Amp RC Network Synthesis with Automatic Impedance Scaling
+  // Scales R & C inversely so poles/zeros (wz1, wp1, wz2, wp2) and gains (Kp, Ki) stay exact
+  // while keeping R2 in practical E96 range (10–220 kOhm) and C1/C2 in stable C0G/NP0 range.
+  const R1_base_Ohm = 10_000;
+  const C2_base_F = 1 / (wp1 * Kp_ctrl * R1_base_Ohm);
+  const C1_base_F = Math.max(1e-12, C2_base_F * Math.max(0.05, wp1 / wz1 - 1));
+  const R2_base_Ohm = 1 / (wz1 * C1_base_F);
+  const R3_base_Ohm = R1_base_Ohm / Math.max(wp2 / wz2 - 1, 1.2);
+  const C3_base_F = 1 / (wp2 * R3_base_Ohm);
+
+  const idealImpedanceScale = 47_000 / Math.max(R2_base_Ohm, 1);
+  const scaleMin = Math.max(
+    0.22,
+    10_000 / Math.max(R2_base_Ohm, 1),
+    C1_base_F / 47e-9,
+    2_200 / R1_base_Ohm
+  );
+  const scaleMax = Math.min(
+    470,
+    220_000 / Math.max(R2_base_Ohm, 1),
+    C2_base_F / 15e-12,
+    4_700_000 / R1_base_Ohm
+  );
+  const impedanceScale =
+    scaleMax >= scaleMin
+      ? Math.min(scaleMax, Math.max(scaleMin, idealImpedanceScale))
+      : Math.max(0.22, Math.min(470, Math.sqrt(scaleMin * Math.max(scaleMax, 0.22))));
+
+  const R1_Ohm = R1_base_Ohm * impedanceScale;
+  const R2_Ohm = R2_base_Ohm * impedanceScale;
+  const R3_Ohm = R3_base_Ohm * impedanceScale;
+  const C1_F = C1_base_F / impedanceScale;
+  const C2_F = C2_base_F / impedanceScale;
+  const C3_F = C3_base_F / impedanceScale;
+
+  const R1_kOhm = R1_Ohm / 1e3;
   const R2_kOhm = R2_Ohm / 1e3;
   const R3_kOhm = R3_Ohm / 1e3;
   const C1_nF = C1_F * 1e9;
@@ -2214,7 +2307,7 @@ inline void DcDc_Control_ISR(float v_out_adc, float i_pri_adc) {
   if (state.controlType === 'pcmc' && !slopeStable) {
     warnings.push({
       severity: 'error',
-      text: `PCMC Subharmonic Peaking (Qp = ${Qp_subharmonic.toFixed(2)}): Increase slope factor m_c ≥ 1.6.`,
+      text: `PCMC Subharmonic Peaking (Qp = ${Qp_subharmonic.toFixed(2)}): Increase slope factor m_c ≥ ${mc_min_hint.toFixed(2)}.`,
     });
   }
   if (Vsec_overshoot_V > secDevice.Vds_max_V * 0.9) {

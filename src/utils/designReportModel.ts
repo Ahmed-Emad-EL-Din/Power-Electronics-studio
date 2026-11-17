@@ -585,12 +585,14 @@ export function buildDesignReportModel(params: {
           substitution: `${dcdcRes.Vsec_ideal_max_V.toFixed(1)} V + ${(Number(dcdcRes.Vsec_unclamped_pk_V.toFixed(1)) - Number(dcdcRes.Vsec_ideal_max_V.toFixed(1))).toFixed(1)} V = ${dcdcRes.Vsec_unclamped_pk_V.toFixed(1)} V (unclamped) ; Clamped = ${dcdcRes.Vsec_overshoot_V.toFixed(1)} V (Z_0 = ${dcdcRes.Z0_ring_Ohm.toFixed(1)} Ω)`,
           result: `Unclamped = ${dcdcRes.Vsec_unclamped_pk_V.toFixed(1)} V (${maxVdsSecUtil_pct.toFixed(0)}%) · Clamped = ${dcdcRes.Vsec_overshoot_V.toFixed(1)} V (${clampedSecUtil_pct.toFixed(0)}%) vs ${dcdcRes.secDevice.Vds_max_V} V`,
           verdict: {
-            status: clampedSecUtil_pct > 90 ? 'fail' : clampedSecUtil_pct > 80 || maxVdsSecUtil_pct > 98 ? 'warn' : 'pass',
+            status: clampedSecUtil_pct > 90 ? 'fail' : clampedSecUtil_pct > 80 || maxVdsSecUtil_pct > 88 ? 'warn' : 'pass',
             label:
               clampedSecUtil_pct > 90
                 ? 'Secondary Voltage Overstress'
                 : maxVdsSecUtil_pct > 98
                 ? 'Zero Unclamped Margin (Use 200V SR)'
+                : maxVdsSecUtil_pct > 88 || clampedSecUtil_pct > 80
+                ? 'Low Unclamped Margin (Use 200V SR)'
                 : 'Secondary PIV Safe',
           },
         },
@@ -870,7 +872,7 @@ export function buildDesignReportModel(params: {
           },
           {
             label: `Output Bank C_o = ${dcdcState.Co_uF} µF / ${dcdcState.ESR_Co_mOhm} mΩ ESR${outCapRow ? ` (BOM: ${outCapRow.sol.bank_C_uF.toFixed(0)} µF / ${outCapRow.sol.bank_ESR_mOhm.toFixed(2)} mΩ)` : ''}`,
-            detail: `Holds steady-state output ripple to ${dcdcRes.Vout_ripple_mVpp.toFixed(1)} mVpp (${((dcdcRes.Vout_ripple_mVpp / (Vout * 1000)) * 100).toFixed(2)}% of ${Vout}V) while absorbing I_Co,rms = ${dcdcRes.ICo_rms_A.toFixed(1)} A.${outCapRow && Math.abs(outCapRow.sol.bank_ESR_mOhm - dcdcState.ESR_Co_mOhm) > Math.max(1.2, dcdcState.ESR_Co_mOhm * 0.45) ? ` NOTE: Physical BOM ESR (${outCapRow.sol.bank_ESR_mOhm.toFixed(2)} mΩ) differs from loop ESR (${dcdcState.ESR_Co_mOhm} mΩ) — click "Sync C_o & ESR to Control Loop" in alerts to align them.` : ''}`,
+            detail: `Holds steady-state output ripple to ${dcdcRes.Vout_ripple_mVpp.toFixed(1)} mVpp (${((dcdcRes.Vout_ripple_mVpp / (Vout * 1000)) * 100).toFixed(2)}% of ${Vout}V) while absorbing I_Co,rms = ${dcdcRes.ICo_rms_A.toFixed(1)} A.${outCapRow && outCapRow.sol.unitPart.dielectric !== 'ceramic-mlcc' ? ` HF Decoupling: Place 2–4× 10 µF / ${Math.max(100, Math.ceil((Vout * 2) / 50) * 50)} V X7S/X7R MLCCs in parallel right at the rectifier output to handle ${dcdcState.fsw_kHz} kHz switching edges.` : ''}${outCapRow && Math.abs(outCapRow.sol.bank_ESR_mOhm - dcdcState.ESR_Co_mOhm) > Math.max(1.2, dcdcState.ESR_Co_mOhm * 0.45) ? ` NOTE: Physical BOM ESR (${outCapRow.sol.bank_ESR_mOhm.toFixed(2)} mΩ) differs from loop ESR (${dcdcState.ESR_Co_mOhm} mΩ) — click "Sync C_o & ESR to Control Loop" in alerts to align them.` : ''}`,
           },
           {
             label: `Y1 Isolation Barrier Rating (250/500 Vac · 1500 Vdc Continuous)`,
@@ -916,18 +918,28 @@ export function buildDesignReportModel(params: {
           : 'pass',
       intro: `Synthesizes closed-loop analog/digital pole-zero networks across nominal and worst-case LC tolerances, verifies subharmonic inner current ramp stability, and checks Middlebrook input filter interaction.`,
       rationale: {
-        heading: `Why Control Architecture (${dcdcState.controlType.toUpperCase()}), f_c = ${dcdcState.fc_target_kHz} kHz & Slope Compensation m_c = ${dcdcRes.mc_slope.toFixed(2)} Were Chosen`,
+        heading:
+          dcdcState.controlType === 'pcmc'
+            ? `Why Control Architecture (PCMC), f_c = ${dcdcState.fc_target_kHz} kHz & Slope Compensation m_c = ${dcdcRes.mc_slope.toFixed(2)} Were Chosen`
+            : `Why Control Architecture (${dcdcState.controlType.toUpperCase()}), f_c = ${dcdcState.fc_target_kHz} kHz & Phase Boost Were Chosen`,
         points: [
           {
             label: `Crossover Placement (f_c = ${dcdcRes.fc_actual_kHz.toFixed(1)} kHz vs f_0 = ${dcdcRes.f0_lc_kHz.toFixed(2)} kHz & f_sw = ${dcdcState.fsw_kHz} kHz)`,
             detail: `Places crossover well above the output LC pole (${dcdcRes.f0_lc_kHz.toFixed(2)} kHz) for fast load-step recovery, while staying below f_sw/8 (${(dcdcState.fsw_kHz / 8).toFixed(1)} kHz) to attenuate switching ripple & digital sampling phase lag.`,
           },
           {
-            label: dcdcState.controlType === 'pcmc' ? `PCMC Artificial Slope Ramp (m_c = ${dcdcRes.mc_slope.toFixed(2)})` : `Compensator Phase Boost (f_z1/f_z2 → f_p1/f_p2)`,
+            label:
+              dcdcState.controlType === 'pcmc'
+                ? `PCMC Artificial Slope Ramp (m_c = ${dcdcRes.mc_slope.toFixed(2)})`
+                : dcdcRes.isTwoZeroComp
+                ? `Type-III Compensator Phase Boost (f_z1/f_z2 → f_p1/f_p2)`
+                : `Type-II Compensator Phase Boost (f_z1 → f_p1)`,
             detail:
               dcdcState.controlType === 'pcmc'
                 ? `Injects S_e = ${dcdcRes.Se_ramp_V_us.toFixed(3)} V/µs artificial ramp against downslope S_f = ${dcdcRes.Sf_downslope_V_us.toFixed(3)} V/µs, clamping Ridley subharmonic Q_p = ${dcdcRes.Qp_subharmonic.toFixed(2)} cleanly below oscillation threshold.`
-                : `Places dual zeros near f_0 (${dcdcRes.fz1_kHz.toFixed(2)} / ${dcdcRes.fz2_kHz.toFixed(2)} kHz) to cancel LC −180° phase lag and poles above f_esr (${dcdcRes.f_esr_kHz.toFixed(1)} kHz) for high-frequency noise roll-off.`,
+                : dcdcRes.isTwoZeroComp
+                ? `Places dual zeros near f_0 (${dcdcRes.fz1_kHz.toFixed(2)} / ${dcdcRes.fz2_kHz.toFixed(2)} kHz) to cancel LC −180° phase lag and dual poles above f_esr (${dcdcRes.fp1_kHz.toFixed(2)} / ${dcdcRes.fp2_kHz.toFixed(1)} kHz) for high-frequency noise roll-off.`
+                : `Places single Type-II zero f_z1 = ${dcdcRes.fz1_kHz.toFixed(2)} kHz for target phase boost and high-frequency pole f_p1 = ${dcdcRes.fp1_kHz.toFixed(2)} kHz to attenuate switching ripple.`,
           },
           {
             label: `Middlebrook Input Filter Decoupling (ΔZ_MB = ${dcdcRes.middlebrookMargin_dB.toFixed(1)} dB ≥ 6.0 dB)`,
@@ -943,11 +955,22 @@ export function buildDesignReportModel(params: {
           tex: `f_0 = \\frac{1}{2\\pi\\sqrt{L_o C_o}}, \\quad f_{z,\\text{esr}} = \\frac{1}{2\\pi\\, R_{\\text{ESR}}\\, C_o}, \\quad Q_p = \\frac{1}{\\pi\\left(m_c(1-D_{\\text{eff}}) - 0.5\\right)}`,
           formulaPlain: 'f0 = 1/(2*pi*sqrt(Lo*Co)) ;  fz,esr = 1/(2*pi*ESR*Co) ;  Qp = 1 / (pi*(mc*(1-D_eff) - 0.5))',
           substitution: `f_0 = ${dcdcRes.f0_lc_kHz.toFixed(2)} kHz (WC ${dcdcRes.f0_wc_min_kHz.toFixed(2)}–${dcdcRes.f0_wc_max_kHz.toFixed(2)} kHz) ; f_esr = ${dcdcRes.f_esr_kHz.toFixed(1)} kHz ; Q_p = 1/(π×(${dcdcRes.mc_slope.toFixed(2)}×${D_prime_pcmc.toFixed(3)} - 0.5)) = ${dcdcRes.Qp_subharmonic.toFixed(2)}`,
-          result: `f_0 = ${dcdcRes.f0_lc_kHz.toFixed(2)} kHz · f_esr = ${dcdcRes.f_esr_kHz.toFixed(1)} kHz · Subharmonic Q_p = ${dcdcRes.Qp_subharmonic.toFixed(2)}`,
-          verdict: {
-            status: dcdcState.controlType === 'pcmc' && !dcdcRes.slopeStable ? 'fail' : 'pass',
-            label: dcdcRes.slopeStable ? 'Subharmonic Damped' : 'Subharmonic Oscillation Risk',
-          },
+          result:
+            dcdcState.controlType === 'pcmc'
+              ? `f_0 = ${dcdcRes.f0_lc_kHz.toFixed(2)} kHz · f_esr = ${dcdcRes.f_esr_kHz.toFixed(1)} kHz · Subharmonic Q_p = ${dcdcRes.Qp_subharmonic.toFixed(2)}`
+              : `f_0 = ${dcdcRes.f0_lc_kHz.toFixed(2)} kHz · f_esr = ${dcdcRes.f_esr_kHz.toFixed(1)} kHz · PCMC Q_p N/A (${dcdcState.controlType.toUpperCase()})`,
+          verdict:
+            dcdcState.controlType !== 'pcmc'
+              ? { status: 'pass', label: `N/A (${dcdcState.controlType.toUpperCase()} Mode)` }
+              : {
+                  status: !dcdcRes.slopeStable || dcdcRes.Qp_subharmonic > 2.0 ? 'fail' : dcdcRes.Qp_subharmonic > 1.8 ? 'warn' : 'pass',
+                  label:
+                    !dcdcRes.slopeStable || dcdcRes.Qp_subharmonic > 2.0
+                      ? 'Subharmonic Oscillation Risk'
+                      : dcdcRes.Qp_subharmonic > 1.8
+                      ? 'Elevated Q_p Peaking'
+                      : 'Subharmonic Damped',
+                },
         },
         {
           step: `${cD6}.2`,

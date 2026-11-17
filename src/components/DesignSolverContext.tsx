@@ -18,6 +18,7 @@ import {
   PerCapConfig,
   PerInductorConfig,
 } from '../engine/passiveDesignEngine';
+import { syncDcdcTurnsRatioState } from '../engine/dcdcEngine';
 
 export const DEFAULT_INDUCTOR_LOCKS = {
   targetL_uH: false,
@@ -159,9 +160,23 @@ export const DesignSolverProvider: React.FC<DesignSolverProviderProps> = ({
       options?: PatchApplyOptions
     ) => {
       const prev = dcdcStateRef.current;
-      const candidate: DcDcDesignState = { ...prev, ...patch };
+      let candidate: DcDcDesignState = { ...prev, ...patch };
       if (changedKey === 'materialId' && patch.customSteinmetzEnabled === undefined) {
         candidate.customSteinmetzEnabled = false;
+      }
+      if (
+        changedKey !== 'presetName' &&
+        (changedKey === 'turnsRatio_n' ||
+          changedKey === 'Np_turns' ||
+          changedKey === 'Ns_turns' ||
+          patch.turnsRatio_n !== undefined ||
+          patch.Np_turns !== undefined ||
+          patch.Ns_turns !== undefined)
+      ) {
+        candidate = syncDcdcTurnsRatioState(patch, candidate, changedKey, {
+          Np_turns: dcdcLocked.Np_turns,
+          Ns_turns: dcdcLocked.Ns_turns,
+        });
       }
       if (options?.bypassAutoOpt || !dcdcAutoOpt || changedKey === 'presetName') {
         dcdcStateRef.current = candidate;

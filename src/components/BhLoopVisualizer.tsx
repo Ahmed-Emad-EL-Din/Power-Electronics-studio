@@ -73,17 +73,14 @@ export const BhLoopVisualizer: React.FC<BhLoopVisualizerProps> = ({
     const bPk_T_eff = Math.max(0.002, bPk_mT_eff * 1e-3);
     const dB_T_eff = 2 * bPk_T_eff;
     const dClamped = Math.max(0.05, Math.min(0.98, res.Deff_nom));
-    const k_scale = 18;
-
     // Base volumetric loss at T_opt (W/m^3)
-    const pv_se_base = ct.k_eff * Math.pow(f_Hz, ct.alpha_eff) * Math.pow(bPk_T_eff, ct.beta_eff) * k_scale;
+    const pv_se_base = ct.k_eff * Math.pow(f_Hz, ct.alpha_eff) * Math.pow(bPk_T_eff, ct.beta_eff);
     const dbdt_active = (2 * dB_T_eff * f_Hz) / dClamped;
     const pv_igse_base =
       ct.ki_eff *
       Math.pow(dB_T_eff, ct.beta_eff - ct.alpha_eff) *
       dClamped *
-      Math.pow(dbdt_active, ct.alpha_eff) *
-      k_scale;
+      Math.pow(dbdt_active, ct.alpha_eff);
 
     // DC bias core loss multiplier (Premagnetization effect in ferrites: Pv increases with H_dc)
     const H_dc_Am = (res.Np_actual * dcBiasCurrent_A) / le_m;

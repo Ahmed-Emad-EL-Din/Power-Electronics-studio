@@ -143,11 +143,12 @@ export function synthesizeDcdcCoreThermalFixes(
   for (const dNp of [2, 4, 6]) {
     const nextNp = res.Np_actual + dNp;
     const nextNs = Math.max(1, Math.round(nextNp * ratio));
+    const nextRatio = Number((nextNp / nextNs).toFixed(4));
     evalCandidate(
       `turns-up-${nextNp}`,
       'turns',
       `Increase Turns Np = ${res.Np_actual}→${nextNp}T (Ns=${nextNs}T)`,
-      { Np_turns: nextNp, Ns_turns: nextNs }
+      { Np_turns: nextNp, Ns_turns: nextNs, turnsRatio_n: nextRatio }
     );
   }
 
@@ -221,13 +222,14 @@ export function synthesizeDcdcSaturationFixes(
       ? res.saturationCheck.recommendedSafeNp_turns
       : res.saturationCheck.recommendedMinNp_turns;
     const nextNs = Math.max(1, Math.round(nextNp * ratio));
-    const trialRes = solveDcDcDesign({ ...state, Np_turns: nextNp, Ns_turns: nextNs });
+    const nextRatio = Number((nextNp / nextNs).toFixed(4));
+    const trialRes = solveDcDcDesign({ ...state, Np_turns: nextNp, Ns_turns: nextNs, turnsRatio_n: nextRatio });
     fixes.push({
       id: 'dcdc-sat-np',
       label: `Set Safe Turns Np = ${nextNp}T (Ns = ${nextNs}T)`,
       impact: `B_pk ${res.Bpk_mT.toFixed(0)} → ${trialRes.Bpk_mT.toFixed(0)} mT (${trialRes.saturationCheck.utilization_100C_pct.toFixed(0)}% B_sat)`,
       targetKind: 'dcdc',
-      dcdcPatch: { Np_turns: nextNp, Ns_turns: nextNs },
+      dcdcPatch: { Np_turns: nextNp, Ns_turns: nextNs, turnsRatio_n: nextRatio },
     });
   }
 
@@ -319,6 +321,84 @@ export function synthesizeDcdcWindowFixes(
   }
 
   return fixes.slice(0, 3);
+}
+
+// ----------------------------------------------------------------------------
+// 3b. OVERSIZED TRANSFORMER CORE COMPACT CO-OPTIMIZATION FIX SYNTHESIZER
+// ----------------------------------------------------------------------------
+export function synthesizeDcdcCompactCoreFixes(
+  state: DcDcDesignState,
+  res: DcDcResults
+): DesignAlertFix[] {
+  const nTarget = res.Np_actual / Math.max(1, res.Ns_actual);
+  const bSat100_T = Math.max(0.25, res.material.Bsat_100C_T);
+  const bTarget_T = Math.min(
+    0.45 * bSat100_T,
+    Math.max(0.05, 0.14 * Math.pow(100 / Math.max(25, state.fsw_kHz), 0.52))
+  );
+  const voltSec_Vs = res.voltSec_applied_Vus * 1e-6;
+  const awgArea: Record<number, number> = { 38: 0.00811, 40: 0.00487, 42: 0.00317 };
+  const useAwg = state.fsw_kHz >= 140 && state.litzStrandAWG < 40 ? 40 : state.litzStrandAWG;
+  const sArea = awgArea[useAwg] || 0.00487;
+  const basePmag = res.coreThermalAnalysis.Pmag_total_W;
+
+  const smallerCores = CORE_DATABASE.filter(
+    (c) => c.id !== 'elp64' && c.id !== state.coreId && c.Ve_mm3 < res.core.Ve_mm3 * 0.92
+  ).sort((a, b) => b.Ve_mm3 - a.Ve_mm3);
+
+  interface CompactCandidate {
+    fix: DesignAlertFix;
+    score: number;
+  }
+  const scored: CompactCandidate[] = [];
+
+  for (const core of smallerCores) {
+    const nsRaw = Math.max(1, Math.round(voltSec_Vs / (2 * bTarget_T * (core.Ae_mm2 * 1e-6) * nTarget)));
+    const npRaw = Math.max(2, Math.round(nsRaw * nTarget));
+    const maxPri = Math.max(30, Math.floor((core.Aw_mm2 * 0.28) / (npRaw * sArea)));
+    const maxSec = Math.max(50, Math.floor((core.Aw_mm2 * 0.30) / (nsRaw * sArea)));
+    const priStrands = Math.min(state.priStrands, maxPri);
+    const secStrands = Math.min(state.secStrands, maxSec);
+    const ratio = Number((npRaw / nsRaw).toFixed(4));
+
+    const patch: Partial<DcDcDesignState> = {
+      coreId: core.id,
+      Np_turns: npRaw,
+      Ns_turns: nsRaw,
+      turnsRatio_n: ratio,
+      litzStrandAWG: useAwg as 38 | 40 | 42,
+      priStrands,
+      secStrands,
+    };
+    const trialState: DcDcDesignState = { ...state, ...patch };
+    const trialRes = solveDcDcDesign(trialState);
+    if (
+      trialRes.saturationCheck.status === 'critical' ||
+      !trialRes.coreThermalAnalysis.coreThermalStable ||
+      trialRes.coreThermalAnalysis.Tcore_hotspot_C > 112 ||
+      trialRes.saturationCheck.utilization_100C_pct > 75
+    ) {
+      continue;
+    }
+    const win = checkTxWindowFits(trialState, trialRes);
+    if (!win.fitsInWindow || !win.creepagePass) continue;
+
+    const pMagNew = trialRes.coreThermalAnalysis.Pmag_total_W;
+    const score = (basePmag - pMagNew) * 15 - pMagNew - 0.00012 * core.Ve_mm3;
+    scored.push({
+      score,
+      fix: {
+        id: `dcdc-compact-${core.id}`,
+        label: `Downsize to ${core.name} (${npRaw}/${nsRaw}T, ${trialRes.Bpk_mT.toFixed(0)} mT)`,
+        impact: `P_mag ${basePmag.toFixed(2)}→${pMagNew.toFixed(2)}W (P_cu ${res.Pcu_W.toFixed(1)}→${trialRes.Pcu_W.toFixed(1)}W) · ${trialRes.saturationCheck.utilization_100C_pct.toFixed(0)}% B_sat · T=${trialRes.coreThermalAnalysis.Tcore_hotspot_C.toFixed(0)}°C`,
+        targetKind: 'dcdc',
+        dcdcPatch: patch,
+      },
+    });
+  }
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, 3).map((s) => s.fix);
 }
 
 // ----------------------------------------------------------------------------

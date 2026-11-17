@@ -18,7 +18,7 @@ import {
   READY_COTS_CAPACITORS,
 } from '../data/passiveDatabase';
 import { AcDcResults, solveAcDcDesign } from './acdcEngine';
-import { DcDcResults, solveDcDcDesign } from './dcdcEngine';
+import { DcDcResults, solveDcDcDesign, syncDcdcTurnsRatioState } from './dcdcEngine';
 import {
   DesignAlertFix,
   DesignAlertItem,
@@ -661,6 +661,13 @@ export function applyFixToClonedContext(
 
   if (fix.targetKind === 'dcdc' && fix.dcdcPatch) {
     nextDcdc = { ...nextDcdc, ...fix.dcdcPatch };
+    if (
+      fix.dcdcPatch.turnsRatio_n !== undefined ||
+      fix.dcdcPatch.Np_turns !== undefined ||
+      fix.dcdcPatch.Ns_turns !== undefined
+    ) {
+      nextDcdc = syncDcdcTurnsRatioState(fix.dcdcPatch, nextDcdc, null);
+    }
   } else if (fix.targetKind === 'acdc' && fix.acdcPatch) {
     nextAcdc = { ...nextAcdc, ...fix.acdcPatch };
   } else if (fix.targetKind === 'inductor' && fix.itemId && fix.inductorOverridesPatch) {

@@ -34,6 +34,13 @@ import {
   stageAndValidateAiFixes,
 } from './engine/aiAgentEngine';
 import {
+  AiProviderConfig,
+  loadAiProviderConfig,
+  saveAiProviderConfig,
+  toServerAiConfig,
+  validateAiProviderConfig,
+} from './engine/aiProviderConfig';
+import {
   DEFAULT_CAP_BANK_LOCKS,
   DEFAULT_INDUCTOR_LOCKS,
   DesignSolverProvider,
@@ -142,10 +149,16 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
   const [aiChatMessages, setAiChatMessages] = useState<AiChatMessage[]>([]);
   const [aiSendingChat, setAiSendingChat] = useState<boolean>(false);
   const [aiLastAuditedFingerprint, setAiLastAuditedFingerprint] = useState<string>('');
+  const [aiConfig, setAiConfigState] = useState<AiProviderConfig>(() => loadAiProviderConfig());
   const pendingVerificationRef = useRef<{ active: boolean; appliedSummary: string[] }>({
     active: false,
     appliedSummary: [],
   });
+
+  const handleChangeAiConfig = (next: AiProviderConfig) => {
+    setAiConfigState(saveAiProviderConfig(next));
+    setAiAuditError(null);
+  };
 
   const [pinnedAcdc, setPinnedAcdc] = useState<AcDcDesignState | null>(null);
   const [pinnedDcdc, setPinnedDcdc] = useState<DcDcDesignState | null>(null);
@@ -217,6 +230,13 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
     Boolean(aiLastAuditedFingerprint) && aiLastAuditedFingerprint !== currentFingerprint;
 
   const runAiAudit = async (opts?: { isVerificationPass?: boolean; appliedSummary?: string[] }) => {
+    const cfgErr = validateAiProviderConfig(aiConfig);
+    if (cfgErr) {
+      setAiAuditError(cfgErr);
+      setAiAuditing(false);
+      setAiVerifyingPass(false);
+      return;
+    }
     const isVerify = Boolean(opts?.isVerificationPass);
     setAiAuditing(true);
     setAiVerifyingPass(isVerify);
@@ -232,6 +252,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
           snapshot,
           isVerificationPass: isVerify,
           appliedSummary: opts?.appliedSummary || [],
+          aiConfig: toServerAiConfig(aiConfig),
         }),
       });
       const data = await res.json();
@@ -379,6 +400,22 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
     };
     const nextHistory = [...aiChatMessages, userMsg];
     setAiChatMessages(nextHistory);
+
+    const cfgErr = validateAiProviderConfig(aiConfig);
+    if (cfgErr) {
+      setAiChatMessages((prev) => [
+        ...prev,
+        {
+          id: `ai-err-${Date.now()}`,
+          role: 'assistant',
+          text: `Configuration required: ${cfgErr}`,
+          error: cfgErr,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
+      ]);
+      return;
+    }
+
     setAiSendingChat(true);
 
     try {
@@ -394,6 +431,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
             text: m.text,
           })),
           snapshot,
+          aiConfig: toServerAiConfig(aiConfig),
         }),
       });
       const data = await res.json();
@@ -1126,6 +1164,8 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
           onSendChat={handleAiSendChat}
           onJumpToAlertId={handleAiJumpToAlertId}
           onJumpToAlertObj={handleJumpToAlert}
+          aiConfig={aiConfig}
+          onChangeAiConfig={handleChangeAiConfig}
         />
       </div>
 
@@ -1158,6 +1198,8 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
         onEquipDcDcPrimary={handleEquipDcDcPrimary}
         onEquipDcDcSecondary={handleEquipDcDcSecondary}
         onEquipAcDcFastSwitch={handleEquipAcDcFastSwitch}
+        aiConfig={aiConfig}
+        onChangeAiConfig={handleChangeAiConfig}
       />
       </div>
 
