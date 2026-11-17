@@ -41,6 +41,24 @@ function makeUnlockedDcdcLocks(): Record<DcDcLockableKey, boolean> {
   return unlocked;
 }
 
+const UNLOCKED_INDUCTOR_LOCKS = {
+  targetL_uH: false,
+  coreId: false,
+  materialId: false,
+  turnsN: false,
+  airGap_mm: false,
+  wireAwg: false,
+  parallelStrands: false,
+  conductorForm: false,
+};
+
+const UNLOCKED_CAP_BANK_LOCKS = {
+  targetC_uF: false,
+  partId: false,
+  seriesCount: false,
+  parallelCount: false,
+};
+
 function solvePassiveRows(
   dcdcState: DcDcDesignState,
   dcdcRes: ReturnType<typeof solveDcDcDesign>,
@@ -50,22 +68,22 @@ function solvePassiveRows(
   const dcdcIndReqs = extractCircuitInductors('dcdc', dcdcState, dcdcRes, acdcState, acdcRes);
   const dcdcInductorRows = dcdcIndReqs.map((req) => ({
     req,
-    sol: solveCustomInductorDesign(req, {}, {}),
+    sol: solveCustomInductorDesign(req, {}, UNLOCKED_INDUCTOR_LOCKS),
   }));
   const dcdcCapReqs = extractCircuitCapacitors('dcdc', dcdcState, dcdcRes, acdcState, acdcRes);
   const dcdcCapRows = dcdcCapReqs.map((req) => ({
     req,
-    sol: solveCapacitorBank(req, {}, {}),
+    sol: solveCapacitorBank(req, {}, UNLOCKED_CAP_BANK_LOCKS),
   }));
   const acdcIndReqs = extractCircuitInductors('acdc', dcdcState, dcdcRes, acdcState, acdcRes);
   const acdcInductorRows = acdcIndReqs.map((req) => ({
     req,
-    sol: solveCustomInductorDesign(req, {}, {}),
+    sol: solveCustomInductorDesign(req, {}, UNLOCKED_INDUCTOR_LOCKS),
   }));
   const acdcCapReqs = extractCircuitCapacitors('acdc', dcdcState, dcdcRes, acdcState, acdcRes);
   const acdcCapRows = acdcCapReqs.map((req) => ({
     req,
-    sol: solveCapacitorBank(req, {}, {}),
+    sol: solveCapacitorBank(req, {}, UNLOCKED_CAP_BANK_LOCKS),
   }));
   return { dcdcInductorRows, dcdcCapRows, acdcInductorRows, acdcCapRows };
 }
