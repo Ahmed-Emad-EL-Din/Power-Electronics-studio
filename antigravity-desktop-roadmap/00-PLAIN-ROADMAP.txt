@@ -1,0 +1,114 @@
+================================================================================
+POWERSTAGE CAD & CONTROL STUDIO — NATIVE WINDOWS .EXE AGENT MASTER ROADMAP
+Target Agent: Antigravity / Autonomous Desktop Coding Agent
+Target Architecture: Tauri v2 + Rust (Rayon/SIMD/wgpu/rusqlite) + React 19 + Sidecar CLI Tools
+================================================================================
+
+1. EXECUTIVE OBJECTIVE
+--------------------------------------------------------------------------------
+Transform the web-based PowerStage CAD & Control Studio into a native, high-performance
+Windows 64-bit desktop executable (`PowerStageStudio.exe`) that unlocks the full hardware
+capabilities of a modern engineering workstation PC:
+  - Multi-core CPU (16–64 threads via Rust `rayon` + AVX2/AVX-512 SIMD)
+  - Dedicated GPU Compute (`wgpu` / DirectX 12 / Vulkan / CUDA compute shaders)
+  - Native C/C++ SPICE & Finite-Element Magnetics solvers (`ngspice.dll`, `LTspice.exe`, `FEMM`)
+  - Local high-speed SQLite/DuckDB offline database (500,000+ LCSC/Mouser/DigiKey parts + SPICE models)
+  - Direct PC Hardware I/O (USB-TMC / VISA Oscilloscopes, Serial/CAN-FD DSP HIL live tuning)
+  - Native EDA & CAD file system integration (KiCad 8 `.kicad_sch`/`.kicad_pcb`, `.STEP` 3D cores, CCS/STM32Cube projects)
+
+2. WHY NATIVE PC (.EXE) VS. BROWSER SANDBOX?
+--------------------------------------------------------------------------------
+[Browser Limitation]                     -> [Native Windows .EXE Advantage]
+- Single-threaded JS main thread         -> Rust `rayon` parallel thread-pool across all CPU cores
+- ~500 design sweeps before UI freezes   -> 250,000+ Pareto & Monte Carlo sweeps in <180 ms (AVX2 SIMD)
+- 1D analytical Dowell magnetics only    -> 2D/3D GPU Finite-Element (FEM) Poisson/Helmholtz flux solver
+- Averaged state-space approximations    -> Cycle-accurate `ngspice.dll` FFI & headless `LTspice.exe -b`
+- In-memory JSON array (~100 parts)      -> Local `rusqlite` FTS5 database with 500k+ parts & `.lib` curves
+- Manual copy-paste of C filter code     -> Direct UART/CAN-FD/JTAG live telemetry & RAM coefficient hot-swap
+- Simulated Bode plots only              -> Live SCPI/VISA overlay of physical Bode 100 / Keysight scope traces
+
+3. ESSENTIAL TOOLS & MCP SERVERS FOR THE AI AGENT (ANTIGRAVITY)
+--------------------------------------------------------------------------------
+Before running the 8 build prompts, equip the Antigravity agent with these tools:
+
+A. Core Compiler & Build Toolchain (Windows 11 x64):
+   - Rust Toolchain: `rustup` (`stable-x86_64-pc-windows-msvc`), `cargo`, `clippy`, `rustfmt`
+   - Visual Studio 2022 Build Tools: Desktop Development with C++ (MSVC v143, Windows 10/11 SDK)
+   - Node.js 22 LTS + `pnpm` or `npm` (for Vite + React UI frontend)
+   - Tauri v2 CLI: `cargo install tauri-cli@^2.0.0`
+
+B. Agent MCP (Model Context Protocol) Servers & CLI Capabilities:
+   - `filesystem-mcp`: Full read/write access to workspace, `%APPDATA%`, and KiCad/LTspice directories.
+   - `terminal-mcp` / Bash/PowerShell runner: To run `cargo check --message-format=json`, `cargo test`, `pnpm build`.
+   - `sqlite-mcp`: Allows the agent to inspect, seed, and verify the local `components.sqlite3` catalog.
+   - `fetch / web-scraper-mcp`: Allows the agent to pull manufacturer `.lib`/`.subckt` SPICE models (Infineon, Wolfspeed, EPC, TDK, Ferroxcube).
+
+C. External Engineering Sidecars (Bundled in `src-tauri/binaries/` or auto-detected):
+   - `ngspice.dll` (Shared ngspice library v42+ loaded via Rust `libloading` FFI)
+   - `LTspice.exe` (Auto-detected at `%LOCALAPPDATA%\Programs\ADI\LTspice\LTspice.exe`, invoked with `-b -Run`)
+   - `femm.exe` (Finite Element Method Magnetics 4.2 invoked headlessly via Lua script IPC)
+   - `kicad-cli.exe` (KiCad 8.0+ CLI for automated DRC, schematic ERC, and Gerber/3D STEP generation)
+
+4. TARGET REPOSITORY DIRECTORY STRUCTURE
+--------------------------------------------------------------------------------
+powerstage-studio-desktop/
+├── package.json
+├── vite.config.ts
+├── src/                                  # React 19 + TypeScript + Tailwind UI (ported from web app)
+│   ├── bridge/
+│   │   └── tauriCommands.ts              # Typed wrappers around `@tauri-apps/api/core` invoke() & Channel
+│   ├── components/                       # Existing + Desktop-enhanced workbenches
+│   ├── engine/                           # Fallback JS engine + TypeScript DTO interfaces
+│   └── workers/
+├── src-tauri/                            # Native Rust Backend (PC Hardware Powerhouse)
+│   ├── Cargo.toml
+│   ├── tauri.conf.json
+│   ├── capabilities/default.json
+│   ├── binaries/                         # Sidecar binaries (ngspice.dll, femm-runner.exe)
+│   └── src/
+│       ├── main.rs
+│       ├── lib.rs
+│       ├── ipc_commands.rs               # #[tauri::command] handlers & streaming Channels
+│       ├── physics/
+│       │   ├── mod.rs
+│       │   ├── acdc_pfc.rs               # 2-Ph Interleaved PFC & Vienna solver (f64x4 SIMD)
+│       │   ├── dcdc_psfb_llc.rs          # PSFB, 2-Ph PSFB, LLC FHA + Time-Domain ODE solver
+│       │   ├── magnetics_igse.rs         # iGSE, Steinmetz, Jiles-Atherton B-H, Dowell 2D
+│       │   ├── pareto_optimizer.rs       # Rayon multi-threaded NSGA-II / 100k Grid Optimizer
+│       │   └── monte_carlo.rs            # 50,000-run tolerance & lifetime reliability engine
+│       ├── gpu_fem/
+│       │   ├── mod.rs
+│       │   ├── wgpu_context.rs           # Native DirectX 12 / Vulkan GPU compute pipeline
+│       │   ├── shaders/
+│       │   │   ├── magnetic_poisson.wgsl # 2D/3D vector potential A_z & fringing flux shader
+│       │   │   └── thermal_fvm.wgsl      # 3D Heatsink + PCB copper Finite Volume thermal solver
+│       ├── spice_bridge/
+│       │   ├── mod.rs
+│       │   ├── ngspice_ffi.rs            # C FFI bindings to ngspice.dll (zero-copy waveform callbacks)
+│       │   ├── ltspice_cli.rs            # Headless LTspice.exe -b runner & .raw binary file parser
+│       │   └── netlist_synth.rs          # Generates complete .cir/.asc netlists with parasitics
+│       ├── catalog_db/
+│       │   ├── mod.rs
+│       │   ├── schema.sql                # SQLite schema for MOSFETs, SiC, GaN, Cores, Capacitors
+│       │   ├── sqlite_repo.rs            # Sub-millisecond parametric filter & BOM pricing engine
+│       │   └── spice_model_parser.rs     # Extracts Rdson(T), Coss(V), Eon/Eoff from vendor .lib files
+│       ├── hardware_hil/
+│       │   ├── mod.rs
+│       │   ├── visa_scpi.rs              # USB-TMC / TCP-IP SCPI client for Rigol/Keysight/Tektronix/Bode100
+│       │   └── dsp_serial_can.rs         # UART / CAN-FD live 2p2z/3p3z coefficient hot-reload for C2000/STM32
+│       └── eda_export/
+│           ├── mod.rs
+│           ├── kicad_sexpr.rs            # Generates native KiCad 8 .kicad_sch and .kicad_pcb S-expressions
+│           ├── step_3d_core.rs           # Generates ISO 10303-21 .STEP 3D geometry of custom wound cores
+│           └── firmware_project.rs       # Generates complete TI CCS (C2000) & STM32CubeIDE HRTIM projects
+
+5. PHASED EXECUTION SEQUENCE (RUN PROMPTS 01 -> 08 IN ORDER)
+--------------------------------------------------------------------------------
+- PHASE 1 [Prompt 01]: Initialize Tauri v2 + Rust workspace, migrate React UI, establish zero-copy IPC.
+- PHASE 2 [Prompt 02]: Port AC-DC & DC-DC physics to Rust with `rayon` multi-threading + AVX2 SIMD; add 100,000-point Pareto & Monte Carlo sweeps.
+- PHASE 3 [Prompt 03]: Build `wgpu` (DirectX 12 / Vulkan) GPU compute shaders for 2D/3D winding window fringing flux, eddy loss, and PCB thermal maps.
+- PHASE 4 [Prompt 04]: Integrate native `ngspice.dll` FFI & headless `LTspice.exe -b` netlist generation and `.raw` waveform streaming.
+- PHASE 5 [Prompt 05]: Build offline `rusqlite` SQLite database (500k+ parts), `.lib` SPICE model parser, and datasheet curve digitizer.
+- PHASE 6 [Prompt 06]: Add PC Hardware-in-the-Loop (HIL): VISA/SCPI oscilloscope & FRA Bode overlay + live UART/CAN-FD DSP tuning.
+- PHASE 7 [Prompt 07]: Implement native KiCad 8 `.kicad_sch`/`.kicad_pcb` generator, 3D `.STEP` transformer exporter, and full C2000/STM32 IDE projects.
+- PHASE 8 [Prompt 08]: Configure Antigravity self-verification hooks, AVX2 release optimizations (`lto = "fat"`), and Windows `.exe`/`.msi` installer.

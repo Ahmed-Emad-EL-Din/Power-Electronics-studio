@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PSFB Design Studio — Phase-Shifted Full-Bridge DC/DC Designer</title>
+  <meta name="description" content="Interactive design tool for phase-shifted full-bridge DC/DC converters, including transformer and inductor (coil) design." />
+  <link rel="stylesheet" href="libs/katex/katex.min.css" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">◧</span>
+      <div>
+        <h1 id="brand-title">PSFB Design Studio</h1>
+        <span class="sub" id="brand-sub">Phase-Shifted Full-Bridge DC/DC · transformer &amp; coil design</span>
+      </div>
+    </div>
+    <div class="conv-switch" id="conv-switch" role="tablist" aria-label="Converter topology"></div>
+    <div class="toolbar">
+      <button id="btn-save" title="Save this design in the browser">Save</button>
+      <button id="btn-load" title="Load a saved design">Load</button>
+      <button id="btn-export" title="Export design to a JSON file">Export</button>
+      <label class="btn file" title="Import a design JSON">Import
+        <input id="file-import" type="file" accept=".json,application/json" hidden />
+      </label>
+      <button id="btn-reset" title="Reset to defaults">Reset</button>
+      <button id="btn-pin" title="Pin the current curves as a faded reference to compare against">📌 Pin ref</button>
+      <button id="btn-theme" title="Toggle light/dark theme">◐ Theme</button>
+    </div>
+  </header>
+
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sidebar-scroll" id="sidebar-sections"></div>
+    </aside>
+
+    <main class="main">
+      <div class="tabs">
+        <button class="tab active" data-panel="panel-design">Design</button>
+        <button class="tab" data-panel="panel-schematic">Schematic</button>
+        <button class="tab" data-panel="panel-magnetics">Magnetics</button>
+        <button class="tab" data-panel="panel-zvs">ZVS &amp; Loss</button>
+        <button class="tab" data-panel="panel-wave">Waveforms</button>
+        <button class="tab" data-panel="panel-graphs">Graphs</button>
+        <button class="tab" data-panel="panel-report">Report</button>
+      </div>
+
+      <div class="panels">
+        <section id="panel-design" class="tab-panel active">
+          <div id="warnings" class="warnings" style="display:none"></div>
+          <div id="kpi-grid" class="kpi-grid"></div>
+          <div id="design-intro"></div>
+        </section>
+
+        <section id="panel-schematic" class="tab-panel">
+          <div class="panel schematic-bar">
+            <h3 id="schematic-bar-title">PSFB power stage &mdash; live schematic</h3>
+            <p class="schematic-note" id="schematic-note"></p>
+            <div class="schematic-tools">
+              <button id="sch-fit" title="Fit to width">Fit</button>
+              <button id="sch-out" title="Zoom out">&minus;</button>
+              <span id="sch-zoom">100%</span>
+              <button id="sch-in" title="Zoom in">+</button>
+              <span class="schematic-tools-gap"></span>
+              <button id="sch-svg" title="Download the drawing as a vector SVG (current values)">⤓ SVG</button>
+              <button id="sch-png" title="Download the drawing as a PNG image (current values, 2x)">⤓ PNG</button>
+            </div>
+          </div>
+          <div class="schematic-scroll">
+            <div id="schematic-host" class="schematic-host"></div>
+          </div>
+          <div id="schematic-legend"></div>
+        </section>
+
+        <section id="panel-magnetics" class="tab-panel">
+          <div id="magnetics-body"></div>
+        </section>
+
+        <section id="panel-zvs" class="tab-panel">
+          <div id="zvs-body"></div>
+          <div id="tab-zvs-charts" class="charts"></div>
+        </section>
+
+        <section id="panel-wave" class="tab-panel">
+          <div id="wave-intro"></div>
+          <div id="tab-wave-charts" class="charts"></div>
+        </section>
+
+        <section id="panel-graphs" class="tab-panel">
+          <div id="tab-graphs-charts" class="charts"></div>
+        </section>
+
+        <section id="panel-report" class="tab-panel">
+          <div class="panel">
+            <div id="report-intro"></div>
+            <button id="btn-report" class="primary">⤓ Generate PDF report</button>
+            <div id="report-status" class="report-status">Ready.</div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- vendored libraries (offline) -->
+  <script src="libs/plotly.min.js"></script>
+  <script src="libs/jspdf.umd.min.js"></script>
+  <script src="libs/katex/katex.min.js"></script>
+  <!-- data -->
+  <script src="js/data/cores.js"></script>
+  <script src="js/data/schematic.js"></script>
+  <script src="js/data/schematic-llc.js"></script>
+  <!-- shared libraries -->
+  <script src="js/lib/util.js"></script>
+  <script src="js/lib/magnetics.js"></script>
+  <script src="js/lib/charts.js"></script>
+  <script src="js/lib/schematic.js"></script>
+  <script src="js/lib/schematic-llc.js"></script>
+  <script src="js/lib/uikit.js"></script>
+  <script src="js/lib/store.js"></script>
+  <script src="js/lib/report.js"></script>
+  <script src="js/lib/report-llc.js"></script>
+  <!-- engines -->
+  <script src="js/lib/psfb.js"></script>
+  <script src="js/lib/llc.js"></script>
+  <!-- topology descriptors -->
+  <script src="js/topo/psfb-ui.js"></script>
+  <script src="js/topo/llc-ui.js"></script>
+  <!-- controller shell -->
+  <script src="js/app.js"></script>
+</body>
+</html>

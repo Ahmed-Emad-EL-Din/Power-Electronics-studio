@@ -1,0 +1,6 @@
+{
+  "name": "VoltCraft Studio — Isolated DC/DC & Magnetics CAD",
+  "description": "Precision electrical power engineering workbench for Phase-Shifted Full-Bridge (PSFB), LLC Resonant, and Dual-Active Bridge (DAB) isolated DC/DC converters, including iGSE/Dowell high-frequency magnetics, nonlinear Coss ZVS analysis, electro-thermal semiconductor modeling, and small-signal Bode stability.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

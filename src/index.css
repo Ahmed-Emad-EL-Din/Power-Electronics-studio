@@ -1,0 +1,335 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+    --surface-canvas: #f8fafc;
+    --surface-panel: #ffffff;
+    --surface-subtle: #f1f5f9;
+    --border-hairline: #e2e8f0;
+    --accent-primary: #0891b2;
+    color-scheme: light;
+  }
+
+  .dark {
+    --surface-canvas: #090c12;
+    --surface-panel: #0e131d;
+    --surface-subtle: #131a26;
+    --border-hairline: #1e293b;
+    --accent-primary: #06b6d4;
+    color-scheme: dark;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    background-color: var(--surface-canvas);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4 {
+    text-wrap: balance;
+  }
+
+  code, pre, .font-mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  *:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+  }
+}
+
+/* Precision engineering range sliders */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: #cbd5e1;
+  cursor: pointer;
+  accent-color: #0891b2;
+}
+
+.dark input[type="range"] {
+  background: #1e293b;
+  accent-color: #06b6d4;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background: #0891b2;
+  border: 2px solid #ffffff;
+  transition: transform 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dark input[type="range"]::-webkit-slider-thumb {
+  background: #22d3ee;
+  border: 2px solid #0e131d;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background: #0891b2;
+  border: 2px solid #ffffff;
+  transition: transform 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dark input[type="range"]::-moz-range-thumb {
+  background: #22d3ee;
+  border: 2px solid #0e131d;
+}
+
+/* Subtle precision scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.35);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.55);
+}
+
+/* Reduced motion compliance */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Low-specificity (:where = 0) light-mode adaptation for legacy dark-only chart/SVG subpanels */
+:where(html:not(.dark)) :where(.bg-\[\#111827\], .bg-slate-900, .bg-slate-900\/95, .bg-slate-900\/90, .bg-slate-900\/80) {
+  background-color: #ffffff;
+}
+
+:where(html:not(.dark)) :where(.bg-\[\#0B0E17\], .bg-\[\#0b0e17\], .bg-\[\#0A0E17\], .bg-\[\#07090E\], .bg-\[\#070B14\], .bg-\[\#070b14\], .bg-\[\#090D16\], .bg-\[\#090d16\], .bg-slate-900\/70, .bg-slate-900\/60, .bg-slate-900\/50, .bg-slate-900\/40) {
+  background-color: #f8fafc;
+}
+
+:where(html:not(.dark)) :where(.bg-slate-950, .bg-slate-950\/95, .bg-slate-950\/90, .bg-slate-950\/80, .bg-slate-950\/70, .bg-slate-950\/60, .bg-slate-950\/50) {
+  background-color: #f1f5f9;
+}
+
+:where(html:not(.dark)) :where(.bg-slate-800, .bg-slate-800\/90, .bg-slate-800\/80, .bg-slate-800\/70, .bg-slate-800\/60, .bg-slate-800\/50, .bg-slate-800\/40) {
+  background-color: #e2e8f0;
+}
+
+:where(html:not(.dark)) :where(.bg-cyan-950\/60, .bg-cyan-950\/50, .bg-cyan-950\/40, .bg-cyan-950\/30, .bg-cyan-950\/20) {
+  background-color: #ecfeff;
+}
+
+:where(html:not(.dark)) :where(.bg-emerald-950\/60, .bg-emerald-950\/50, .bg-emerald-950\/40, .bg-emerald-950\/30, .bg-emerald-950\/20) {
+  background-color: #ecfdf5;
+}
+
+:where(html:not(.dark)) :where(.bg-amber-950\/60, .bg-amber-950\/50, .bg-amber-950\/40, .bg-amber-950\/30, .bg-amber-950\/20) {
+  background-color: #fffbeb;
+}
+
+:where(html:not(.dark)) :where(.bg-rose-950\/60, .bg-rose-950\/50, .bg-rose-950\/40, .bg-rose-950\/30, .bg-rose-950\/20) {
+  background-color: #fff1f2;
+}
+
+:where(html:not(.dark)) :where(.bg-violet-950\/60, .bg-violet-950\/50, .bg-violet-950\/40, .bg-violet-950\/30, .bg-violet-950\/20) {
+  background-color: #f5f3ff;
+}
+
+:where(html:not(.dark)) :where(.bg-indigo-950\/50, .bg-indigo-950\/40, .bg-indigo-950\/30, .bg-indigo-950\/20) {
+  background-color: #eef2ff;
+}
+
+:where(html:not(.dark)) :where(.border-slate-800, .border-slate-800\/80, .border-slate-800\/70, .border-slate-800\/60) {
+  border-color: #e2e8f0;
+}
+
+:where(html:not(.dark)) :where(.border-slate-700, .border-slate-700\/80, .border-slate-700\/60, .border-slate-700\/50) {
+  border-color: #cbd5e1;
+}
+
+:where(html:not(.dark)) :where(.text-white, .text-slate-100) {
+  color: #0f172a;
+}
+
+:where(html:not(.dark)) :where(.text-slate-200) {
+  color: #1e293b;
+}
+
+:where(html:not(.dark)) :where(.text-slate-300) {
+  color: #334155;
+}
+
+:where(html:not(.dark)) :where(.text-slate-400) {
+  color: #475569;
+}
+
+:where(html:not(.dark)) :where(.text-cyan-300, .text-cyan-400) {
+  color: #0e7490;
+}
+
+:where(html:not(.dark)) :where(.text-emerald-300, .text-emerald-400) {
+  color: #047857;
+}
+
+:where(html:not(.dark)) :where(.text-amber-300, .text-amber-400) {
+  color: #b45309;
+}
+
+:where(html:not(.dark)) :where(.text-rose-300, .text-rose-400) {
+  color: #be123c;
+}
+
+:where(html:not(.dark)) :where(.text-violet-300, .text-violet-400) {
+  color: #6d28d9;
+}
+
+:where(html:not(.dark)) :where(.bg-cyan-600, .bg-cyan-500, .bg-emerald-600, .bg-teal-600, .bg-rose-600, .bg-amber-600, .bg-violet-600, .bg-indigo-600),
+:where(html:not(.dark)) :where(.bg-cyan-600, .bg-cyan-500, .bg-emerald-600, .bg-teal-600, .bg-rose-600, .bg-amber-600, .bg-violet-600, .bg-indigo-600) * {
+  color: #ffffff;
+}
+
+/* Light-mode SVG canvas & stroke normalization (for inline SVG hex attributes) */
+html:not(.dark) svg rect[fill="#090d16" i],
+html:not(.dark) svg rect[fill="#070a12" i],
+html:not(.dark) svg rect[fill="#070b14" i],
+html:not(.dark) svg rect[fill="#0B0E17" i],
+html:not(.dark) svg rect[fill="#0A0E17" i],
+html:not(.dark) svg rect[fill="#111827" i] {
+  fill: #f8fafc;
+}
+
+html:not(.dark) svg rect[fill="#0f172a" i],
+html:not(.dark) svg rect[fill="#020617" i],
+html:not(.dark) svg circle[fill="#0f172a" i] {
+  fill: #ffffff;
+}
+
+html:not(.dark) svg rect[fill="#1e293b" i],
+html:not(.dark) svg circle[fill="#1e293b" i] {
+  fill: #e2e8f0;
+}
+
+html:not(.dark) svg line[stroke="#1e293b" i],
+html:not(.dark) svg line[stroke="#0f172a" i],
+html:not(.dark) svg path[stroke="#1e293b" i] {
+  stroke: #cbd5e1;
+}
+
+html:not(.dark) svg line[stroke="#334155" i],
+html:not(.dark) svg rect[stroke="#334155" i],
+html:not(.dark) svg rect[stroke="#1e293b" i],
+html:not(.dark) svg circle[stroke="#334155" i] {
+  stroke: #94a3b8;
+}
+
+html:not(.dark) svg text[fill="#ffffff" i],
+html:not(.dark) svg text[fill="#f8fafc" i],
+html:not(.dark) svg text[fill="#f1f5f9" i],
+html:not(.dark) svg text[fill="#e2e8f0" i],
+html:not(.dark) svg text[fill="#cbd5e1" i],
+html:not(.dark) svg .fill-white,
+html:not(.dark) svg .fill-slate-200,
+html:not(.dark) svg .fill-slate-300 {
+  fill: #0f172a;
+}
+
+html:not(.dark) svg text[fill="#94a3b8" i],
+html:not(.dark) svg text[fill="#64748b" i],
+html:not(.dark) svg .fill-slate-400,
+html:not(.dark) svg .fill-slate-500 {
+  fill: #334155;
+}
+
+html:not(.dark) .recharts-cartesian-grid line {
+  stroke: #cbd5e1;
+}
+
+html:not(.dark) .recharts-default-tooltip {
+  background-color: #ffffff;
+  border-color: #cbd5e1;
+  color: #0f172a;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+html:not(.dark) .recharts-tooltip-label,
+html:not(.dark) .recharts-tooltip-item {
+  color: #0f172a;
+}
+
+@media print {
+  @page {
+    size: auto;
+    margin: 14mm 14mm 16mm 14mm;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    font-size: 10.5pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .report-print-root {
+    position: static !important;
+    inset: auto !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  .report-chapter-break {
+    break-before: page;
+    page-break-before: always;
+  }
+
+  .report-avoid-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Ensure KaTeX and SVG graphics remain crisp and high-contrast on white paper */
+  .report-print-root svg text {
+    print-color-adjust: exact;
+  }
+}
