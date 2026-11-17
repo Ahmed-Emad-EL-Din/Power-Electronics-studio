@@ -4,10 +4,12 @@
 // ============================================================================
 
 import { jsPDF } from 'jspdf';
+import katex from 'katex';
 import { AcDcDesignState, DcDcDesignState } from '../data/databases';
 import { AcDcResults } from '../engine/acdcEngine';
 import { DcDcResults } from '../engine/dcdcEngine';
-import { DesignReportModel, ReportChapter } from './designReportModel';
+import { DesignReportModel, ReportChapter, ReportStep } from './designReportModel';
+import { calcStringToTexLines } from './mathTexHelper';
 
 function pdfSafeText(raw: string): string {
   return String(raw ?? '')
@@ -41,6 +43,280 @@ function pdfSafeText(raw: string): string {
 interface CapturedFigure {
   dataUrl: string;
   aspect: number; // height / width
+}
+
+interface CapturedMathBlock {
+  dataUrl: string;
+  widthMm: number;
+  heightMm: number;
+}
+
+interface PreRenderedStepMath {
+  given: CapturedMathBlock | null;
+  equation: CapturedMathBlock | null;
+  substitution: CapturedMathBlock | null;
+  result: CapturedMathBlock | null;
+}
+
+let cachedKatexCssPromise: Promise<string> | null = null;
+
+function arrayBufferToBase64(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf);
+  let binary = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+async function getKatexStandaloneCss(): Promise<string> {
+  if (cachedKatexCssPromise) return cachedKatexCssPromise;
+  cachedKatexCssPromise = (async () => {
+    if (typeof document === 'undefined') return '';
+    const fontUrlMap = new Map<string, string>();
+    const fontRules: string[] = [];
+    const katexRules: string[] = [];
+
+    for (const sheet of Array.from(document.styleSheets)) {
+      let rules: CSSRule[];
+      try {
+        rules = Array.from(sheet.cssRules || []);
+      } catch {
+        continue;
+      }
+      const baseHref = sheet.href || window.location.href;
+      for (const rule of rules) {
+        const cssText = rule.cssText || '';
+        if (rule.type === CSSRule.FONT_FACE_RULE && /KaTeX/i.test(cssText)) {
+          const woff2Match = cssText.match(/url\(["']?([^"')]+\.woff2(?:\?[^"')]+)?)["']?\)/i);
+          if (woff2Match) {
+            try {
+              const absUrl = new URL(woff2Match[1], baseHref).href;
+              fontUrlMap.set(absUrl, '');
+              fontRules.push(`${cssText}__ABS_URL__${absUrl}`);
+            } catch {
+              // ignore malformed font URL
+            }
+          }
+        } else if (cssText.includes('.katex')) {
+          katexRules.push(cssText);
+        }
+      }
+    }
+
+    // Fetch and inline each KaTeX .woff2 font once as base64 data URI so SVG foreignObject stays 100% self-contained
+    await Promise.all(
+      Array.from(fontUrlMap.keys()).map(async (url) => {
+        try {
+          const resp = await fetch(url);
+          if (!resp.ok) return;
+          const buf = await resp.arrayBuffer();
+          fontUrlMap.set(url, `data:font/woff2;base64,${arrayBufferToBase64(buf)}`);
+        } catch {
+          // ignore network errors cleanly
+        }
+      })
+    );
+
+    const resolvedFontCss = fontRules
+      .map((entry) => {
+        const [ruleText, absUrl] = entry.split('__ABS_URL__');
+        const dataUri = fontUrlMap.get(absUrl);
+        if (!dataUri) return '';
+        // Replace entire src: ...; with single inline woff2 data URI for zero external fetches inside SVG
+        return ruleText.replace(/src\s*:[^;]+;/i, `src: url("${dataUri}") format("woff2"); font-display: block;`);
+      })
+      .filter(Boolean)
+      .join('\n');
+
+    return `${resolvedFontCss}\n${katexRules.join('\n')}`;
+  })();
+  return cachedKatexCssPromise;
+}
+
+const PDF_PX_PER_MM = 96 / 25.4;
+
+async function renderKatexLinesToPng(
+  texLines: string[],
+  opts: {
+    fontSizePx: number;
+    maxWidthMm: number;
+    bgHex: string;
+    textHex?: string;
+    align?: 'left' | 'center';
+    padX?: number;
+    padY?: number;
+    displayScaleMm?: number;
+  }
+): Promise<CapturedMathBlock | null> {
+  if (typeof document === 'undefined' || texLines.length === 0) return null;
+  try {
+    const katexCss = await getKatexStandaloneCss();
+    const textHex = opts.textHex || '#0f172a';
+    const align = opts.align || 'left';
+    const padX = opts.padX ?? 6;
+    const padY = opts.padY ?? 4;
+    const scaleMm = opts.displayScaleMm ?? 0.84;
+
+    const katexBlocksHtml = texLines
+      .map((tex) =>
+        katex.renderToString(tex, {
+          displayMode: true,
+          output: 'html',
+          throwOnError: false,
+          strict: false,
+        })
+      )
+      .join('');
+
+    const host = document.createElement('div');
+    host.style.position = 'fixed';
+    host.style.left = '-99999px';
+    host.style.top = '0';
+    host.style.visibility = 'hidden';
+    host.style.pointerEvents = 'none';
+    host.style.background = opts.bgHex;
+
+    const wrapper = document.createElement('div');
+    wrapper.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+    wrapper.style.display = 'inline-block';
+    wrapper.style.boxSizing = 'border-box';
+    wrapper.style.padding = `${padY}px ${padX}px`;
+    wrapper.style.background = opts.bgHex;
+    wrapper.style.color = textHex;
+    wrapper.style.fontFamily = 'KaTeX_Main, "Times New Roman", serif';
+    wrapper.style.fontSize = `${opts.fontSizePx}px`;
+    wrapper.style.lineHeight = '1.28';
+    wrapper.style.textAlign = align;
+    wrapper.style.whiteSpace = 'nowrap';
+    wrapper.innerHTML = katexBlocksHtml;
+
+    // Ensure .katex-display spacing inside compact PDF cards stays tight and aligned
+    wrapper.querySelectorAll<HTMLElement>('.katex-display').forEach((el) => {
+      el.style.margin = '2px 0';
+      el.style.textAlign = align;
+      el.style.color = textHex;
+    });
+    wrapper.querySelectorAll<HTMLElement>('.katex').forEach((el) => {
+      el.style.color = textHex;
+    });
+
+    host.appendChild(wrapper);
+    document.body.appendChild(host);
+
+    const rect = wrapper.getBoundingClientRect();
+    const wPx = Math.max(16, Math.ceil(rect.width) + 2);
+    const hPx = Math.max(12, Math.ceil(rect.height) + 2);
+
+    const xhtmlBody = new XMLSerializer().serializeToString(wrapper);
+    document.body.removeChild(host);
+
+    const svgStyle = `
+      ${katexCss}
+      .katex-display { margin: 2px 0 !important; text-align: ${align} !important; color: ${textHex} !important; }
+      .katex { color: ${textHex} !important; font-size: 1em !important; }
+      .katex .frac-line { border-bottom-color: ${textHex} !important; }
+    `;
+    const svgString = `<svg xmlns="http://www.w3.org/2000/svg" width="${wPx}" height="${hPx}" viewBox="0 0 ${wPx} ${hPx}"><style>${svgStyle}</style><rect x="0" y="0" width="${wPx}" height="${hPx}" fill="${opts.bgHex}"/><foreignObject x="0" y="0" width="${wPx}" height="${hPx}">${xhtmlBody}</foreignObject></svg>`;
+
+    const imgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgString)}`;
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = (err) => reject(err);
+      i.src = imgUrl;
+    });
+
+    const retinaScale = 3.0;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(wPx * retinaScale));
+    canvas.height = Math.max(1, Math.round(hPx * retinaScale));
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    ctx.fillStyle = opts.bgHex;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+    const rawWmm = (wPx / PDF_PX_PER_MM) * scaleMm;
+    const rawHmm = (hPx / PDF_PX_PER_MM) * scaleMm;
+    const fitRatio = rawWmm > opts.maxWidthMm ? opts.maxWidthMm / rawWmm : 1;
+
+    return {
+      dataUrl: canvas.toDataURL('image/png'),
+      widthMm: rawWmm * fitRatio,
+      heightMm: rawHmm * fitRatio,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function preRenderAllStepMath(
+  chapters: ReportChapter[],
+  maxWidthMm: number
+): Promise<Map<string, PreRenderedStepMath>> {
+  const result = new Map<string, PreRenderedStepMath>();
+  const allEntries: { key: string; step: ReportStep }[] = [];
+  for (const ch of chapters) {
+    for (const st of ch.steps) {
+      allEntries.push({ key: `${ch.id}::${st.step}`, step: st });
+    }
+  }
+
+  const chunkSize = 6;
+  for (let i = 0; i < allEntries.length; i += chunkSize) {
+    const batch = allEntries.slice(i, i + chunkSize);
+    await Promise.all(
+      batch.map(async ({ key, step: st }) => {
+        const [given, equation, substitution, resultImg] = await Promise.all([
+          renderKatexLinesToPng(calcStringToTexLines(st.given), {
+            fontSizePx: 11,
+            maxWidthMm,
+            bgHex: '#ffffff',
+            textHex: '#334155',
+            align: 'left',
+            padX: 3,
+            padY: 2,
+            displayScaleMm: 0.78,
+          }),
+          renderKatexLinesToPng([st.tex], {
+            fontSizePx: 13.5,
+            maxWidthMm: maxWidthMm - 4,
+            bgHex: '#f8fafc',
+            textHex: '#0f172a',
+            align: 'center',
+            padX: 6,
+            padY: 5,
+            displayScaleMm: 0.85,
+          }),
+          renderKatexLinesToPng(calcStringToTexLines(st.substitution), {
+            fontSizePx: 11.5,
+            maxWidthMm: maxWidthMm - 4,
+            bgHex: '#f8fafc',
+            textHex: '#1e293b',
+            align: 'left',
+            padX: 5,
+            padY: 3,
+            displayScaleMm: 0.8,
+          }),
+          renderKatexLinesToPng(calcStringToTexLines(st.result), {
+            fontSizePx: 11.5,
+            maxWidthMm: maxWidthMm - 4,
+            bgHex: '#ecfeff',
+            textHex: '#0e7490',
+            align: 'left',
+            padX: 5,
+            padY: 3,
+            displayScaleMm: 0.82,
+          }),
+        ]);
+        result.set(key, { given, equation, substitution, result: resultImg });
+      })
+    );
+  }
+  return result;
 }
 
 async function svgElementToPng(svgEl: SVGSVGElement): Promise<CapturedFigure | null> {
@@ -136,7 +412,10 @@ export async function generateRealDesignPdf(params: {
 }): Promise<string> {
   const { model, dcdcState, dcdcRes, acdcState, acdcRes, articleElement } = params;
 
-  const figures = await captureReportFigures(articleElement);
+  const [figures, stepMathMap] = await Promise.all([
+    captureReportFigures(articleElement),
+    preRenderAllStepMath(model.chapters, CONTENT_W - 7),
+  ]);
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
 
   let curY = TOP_Y;
@@ -173,12 +452,14 @@ export async function generateRealDesignPdf(params: {
   const titleLines = doc.splitTextToSize(pdfSafeText(model.title), CONTENT_W - 8);
   doc.text(titleLines, MARGIN_L + 4, 26);
 
+  const failedChCount = model.chapters.filter((c) => c.stage !== 'audit' && c.status === 'fail').length;
+  const warnedChCount = model.chapters.filter((c) => c.stage !== 'audit' && c.status === 'warn').length;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(203, 213, 225);
   doc.text(
     pdfSafeText(
-      `Prepared By: Ahmed Emad  |  Date: ${model.dateStr}  |  Scope: ${model.scopeLabel}  |  Danger: ${model.scopedAlerts.danger.length}  |  Warning: ${model.scopedAlerts.warning.length}`
+      `Prepared By: Ahmed Emad  |  Date: ${model.dateStr}  |  Scope: ${model.scopeLabel}  |  Danger: ${model.scopedAlerts.danger.length} (${failedChCount} ch)  |  Warning: ${model.scopedAlerts.warning.length} (${warnedChCount} ch)`
     ),
     MARGIN_L + 4,
     36.5
@@ -430,22 +711,33 @@ export async function generateRealDesignPdf(params: {
     }
     curY += ratBoxH + 4;
 
-    // 2. Step-by-Step Calculation Cards
+    // 2. Step-by-Step Calculation Cards (KaTeX math rendering + ASCII fallback)
     for (const st of ch.steps) {
+      const rendered = stepMathMap.get(`${ch.id}::${st.step}`);
+      const innerW = CONTENT_W - 6;
+
       doc.setFont('courier', 'normal');
       doc.setFontSize(7.5);
-      const givenLines = doc.splitTextToSize(pdfSafeText(`1. Given: ${st.given}`), CONTENT_W - 6);
-      const eqLines = doc.splitTextToSize(pdfSafeText(`2. Equation: ${st.formulaPlain}`), CONTENT_W - 6);
-      const subLines = doc.splitTextToSize(pdfSafeText(`3. Substitution: ${st.substitution}`), CONTENT_W - 6);
-      const resLines = doc.splitTextToSize(pdfSafeText(`4. Result: ${st.result}`), CONTENT_W - 44);
+      const givenFallback = doc.splitTextToSize(pdfSafeText(st.given), innerW - 2);
+      const eqFallback = doc.splitTextToSize(pdfSafeText(st.formulaPlain), innerW - 4);
+      const subFallback = doc.splitTextToSize(pdfSafeText(st.substitution), innerW - 4);
+      const resFallback = doc.splitTextToSize(pdfSafeText(st.result), innerW - 4);
 
+      const givenBodyH = rendered?.given ? rendered.given.heightMm + 1.0 : givenFallback.length * 3.5 + 1.2;
+      const eqBoxH = rendered?.equation ? Math.max(7.2, rendered.equation.heightMm + 2.0) : eqFallback.length * 3.6 + 2.4;
+      const subBoxH = rendered?.substitution ? Math.max(6.4, rendered.substitution.heightMm + 1.6) : subFallback.length * 3.5 + 2.0;
+      const resBodyH = rendered?.result ? rendered.result.heightMm + 1.4 : resFallback.length * 3.6 + 1.4;
+      const resBoxH = 3.8 + resBodyH + 1.0;
+
+      const headerH = 6.2;
       const cardH =
-        7.5 +
-        givenLines.length * 3.5 +
-        eqLines.length * 3.5 +
-        subLines.length * 3.5 +
-        resLines.length * 3.8 +
-        5.5;
+        headerH +
+        2.2 + // top pad
+        3.4 + givenBodyH + 1.4 + // 1. Given
+        3.4 + eqBoxH + 1.4 +     // 2. Equation
+        3.4 + subBoxH + 1.6 +    // 3. Substitution
+        resBoxH +                // 4. Result box
+        2.4;                     // bottom pad
 
       ensureSpace(cardH + 3);
 
@@ -455,9 +747,9 @@ export async function generateRealDesignPdf(params: {
 
       // Card header strip
       doc.setFillColor(248, 250, 252);
-      doc.rect(MARGIN_L, curY, CONTENT_W, 6.2, 'F');
+      doc.rect(MARGIN_L, curY, CONTENT_W, headerH, 'F');
       doc.setDrawColor(226, 232, 240);
-      doc.line(MARGIN_L, curY + 6.2, PAGE_W - MARGIN_R, curY + 6.2);
+      doc.line(MARGIN_L, curY + headerH, PAGE_W - MARGIN_R, curY + headerH);
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8.5);
@@ -477,28 +769,81 @@ export async function generateRealDesignPdf(params: {
         doc.text(vTxt, PAGE_W - MARGIN_R - 3, curY + 4.3, { align: 'right' });
       }
 
-      let sy = curY + 10;
-      doc.setFont('courier', 'normal');
-      doc.setFontSize(7.5);
-      doc.setTextColor(51, 65, 85);
-      doc.text(givenLines, MARGIN_L + 3, sy);
-      sy += givenLines.length * 3.5 + 0.8;
+      let sy = curY + headerH + 2.2;
 
-      doc.setFont('courier', 'bold');
-      doc.setTextColor(15, 23, 42);
-      doc.text(eqLines, MARGIN_L + 3, sy);
-      sy += eqLines.length * 3.5 + 0.8;
+      // 1. GIVEN INPUTS
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text('1. GIVEN INPUTS', MARGIN_L + 3, sy + 2.2);
+      sy += 3.4;
+      if (rendered?.given) {
+        doc.addImage(rendered.given.dataUrl, 'PNG', MARGIN_L + 3, sy, rendered.given.widthMm, rendered.given.heightMm, undefined, 'FAST');
+      } else {
+        doc.setFont('courier', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(51, 65, 85);
+        doc.text(givenFallback, MARGIN_L + 3.5, sy + 2.8);
+      }
+      sy += givenBodyH + 1.4;
 
-      doc.setFont('courier', 'normal');
-      doc.setTextColor(51, 65, 85);
-      doc.text(subLines, MARGIN_L + 3, sy);
-      sy += subLines.length * 3.5 + 1.2;
+      // 2. GOVERNING EQUATION
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text('2. GOVERNING EQUATION', MARGIN_L + 3, sy + 2.2);
+      sy += 3.4;
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(226, 232, 240);
+      doc.roundedRect(MARGIN_L + 3, sy, innerW, eqBoxH, 0.9, 0.9, 'FD');
+      if (rendered?.equation) {
+        const eqX = MARGIN_L + 3 + Math.max(1, (innerW - rendered.equation.widthMm) / 2);
+        const eqY = sy + Math.max(0.8, (eqBoxH - rendered.equation.heightMm) / 2);
+        doc.addImage(rendered.equation.dataUrl, 'PNG', eqX, eqY, rendered.equation.widthMm, rendered.equation.heightMm, undefined, 'FAST');
+      } else {
+        doc.setFont('courier', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(15, 23, 42);
+        doc.text(eqFallback, MARGIN_L + 5, sy + 3.6);
+      }
+      sy += eqBoxH + 1.4;
 
+      // 3. NUMERICAL SUBSTITUTION
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text('3. NUMERICAL SUBSTITUTION', MARGIN_L + 3, sy + 2.2);
+      sy += 3.4;
+      doc.setFillColor(248, 250, 252);
+      doc.setDrawColor(226, 232, 240);
+      doc.roundedRect(MARGIN_L + 3, sy, innerW, subBoxH, 0.9, 0.9, 'FD');
+      if (rendered?.substitution) {
+        const subY = sy + Math.max(0.6, (subBoxH - rendered.substitution.heightMm) / 2);
+        doc.addImage(rendered.substitution.dataUrl, 'PNG', MARGIN_L + 4, subY, rendered.substitution.widthMm, rendered.substitution.heightMm, undefined, 'FAST');
+      } else {
+        doc.setFont('courier', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(51, 65, 85);
+        doc.text(subFallback, MARGIN_L + 4.5, sy + 3.4);
+      }
+      sy += subBoxH + 1.6;
+
+      // 4. COMPUTED RESULT
       doc.setFillColor(236, 254, 255);
-      doc.rect(MARGIN_L + 1.5, sy - 3, CONTENT_W - 3, resLines.length * 3.8 + 1.8, 'F');
-      doc.setFont('courier', 'bold');
+      doc.setDrawColor(165, 243, 252);
+      doc.roundedRect(MARGIN_L + 3, sy, innerW, resBoxH, 0.9, 0.9, 'FD');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.5);
       doc.setTextColor(14, 116, 144);
-      doc.text(resLines, MARGIN_L + 3, sy + 0.3);
+      doc.text('4. COMPUTED RESULT', MARGIN_L + 4.5, sy + 2.8);
+      if (rendered?.result) {
+        doc.addImage(rendered.result.dataUrl, 'PNG', MARGIN_L + 4.2, sy + 3.7, rendered.result.widthMm, rendered.result.heightMm, undefined, 'FAST');
+      } else {
+        doc.setFont('courier', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(14, 116, 144);
+        doc.text(resFallback, MARGIN_L + 4.5, sy + 6.4);
+      }
 
       curY += cardH + 3;
     }
@@ -575,19 +920,35 @@ export async function generateRealDesignPdf(params: {
     }
 
     // 7. Final Audit Alerts Table on last chapter
-    if (idx === model.chapters.length - 1 && model.scopedAlerts.all.length > 0) {
-      drawTable(
-        'Active Engineering Audit Findings',
-        ['Severity', 'Stage', 'Finding', 'Measured Telemetry', 'Recommended Fix'],
-        model.scopedAlerts.all.map((a) => [
-          a.severity === 'danger' ? 'DANGER' : 'WARN',
-          a.domainLabel,
-          a.title,
-          a.metric,
-          a.fixes?.[0]?.label || a.actionHint,
-        ]),
-        [17, 15, 42, 52, 56]
-      );
+    if (idx === model.chapters.length - 1) {
+      if (model.scopedAlerts.all.length > 0) {
+        drawTable(
+          'Active Engineering Audit Findings',
+          ['Severity', 'Stage', 'Finding', 'Measured Telemetry', 'Recommended Fix'],
+          model.scopedAlerts.all.map((a) => [
+            a.severity === 'danger' ? 'DANGER' : 'WARN',
+            a.domainLabel,
+            a.title,
+            a.metric,
+            a.fixes?.[0]?.label || a.actionHint,
+          ]),
+          [17, 15, 42, 52, 56]
+        );
+      } else {
+        drawTable(
+          'Final Release Verdict',
+          ['Audit Scope', 'Danger Alerts', 'Warning Alerts', 'Overall Sign-Off'],
+          [
+            [
+              model.scopeLabel,
+              String(model.scopedAlerts.danger.length),
+              String(model.scopedAlerts.warning.length),
+              ch.status === 'fail' ? '✖ FAIL (See Chapter Matrix)' : ch.status === 'warn' ? '▲ WARN (See Chapter Matrix)' : '● PASS — Zero Violations',
+            ],
+          ],
+          [50, 32, 32, 68]
+        );
+      }
     }
   };
 

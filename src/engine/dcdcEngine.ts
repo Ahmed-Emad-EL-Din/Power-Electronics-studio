@@ -182,6 +182,9 @@ export interface DcDcResults {
   Deff_nom: number;
   Dloss_nom: number;
   D_applied_nom: number;
+  Deff_max: number;
+  Dloss_max: number;
+  D_applied_max: number;
   phaseShift_deg: number;
   M_gain_nom: number;
   fr_kHz: number;
@@ -318,6 +321,9 @@ export interface DcDcResults {
   mc_slope: number;
   Qp_subharmonic: number;
   slopeStable: boolean;
+  Qp_subharmonic_wc: number;
+  slopeStable_wc: boolean;
+  mc_min_recommended: number;
   isTwoZeroComp: boolean;
   f0_lc_kHz: number;
   f0_wc_min_kHz: number;
@@ -567,10 +573,13 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
   const Rac = (8 / (Math.PI * Math.PI)) * n * n * (Vout / Math.max(Iout_phase_A, 0.1));
   const Q_factor = Math.sqrt(Llk / Cr) / Math.max(Rac, 0.1);
 
-  // Effective duty cycle, duty loss, or LLC FHA Voltage Gain
+  // Effective duty cycle, duty loss, worst-case low-line envelope, or LLC FHA Voltage Gain
   let Deff_nom = 0.72;
   let Dloss_nom = 0.06;
   let D_applied_nom = 0.78;
+  let Deff_max = 0.72;
+  let Dloss_max = 0.06;
+  let D_applied_max = 0.78;
   let M_gain_nom = 1.0;
 
   if (!isLLC) {
@@ -583,6 +592,16 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
     Dloss_nom = Math.min(0.32, (4 * fsw * Llk * Ipri_valley) / Math.max(Vin, 10));
     D_applied_nom = Math.min(0.98, Deff_nom + Dloss_nom);
     M_gain_nom = Deff_nom;
+
+    const Vin_min_safe = Math.max(10, Math.min(state.Vin_min_V, Vin));
+    Deff_max = Math.min(0.96, isCDR ? (2 * n * Vout) / Vin_min_safe : (n * Vout) / Vin_min_safe);
+    const V_lo_on_min = Vin_min_safe / n - (isCDR ? Vout / 2 : Vout);
+    const dt_on_min = (Deff_max * Tsw) / 2;
+    const dILo_est_min = Math.max(0.5, (Math.max(V_lo_on_min, 2) * dt_on_min) / Lo);
+    const I_lo_valley_min = Math.max(0.2, Iout_phase_A - dILo_est_min / 2);
+    const Ipri_valley_min = I_lo_valley_min * k_refl;
+    Dloss_max = Math.min(0.36, (4 * fsw * Llk * Ipri_valley_min) / Vin_min_safe);
+    D_applied_max = Math.min(0.99, Deff_max + Dloss_max);
   } else {
     const fn2 = fn_nom * fn_nom;
     const realPart = 1 + (1 / Ln_ratio) * (1 - 1 / Math.max(fn2, 0.05));
@@ -591,6 +610,9 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
     Deff_nom = Math.min(0.96, 1 - (2 * state.deadTime_ns * 1e-9) / Tsw);
     Dloss_nom = (2 * state.deadTime_ns * 1e-9) / Tsw;
     D_applied_nom = Deff_nom;
+    Deff_max = Deff_nom;
+    Dloss_max = Dloss_nom;
+    D_applied_max = D_applied_nom;
   }
 
   const phaseShift_deg = D_applied_nom * 180;
@@ -1040,7 +1062,9 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
   const Rpri_ac_mOhm = Rpri_dc * Fr_dowell_pri * 1e3;
   const Rsec_ac_mOhm = Rsec_dc * Fr_dowell_sec * 1e3;
 
-  const Ipri_rms_A = Iout_phase_A * k_refl * 1.09;
+  const Ipri_rms_A = isLLC
+    ? Math.hypot(1.11 * Iout_phase_A * k_refl, Im_pk_A / Math.sqrt(2))
+    : Iout_phase_A * k_refl * Math.sqrt(Deff_nom + (1 - Deff_nom) * 0.72) * 1.02;
   const Pcu_W =
     (Ipri_rms_A * Ipri_rms_A * (Rpri_ac_mOhm * 1e-3) +
       Isec_rms_total_A * Isec_rms_total_A * (Rsec_ac_mOhm * 1e-3)) *
@@ -1698,7 +1722,15 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
   const denom_Qp = Math.PI * (mc_slope * D_prime - 0.5);
   const Qp_subharmonic = denom_Qp > 0.04 ? 1 / denom_Qp : 12.0;
   const slopeStable = denom_Qp > 0.12 && Qp_subharmonic <= 2.0;
+
+  // Worst-case low-line (Vin_min_V -> maximum D_eff) subharmonic stability check
+  const D_ind_pcmc_wc = isLLC ? Deff_max * 0.5 : Deff_max;
+  const D_prime_wc = Math.max(0.05, 1 - D_ind_pcmc_wc);
+  const denom_Qp_wc = Math.PI * (mc_slope * D_prime_wc - 0.5);
+  const Qp_subharmonic_wc = denom_Qp_wc > 0.04 ? 1 / denom_Qp_wc : 12.0;
+  const slopeStable_wc = denom_Qp_wc > 0.12 && Qp_subharmonic_wc <= 2.0;
   const mc_min_hint = Math.max(1.5, (0.5 + 1 / (Math.PI * 1.25)) / D_prime);
+  const mc_min_recommended = Number(Math.max(1.5, (0.5 + 1 / (Math.PI * 1.2)) / D_prime_wc).toFixed(2));
 
   const Q_charge_nC = ((Ipri_rms_A * Math.sqrt(2)) / (Math.PI * fsw)) * 1e9;
   const Vth_charge_V = (Q_charge_nC * 1e-9) / Cr;
@@ -1841,12 +1873,13 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
   const R3_base_Ohm = R1_base_Ohm / Math.max(wp2 / wz2 - 1, 1.2);
   const C3_base_F = 1 / (wp2 * R3_base_Ohm);
 
+  const R1_min_Ohm = Vout > 120 ? 15_000 : 4_700;
   const idealImpedanceScale = 47_000 / Math.max(R2_base_Ohm, 1);
   const scaleMin = Math.max(
-    0.22,
+    0.47,
     10_000 / Math.max(R2_base_Ohm, 1),
     C1_base_F / 47e-9,
-    2_200 / R1_base_Ohm
+    R1_min_Ohm / R1_base_Ohm
   );
   const scaleMax = Math.min(
     470,
@@ -1857,7 +1890,7 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
   const impedanceScale =
     scaleMax >= scaleMin
       ? Math.min(scaleMax, Math.max(scaleMin, idealImpedanceScale))
-      : Math.max(0.22, Math.min(470, Math.sqrt(scaleMin * Math.max(scaleMax, 0.22))));
+      : Math.max(0.47, Math.min(470, scaleMax));
 
   const R1_Ohm = R1_base_Ohm * impedanceScale;
   const R2_Ohm = R2_base_Ohm * impedanceScale;
@@ -2257,11 +2290,10 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
   }
 
   // DSP Code Snippet with Exact Pre-Warped Tustin Coefficients
-  const dspCode =
-    state.controlType === 'type-iii'
-      ? `// ${state.topology.toUpperCase()} | TYPE-III / DIGITAL 3P3Z VOLTAGE-MODE ISR @ fs = ${state.fs_digital_kHz} kHz
+  const dspCode = isTwoZeroComp
+    ? `// ${state.topology.toUpperCase()} | ${state.controlType.toUpperCase()} (Type-III / Digital 3P3Z) ISR @ fs = ${state.fs_digital_kHz} kHz
 // Zeros: fz1=${fz1_kHz.toFixed(2)}kHz, fz2=${fz2_kHz.toFixed(2)}kHz | Poles: fp1=${fp1_kHz.toFixed(2)}kHz, fp2=${fp2_kHz.toFixed(2)}kHz
-// Analog Type-III Op-Amp RC: R1=${R1_kOhm.toFixed(1)}k, R2=${R2_kOhm.toFixed(2)}k, R3=${R3_kOhm.toFixed(2)}k, C1=${C1_nF.toFixed(2)}nF, C2=${C2_pF.toFixed(0)}pF, C3=${C3_nF.toFixed(2)}nF
+// Analog Type-III Op-Amp RC (C0G): R1=${R1_kOhm.toFixed(1)}k, R2=${R2_kOhm.toFixed(2)}k, R3=${R3_kOhm.toFixed(2)}k, C1=${C1_nF.toFixed(2)}nF, C2=${C2_pF.toFixed(0)}pF, C3=${C3_nF.toFixed(2)}nF
 // Exact Tustin 3P3Z (sum(a_k) = ${(a1 + a2 + a3).toFixed(5)}): b0=${b0.toFixed(5)}f, b1=${b1.toFixed(5)}f, b2=${b2.toFixed(5)}f, b3=${b3.toFixed(5)}f | a1=${a1.toFixed(5)}f, a2=${a2.toFixed(5)}f, a3=${a3.toFixed(5)}f
 inline void DcDc_3P3Z_ISR(float v_out_adc) {
     float e0 = ${Vout.toFixed(1)}f - v_out_adc;
@@ -2270,9 +2302,15 @@ inline void DcDc_3P3Z_ISR(float v_out_adc) {
     e3 = e2; e2 = e1; e1 = e0;
     EPWM_setPhaseShift(PHASE_SHIFT_BASE, (uint16_t)(u1 * TBPRD));
 }`
-      : `// ${state.topology.toUpperCase()} | ${state.controlType.toUpperCase()} (Exact Tustin 2P2Z) ISR @ fs = ${state.fs_digital_kHz} kHz
-// b0=${b0.toFixed(5)}f, b1=${b1.toFixed(5)}f, b2=${b2.toFixed(5)}f | a1=${a1.toFixed(5)}f, a2=${a2.toFixed(5)}f (a1+a2 = ${(a1 + a2).toFixed(5)})
-// PCMC Slope Ramp: Se = ${Se_ramp_V_us.toFixed(3)} V/us (mc = ${mc_slope.toFixed(2)}, Qp = ${Qp_subharmonic.toFixed(2)})
+    : `// ${state.topology.toUpperCase()} | ${state.controlType.toUpperCase()} (Type-II / Exact Tustin 2P2Z) ISR @ fs = ${state.fs_digital_kHz} kHz
+// Zero: fz1=${fz1_kHz.toFixed(2)}kHz | Pole: fp1=${fp1_kHz.toFixed(2)}kHz | Analog RC (C0G): R1=${R1_kOhm.toFixed(1)}k, R2=${R2_kOhm.toFixed(2)}k, C1=${C1_nF.toFixed(2)}nF, C2=${C2_pF.toFixed(0)}pF
+// b0=${b0.toFixed(5)}f, b1=${b1.toFixed(5)}f, b2=${b2.toFixed(5)}f | a1=${a1.toFixed(5)}f, a2=${a2.toFixed(5)}f (a1+a2 = ${(a1 + a2).toFixed(5)})${
+        state.controlType === 'pcmc'
+          ? `\n// PCMC Slope Ramp: Se = ${Se_ramp_V_us.toFixed(3)} V/us (mc = ${mc_slope.toFixed(2)}, Qp_nom = ${Qp_subharmonic.toFixed(2)}, Qp_wc = ${Qp_subharmonic_wc.toFixed(2)})`
+          : state.controlType === 'charge-control'
+          ? `\n// Charge Control Integrator Threshold: Q_chg = ${Q_charge_nC.toFixed(1)} nC, V_th = ${Vth_charge_V.toFixed(2)} V`
+          : ''
+      }
 inline void DcDc_Control_ISR(float v_out_adc, float i_pri_adc) {
     float e0 = ${Vout.toFixed(1)}f - v_out_adc;
     float u0 = a1*u1 + a2*u2 + b0*e0 + b1*e1 + b2*e2;
@@ -2343,6 +2381,9 @@ inline void DcDc_Control_ISR(float v_out_adc, float i_pri_adc) {
     Deff_nom,
     Dloss_nom,
     D_applied_nom,
+    Deff_max,
+    Dloss_max,
+    D_applied_max,
     phaseShift_deg,
     M_gain_nom,
     fr_kHz,
@@ -2465,6 +2506,9 @@ inline void DcDc_Control_ISR(float v_out_adc, float i_pri_adc) {
     mc_slope,
     Qp_subharmonic,
     slopeStable,
+    Qp_subharmonic_wc,
+    slopeStable_wc,
+    mc_min_recommended,
     isTwoZeroComp,
     f0_lc_kHz,
     f0_wc_min_kHz,

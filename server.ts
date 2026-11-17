@@ -46,7 +46,8 @@ function normalizeServerAiConfig(raw: unknown): ServerAiConfig {
     anthropic: 'https://api.anthropic.com/v1',
     'openai-compatible': 'https://api.deepseek.com/v1',
   };
-  const apiKey = typeof obj.apiKey === 'string' ? obj.apiKey.trim() : '';
+  const rawKey = typeof obj.apiKey === 'string' ? obj.apiKey : '';
+  const apiKey = rawKey.trim().replace(/^["']|["']$/g, '').trim();
   const model =
     typeof obj.model === 'string' && obj.model.trim() ? obj.model.trim() : defaultModels[provider];
   const baseUrl =
@@ -56,8 +57,115 @@ function normalizeServerAiConfig(raw: unknown): ServerAiConfig {
   return { provider, apiKey, model, baseUrl };
 }
 
+function isReasoningModelId(model: string): boolean {
+  const bare = model.trim().split('/').pop() || '';
+  return /^(o\d|gpt-5)/i.test(bare);
+}
+
+function isGeminiThinkingLevelSupported(model: string): boolean {
+  const bare = model.trim().split('/').pop() || '';
+  return /gemini-(?:3|4)/i.test(bare);
+}
+
+function extractGoogleErrorDetails(err: unknown): {
+  status: number;
+  cleanMsg: string;
+  isAuthOrKey: boolean;
+  isModelNotFound: boolean;
+  isTransientOrUnavailable: boolean;
+} {
+  const sdkErr = err as { status?: number; message?: string; name?: string };
+  const isAbortOrTimeout =
+    sdkErr?.name === 'TimeoutError' ||
+    sdkErr?.name === 'AbortError' ||
+    /aborted|timed out|timeout/i.test(sdkErr?.message || '');
+  let status =
+    typeof sdkErr?.status === 'number' && sdkErr.status >= 400
+      ? sdkErr.status
+      : isAbortOrTimeout
+      ? 504
+      : 502;
+  let cleanMsg = (
+    sdkErr?.message || (err instanceof Error ? err.message : 'Gemini request failed.')
+  ).trim();
+  if (isAbortOrTimeout && !/timeout|timed out/i.test(cleanMsg)) {
+    cleanMsg = 'Gemini request timed out.';
+  }
+  let rpcStatus = '';
+
+  const start = cleanMsg.indexOf('{');
+  const end = cleanMsg.lastIndexOf('}');
+  if (start >= 0 && end > start) {
+    try {
+      const parsed = JSON.parse(cleanMsg.slice(start, end + 1)) as {
+        error?: { code?: number; message?: string; status?: string };
+        message?: string;
+      };
+      if (parsed?.error) {
+        if (typeof parsed.error.code === 'number' && parsed.error.code >= 400) {
+          status = parsed.error.code;
+        }
+        if (typeof parsed.error.message === 'string' && parsed.error.message.trim()) {
+          cleanMsg = parsed.error.message.trim();
+        }
+        if (typeof parsed.error.status === 'string') {
+          rpcStatus = parsed.error.status;
+        }
+      } else if (typeof parsed?.message === 'string' && parsed.message.trim()) {
+        cleanMsg = parsed.message.trim();
+      }
+    } catch {
+      // keep original cleanMsg
+    }
+  }
+
+  const rawDump = `${rpcStatus} ${sdkErr?.message || ''} ${cleanMsg}`;
+  const isAuthOrKey =
+    status === 401 ||
+    status === 403 ||
+    /API_KEY_INVALID|PERMISSION_DENIED|api key not valid|invalid api key|unauthorized|authentication failed/i.test(
+      rawDump
+    );
+  const isModelNotFound =
+    !isAuthOrKey &&
+    (status === 404 ||
+      rpcStatus === 'NOT_FOUND' ||
+      /not_found|model.*not found|not supported for generateContent|does not exist/i.test(cleanMsg));
+  const isTransientOrUnavailable =
+    !isAuthOrKey &&
+    (status === 500 ||
+      status === 502 ||
+      status === 503 ||
+      status === 504 ||
+      status === 408 ||
+      isAbortOrTimeout ||
+      rpcStatus === 'UNAVAILABLE' ||
+      /high demand|unavailable|overloaded|deadline|timed out|timeout/i.test(cleanMsg));
+
+  return { status, cleanMsg, isAuthOrKey, isModelNotFound, isTransientOrUnavailable };
+}
+
+function formatProviderHttpError(providerLabel: string, status: number, rawMsg: string): string {
+  const cleanMsg = rawMsg.trim();
+  if (
+    status === 401 ||
+    status === 403 ||
+    /api key not valid|api_key_invalid|invalid_api_key|unauthorized|authentication/i.test(cleanMsg)
+  ) {
+    return `${providerLabel} authentication failed (${status}): verify your API key in AI Keys settings.${cleanMsg ? ` Details: ${cleanMsg}` : ''}`;
+  }
+  if (status === 404 || /model.*not found|does not exist|not supported for generateContent/i.test(cleanMsg)) {
+    return `${providerLabel} model or endpoint not found (${status}): check Model ID / Base URL.${cleanMsg ? ` Details: ${cleanMsg}` : ''}`;
+  }
+  if (status === 429 || /rate limit|quota|resource_exhausted|too many requests/i.test(cleanMsg)) {
+    return `${providerLabel} rate limit or quota exceeded (${status}): wait briefly or check account billing.${cleanMsg ? ` Details: ${cleanMsg}` : ''}`;
+  }
+  return `${providerLabel} error (${status}): ${cleanMsg || 'Request failed.'}`;
+}
+
 function extractJsonObject(rawText: string): Record<string, unknown> {
-  const trimmed = rawText.trim();
+  // Remove <think>...</think> blocks emitted by reasoning models (e.g. deepseek-reasoner)
+  const trimmed = rawText.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
   if (!trimmed) throw new Error('Model returned an empty response.');
   try {
     return JSON.parse(trimmed) as Record<string, unknown>;
@@ -87,6 +195,7 @@ async function callAiModelJson(params: {
   jsonSchemaHint: string;
   geminiResponseSchema: Record<string, unknown>;
   useGoogleSearch?: boolean;
+  useSchema?: boolean;
   thinkingLevel?: ThinkingLevel;
 }): Promise<{ data: Record<string, unknown>; sources: { uri: string; title: string }[] }> {
   const {
@@ -97,6 +206,7 @@ async function callAiModelJson(params: {
     jsonSchemaHint,
     geminiResponseSchema,
     useGoogleSearch = false,
+    useSchema = true,
     thinkingLevel,
   } = params;
 
@@ -105,32 +215,122 @@ async function callAiModelJson(params: {
     if (!effectiveKey) {
       throw new AiHttpError(
         400,
-        'Gemini API key is missing. Enter your Gemini API key in AI Provider Settings or set GEMINI_API_KEY on the server.'
+        'Gemini API key is missing. Enter your Gemini API key in AI Keys settings or set GEMINI_API_KEY on the server.'
       );
     }
     const modelToUse = aiConfig.model || defaultGeminiModel;
     const client = new GoogleGenAI({
       apiKey: effectiveKey,
       httpOptions: {
+        timeout: 18000,
         headers: {
           'User-Agent': 'aistudio-build',
         },
       },
     });
-    const response = await client.models.generateContent({
-      model: modelToUse,
-      contents: userPrompt,
-      config: {
-        systemInstruction,
-        ...(thinkingLevel ? { thinkingConfig: { thinkingLevel } } : {}),
-        ...(useGoogleSearch ? { tools: [{ googleSearch: {} }] } : {}),
-        responseMimeType: 'application/json',
-        responseSchema: geminiResponseSchema,
-      },
-    });
-    const rawText = (response.text ?? '{}').trim();
-    const data = extractJsonObject(rawText);
-    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+    const strictJsonSystem = `${systemInstruction}\n\nOUTPUT CONTRACT:\nRespond with a SINGLE valid JSON object only (no markdown code fences, no extra prose outside JSON) matching:\n${jsonSchemaHint}`;
+
+    const runGeminiAttempt = async (
+      targetModel: string,
+      opts: { withSchema: boolean; withSearch: boolean; withThinking: boolean; timeoutMs: number }
+    ) => {
+      const useThinking = Boolean(
+        opts.withThinking && thinkingLevel && isGeminiThinkingLevelSupported(targetModel)
+      );
+      return client.models.generateContent({
+        model: targetModel,
+        contents: userPrompt,
+        config: {
+          abortSignal: AbortSignal.timeout(opts.timeoutMs),
+          systemInstruction: opts.withSchema ? systemInstruction : strictJsonSystem,
+          ...(useThinking ? { thinkingConfig: { thinkingLevel } } : {}),
+          ...(opts.withSearch ? { tools: [{ googleSearch: {} }] } : {}),
+          responseMimeType: 'application/json',
+          ...(opts.withSchema ? { responseSchema: geminiResponseSchema } : {}),
+        },
+      });
+    };
+
+    const throwGeminiErr = (err: unknown): never => {
+      const d = extractGoogleErrorDetails(err);
+      const httpStatus = d.status >= 400 && d.status < 500 ? d.status : 502;
+      throw new AiHttpError(httpStatus, formatProviderHttpError('Gemini', d.status, d.cleanMsg));
+    };
+
+    const runFlashFallback = async () => {
+      try {
+        return await runGeminiAttempt('gemini-2.5-flash', {
+          withSchema: useSchema && !useGoogleSearch,
+          withSearch: false,
+          withThinking: false,
+          timeoutMs: 22000,
+        });
+      } catch (err3: unknown) {
+        const d3 = extractGoogleErrorDetails(err3);
+        if (!d3.isAuthOrKey && d3.status === 400 && useSchema) {
+          try {
+            return await runGeminiAttempt('gemini-2.5-flash', {
+              withSchema: false,
+              withSearch: false,
+              withThinking: false,
+              timeoutMs: 22000,
+            });
+          } catch (err4: unknown) {
+            return throwGeminiErr(err4);
+          }
+        }
+        return throwGeminiErr(err3);
+      }
+    };
+
+    let response;
+    try {
+      response = await runGeminiAttempt(modelToUse, {
+        withSchema: useSchema,
+        withSearch: useGoogleSearch,
+        withThinking: true,
+        timeoutMs: modelToUse === 'gemini-2.5-flash' ? 24000 : 14000,
+      });
+    } catch (err1: unknown) {
+      const d1 = extractGoogleErrorDetails(err1);
+      if (d1.isAuthOrKey || d1.status === 429) {
+        throwGeminiErr(err1);
+      }
+
+      if (d1.status === 400 && (useSchema || useGoogleSearch || isGeminiThinkingLevelSupported(modelToUse))) {
+        try {
+          response = await runGeminiAttempt(modelToUse, {
+            withSchema: false,
+            withSearch: false,
+            withThinking: false,
+            timeoutMs: 18000,
+          });
+        } catch (err2: unknown) {
+          const d2 = extractGoogleErrorDetails(err2);
+          if ((d2.isModelNotFound || d2.isTransientOrUnavailable) && modelToUse !== 'gemini-2.5-flash') {
+            response = await runFlashFallback();
+          } else {
+            throwGeminiErr(err2);
+          }
+        }
+      } else if ((d1.isModelNotFound || d1.isTransientOrUnavailable) && modelToUse !== 'gemini-2.5-flash') {
+        response = await runFlashFallback();
+      } else {
+        throwGeminiErr(err1);
+      }
+    }
+
+    const rawText = (response?.text ?? '{}').trim();
+    let data: Record<string, unknown>;
+    try {
+      data = extractJsonObject(rawText);
+    } catch (parseErr: unknown) {
+      throw new AiHttpError(
+        502,
+        parseErr instanceof Error ? parseErr.message : 'Gemini returned invalid JSON output.'
+      );
+    }
+    const groundingChunks = response?.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
     const sources = groundingChunks
       .map((chunk) => {
         const web = (chunk as { web?: { uri?: string; title?: string } }).web;
@@ -150,7 +350,7 @@ async function callAiModelJson(params: {
     if (!aiConfig.apiKey) {
       throw new AiHttpError(
         400,
-        'Anthropic Claude API key is required. Configure your sk-ant-... key in AI Provider Settings.'
+        'Anthropic Claude API key is required. Configure your sk-ant-... key in AI Keys settings.'
       );
     }
     const base = (aiConfig.baseUrl || 'https://api.anthropic.com/v1').replace(/\/+$/, '');
@@ -180,7 +380,10 @@ async function callAiModelJson(params: {
     if (!resp.ok) {
       const errObj = bodyJson.error as { message?: string } | undefined;
       const errMsg = errObj?.message || bodyText || resp.statusText;
-      throw new AiHttpError(resp.status >= 400 && resp.status < 500 ? resp.status : 502, `Anthropic error (${resp.status}): ${errMsg}`);
+      throw new AiHttpError(
+        resp.status >= 400 && resp.status < 500 ? resp.status : 502,
+        formatProviderHttpError('Anthropic Claude', resp.status, errMsg)
+      );
     }
     const contentBlocks = Array.isArray(bodyJson.content)
       ? (bodyJson.content as { type?: string; text?: string }[])
@@ -196,7 +399,7 @@ async function callAiModelJson(params: {
   if (aiConfig.provider === 'openai' && !aiConfig.apiKey) {
     throw new AiHttpError(
       400,
-      'OpenAI API key is required. Configure your sk-... key in AI Provider Settings.'
+      'OpenAI API key is required. Configure your sk-... key in AI Keys settings.'
     );
   }
   const rawBase = aiConfig.baseUrl || 'https://api.openai.com/v1';
@@ -217,15 +420,17 @@ async function callAiModelJson(params: {
     headers.Authorization = `Bearer ${aiConfig.apiKey}`;
   }
 
-  const sendOpenAiRequest = async (useResponseFormat: boolean) => {
+  const sendOpenAiRequest = async (useResponseFormat: boolean, includeTemperature: boolean) => {
     const payload: Record<string, unknown> = {
       model: aiConfig.model,
       messages: [
         { role: 'system', content: strictSystem },
         { role: 'user', content: userPrompt },
       ],
-      temperature: 0.2,
     };
+    if (includeTemperature) {
+      payload.temperature = 0.2;
+    }
     if (useResponseFormat) {
       payload.response_format = { type: 'json_object' };
     }
@@ -236,11 +441,21 @@ async function callAiModelJson(params: {
     });
   };
 
-  let resp = await sendOpenAiRequest(true);
+  let includeTemp = !isReasoningModelId(aiConfig.model);
+  let resp = await sendOpenAiRequest(true, includeTemp);
   let bodyText = await resp.text();
-  if (!resp.ok && aiConfig.provider === 'openai-compatible' && resp.status === 400 && /response_format|json_object/i.test(bodyText)) {
-    resp = await sendOpenAiRequest(false);
+
+  // Retry cleanly on HTTP 400/422: drop unsupported temperature or response_format across both OpenAI & Compatible endpoints
+  if (!resp.ok && (resp.status === 400 || resp.status === 422)) {
+    const dropTemp = includeTemp && /temperature/i.test(bodyText);
+    if (dropTemp) includeTemp = false;
+    resp = await sendOpenAiRequest(false, includeTemp);
     bodyText = await resp.text();
+    if (!resp.ok && (resp.status === 400 || resp.status === 422) && includeTemp && /temperature/i.test(bodyText)) {
+      includeTemp = false;
+      resp = await sendOpenAiRequest(false, false);
+      bodyText = await resp.text();
+    }
   }
 
   let bodyJson: Record<string, unknown> = {};
@@ -254,7 +469,10 @@ async function callAiModelJson(params: {
     const errObj = bodyJson.error as { message?: string } | undefined;
     const errMsg = errObj?.message || (typeof bodyJson.message === 'string' ? bodyJson.message : '') || bodyText || resp.statusText;
     const label = aiConfig.provider === 'openai' ? 'OpenAI' : 'OpenAI-Compatible';
-    throw new AiHttpError(resp.status >= 400 && resp.status < 500 ? resp.status : 502, `${label} error (${resp.status}): ${errMsg}`);
+    throw new AiHttpError(
+      resp.status >= 400 && resp.status < 500 ? resp.status : 502,
+      formatProviderHttpError(label, resp.status, errMsg)
+    );
   }
 
   const choices = Array.isArray(bodyJson.choices)
@@ -508,8 +726,8 @@ Strict Engineering Rules:
       const historyBlock =
         Array.isArray(chatHistory) && chatHistory.length > 0
           ? `\nRECENT CONVERSATION:\n${chatHistory
-              .slice(-8)
-              .map((m) => `${m.role === 'user' ? 'ENGINEER' : 'AI_AGENT'}: ${m.text}`)
+              .slice(-6)
+              .map((m) => `${m.role === 'user' ? 'ENGINEER' : 'AI_AGENT'}: ${String(m.text || '').slice(0, 1200)}`)
               .join('\n')}\n`
           : '';
 
@@ -669,7 +887,7 @@ Return JSON strictly matching the responseSchema.`;
             },
           },
         },
-        required: ['overallVerdict', 'headline', 'executiveSummary', 'proposedFixes'],
+        required: ['overallVerdict', 'headline', 'executiveSummary', 'replyMarkdown', 'proposedFixes'],
       };
 
       const { data: parsed } = await callAiModelJson({
@@ -680,7 +898,8 @@ Return JSON strictly matching the responseSchema.`;
         jsonSchemaHint:
           '{ "overallVerdict": "critical"|"warning"|"verified-safe", "headline": string, "executiveSummary": string, "replyMarkdown": string, "proposedFixes": [{ "id": string, "alertId": string, "severity": "danger"|"warning"|"optimization", "domain": "dcdc"|"acdc", "title": string, "rationale": string, "couplingNote": string, "patchSummary": string, "patch": { "targetKind": "dcdc"|"acdc"|"inductor"|"capacitor", "alertFixId"?: string, "itemId"?: string, "capacitorUnlockMatrix"?: boolean, "syncToCircuit"?: boolean, "dcdcPatch"?: object, "acdcPatch"?: object, "inductorOverridesPatch"?: object, "capacitorOverridesPatch"?: object } }] }',
         geminiResponseSchema,
-        thinkingLevel: ThinkingLevel.MEDIUM,
+        useSchema: activeMode === 'audit',
+        thinkingLevel: activeMode === 'chat' ? ThinkingLevel.LOW : ThinkingLevel.MEDIUM,
       });
 
       res.json({
@@ -697,6 +916,17 @@ Return JSON strictly matching the responseSchema.`;
       console.error('AI Agent error:', err);
       res.status(status).json({ error: message });
     }
+  });
+
+  // Guarantee all /api/* errors and unknown /api/* routes respond with JSON (never HTML)
+  app.use('/api', (err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    const status =
+      typeof (err as { status?: number })?.status === 'number' ? (err as { status: number }).status : 400;
+    const message = err instanceof Error ? err.message : 'Invalid API request payload.';
+    res.status(status).json({ error: message });
+  });
+  app.all('/api/*', (_req, res) => {
+    res.status(404).json({ error: 'API endpoint not found.' });
   });
 
   if (process.env.NODE_ENV !== 'production') {

@@ -1610,37 +1610,45 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                   <div className="grid grid-cols-3 gap-1.5 text-[11px] font-mono">
                     <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
                       <span className="text-slate-500">R1:</span>{' '}
-                      <span className="text-slate-200">{dcdcRes.R1_kOhm}kΩ</span>
+                      <span className="text-slate-200">{dcdcRes.R1_kOhm.toFixed(1)}kΩ</span>
                     </div>
                     <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
                       <span className="text-slate-500">R2:</span>{' '}
-                      <span className="text-emerald-300">{dcdcRes.R2_kOhm}kΩ</span>
+                      <span className="text-emerald-300">{dcdcRes.R2_kOhm.toFixed(1)}kΩ</span>
                     </div>
                     <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
                       <span className="text-slate-500">R3:</span>{' '}
-                      <span className="text-emerald-300">{dcdcRes.R3_kOhm}kΩ</span>
+                      <span className={dcdcRes.isTwoZeroComp ? 'text-emerald-300' : 'text-slate-500'}>
+                        {dcdcRes.isTwoZeroComp ? `${dcdcRes.R3_kOhm.toFixed(1)}kΩ` : 'N/A (2P2Z)'}
+                      </span>
                     </div>
                     <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
                       <span className="text-slate-500">C1:</span>{' '}
-                      <span className="text-cyan-300">{dcdcRes.C1_nF}nF</span>
+                      <span className="text-cyan-300">{dcdcRes.C1_nF.toFixed(2)}nF</span>
                     </div>
                     <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
                       <span className="text-slate-500">C2:</span>{' '}
-                      <span className="text-cyan-300">{dcdcRes.C2_pF}pF</span>
+                      <span className="text-cyan-300">{dcdcRes.C2_pF.toFixed(0)}pF</span>
                     </div>
                     <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
                       <span className="text-slate-500">C3:</span>{' '}
-                      <span className="text-cyan-300">{dcdcRes.C3_nF}nF</span>
+                      <span className={dcdcRes.isTwoZeroComp ? 'text-cyan-300' : 'text-slate-500'}>
+                        {dcdcRes.isTwoZeroComp ? `${dcdcRes.C3_nF.toFixed(2)}nF` : 'N/A (2P2Z)'}
+                      </span>
                     </div>
                   </div>
                   <div className="text-[10px] font-mono text-slate-400 pt-1 border-t border-slate-800/80 flex flex-wrap justify-between gap-2">
                     <span>
-                      f_z1={manualOverride ? manualFz1_kHz.toFixed(2) : dcdcRes.fz1_kHz}kHz · f_z2=
-                      {manualOverride ? manualFz2_kHz.toFixed(2) : dcdcRes.fz2_kHz}kHz
+                      f_z1={manualOverride ? manualFz1_kHz.toFixed(2) : dcdcRes.fz1_kHz.toFixed(2)}kHz
+                      {dcdcRes.isTwoZeroComp
+                        ? ` · f_z2=${manualOverride ? manualFz2_kHz.toFixed(2) : dcdcRes.fz2_kHz.toFixed(2)}kHz`
+                        : ' · (Type-II 2P2Z)'}
                     </span>
                     <span>
-                      f_p1={manualOverride ? manualFp1_kHz.toFixed(1) : dcdcRes.fp1_kHz}kHz · f_p2=
-                      {manualOverride ? manualFp2_kHz.toFixed(1) : dcdcRes.fp2_kHz}kHz
+                      f_p1={manualOverride ? manualFp1_kHz.toFixed(1) : dcdcRes.fp1_kHz.toFixed(1)}kHz
+                      {dcdcRes.isTwoZeroComp
+                        ? ` · f_p2=${manualOverride ? manualFp2_kHz.toFixed(1) : dcdcRes.fp2_kHz.toFixed(1)}kHz`
+                        : ''}
                     </span>
                   </div>
                 </>

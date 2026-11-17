@@ -198,9 +198,13 @@ function solvePassiveRowsForContext(ctx: {
   };
 }
 
-export function buildAiDesignSnapshot(ctx: AiContextInputs) {
+export function buildAiDesignSnapshot(
+  ctx: AiContextInputs,
+  opts?: { compactForChat?: boolean }
+) {
   const { dcdcState, dcdcRes, acdcState, acdcRes, designAlerts } = ctx;
   const passives = solvePassiveRowsForContext(ctx);
+  const compactForChat = Boolean(opts?.compactForChat);
 
   return {
     summaryCounts: {
@@ -384,53 +388,63 @@ export function buildAiDesignSnapshot(ctx: AiContextInputs) {
         itemId: f.itemId,
       })),
     })),
-    catalogs: {
-      transformerCores: CORE_DATABASE.map((c) => ({
-        id: c.id,
-        name: c.name,
-        Ae_mm2: c.Ae_mm2,
-        Ap_cm4: c.Ap_cm4,
-        Rth_core_CW: c.Rth_core_CW,
-      })),
-      transformerMaterials: MATERIAL_DATABASE.map((m) => ({
-        id: m.id,
-        name: m.name,
-        Bsat_100C_T: m.Bsat_100C_T,
-        T_opt_C: m.T_opt_C,
-      })),
-      semiconductors: SEMICONDUCTOR_DATABASE.map((s) => ({
-        id: s.id,
-        name: s.name,
-        tech: s.tech,
-        role: s.role,
-        Vds_max_V: s.Vds_max_V,
-        Rds_on_25C_mOhm: s.Rds_on_25C_mOhm,
-      })),
-      inductorCores: INDUCTOR_CORE_DATABASE.slice(0, 30).map((c) => ({
-        id: c.id,
-        name: c.name,
-        shape: c.shape,
-        Ae_mm2: c.Ae_mm2,
-        Aw_mm2: c.Aw_mm2,
-      })),
-      inductorMaterials: INDUCTOR_MATERIAL_DATABASE.map((m) => ({
-        id: m.id,
-        name: m.name,
-        Bsat_T: m.Bsat_T,
-      })),
-      capacitors: READY_COTS_CAPACITORS.map((c) => ({
-        id: c.id,
-        mpn: c.mpn,
-        dielectric: c.dielectric,
-        dielectricLabel: c.dielectricLabel,
-        C_uF: c.C_uF,
-        V_rated_V: c.V_rated_V,
-        I_rms_A: c.I_rms_A,
-        ESR_mOhm: c.ESR_mOhm,
-        isSafetyY: c.dielectric === 'y-safety',
-        isSafetyX2: c.dielectric === 'x2-film',
-      })),
-    },
+    catalogs: compactForChat
+      ? {
+          note: 'Compact ID list for chat mode',
+          transformerCoreIds: CORE_DATABASE.map((c) => c.id),
+          transformerMaterialIds: MATERIAL_DATABASE.map((m) => m.id),
+          semiconductorIds: SEMICONDUCTOR_DATABASE.map((s) => `${s.id} (${s.Vds_max_V}V ${s.role})`),
+          inductorCoreIds: INDUCTOR_CORE_DATABASE.slice(0, 20).map((c) => c.id),
+          inductorMaterialIds: INDUCTOR_MATERIAL_DATABASE.map((m) => m.id),
+          capacitorIds: READY_COTS_CAPACITORS.map((c) => `${c.id} (${c.mpn} ${c.V_rated_V}V)`),
+        }
+      : {
+          transformerCores: CORE_DATABASE.map((c) => ({
+            id: c.id,
+            name: c.name,
+            Ae_mm2: c.Ae_mm2,
+            Ap_cm4: c.Ap_cm4,
+            Rth_core_CW: c.Rth_core_CW,
+          })),
+          transformerMaterials: MATERIAL_DATABASE.map((m) => ({
+            id: m.id,
+            name: m.name,
+            Bsat_100C_T: m.Bsat_100C_T,
+            T_opt_C: m.T_opt_C,
+          })),
+          semiconductors: SEMICONDUCTOR_DATABASE.map((s) => ({
+            id: s.id,
+            name: s.name,
+            tech: s.tech,
+            role: s.role,
+            Vds_max_V: s.Vds_max_V,
+            Rds_on_25C_mOhm: s.Rds_on_25C_mOhm,
+          })),
+          inductorCores: INDUCTOR_CORE_DATABASE.slice(0, 30).map((c) => ({
+            id: c.id,
+            name: c.name,
+            shape: c.shape,
+            Ae_mm2: c.Ae_mm2,
+            Aw_mm2: c.Aw_mm2,
+          })),
+          inductorMaterials: INDUCTOR_MATERIAL_DATABASE.map((m) => ({
+            id: m.id,
+            name: m.name,
+            Bsat_T: m.Bsat_T,
+          })),
+          capacitors: READY_COTS_CAPACITORS.map((c) => ({
+            id: c.id,
+            mpn: c.mpn,
+            dielectric: c.dielectric,
+            dielectricLabel: c.dielectricLabel,
+            C_uF: c.C_uF,
+            V_rated_V: c.V_rated_V,
+            I_rms_A: c.I_rms_A,
+            ESR_mOhm: c.ESR_mOhm,
+            isSafetyY: c.dielectric === 'y-safety',
+            isSafetyX2: c.dielectric === 'x2-film',
+          })),
+        },
   };
 }
 

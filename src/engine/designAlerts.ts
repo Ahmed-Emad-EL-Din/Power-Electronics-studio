@@ -273,9 +273,10 @@ export function evaluateDesignAlerts(params: {
   }
 
   if (
-    dcdcRes.saturationCheck.utilization_100C_pct < 12 &&
-    dcdcRes.Pcu_W > 4 * Math.max(0.25, dcdcRes.Pcore_W) &&
-    dcdcRes.Pcu_W > 4.0
+    dcdcRes.saturationCheck.utilization_100C_pct < 14 &&
+    dcdcRes.Pcu_W > 3.0 * Math.max(0.25, dcdcRes.Pcore_W) &&
+    dcdcRes.Pcu_W > 2.2 &&
+    dcdcRes.core.Ve_mm3 >= 35000
   ) {
     const compactFixes = synthesizeDcdcCompactCoreFixes(dcdcState, dcdcRes);
     alerts.push({
@@ -383,15 +384,57 @@ export function evaluateDesignAlerts(params: {
     });
   }
 
-  // 1g. Control Loop Stability & Subharmonic Peaking
+  // Low-line Duty Cycle Saturation Check
+  if (!dcdcRes.isLLC && dcdcRes.D_applied_max > 0.94) {
+    const isDropOut = dcdcRes.D_applied_max >= 0.985;
+    const ratioCur = dcdcRes.Np_actual / Math.max(1, dcdcRes.Ns_actual);
+    const nextNpDuty = Math.max(2, Math.round(dcdcRes.Np_actual * 0.92));
+    const nextRatioDuty = Number((nextNpDuty / Math.max(1, dcdcRes.Ns_actual)).toFixed(4));
+    alerts.push({
+      id: 'dcdc-duty-saturation',
+      severity: isDropOut ? 'danger' : 'warning',
+      domain: 'dcdc',
+      domainLabel: 'DC-DC',
+      subTab: 'schematic',
+      subTabLabel: 'Schematic & Equations',
+      title: isDropOut
+        ? 'Low-Line Duty Cycle Saturation (Regulation Dropout)'
+        : 'Tight Low-Line Duty Cycle Headroom',
+      metric: `D_app(Vin,min) = ${(dcdcRes.D_applied_max * 100).toFixed(1)}% (D_eff ${(dcdcRes.Deff_max * 100).toFixed(1)}% + ΔD ${(dcdcRes.Dloss_max * 100).toFixed(1)}%) at ${dcdcState.Vin_min_V} V`,
+      actionHint: `Lower turns ratio n (${ratioCur.toFixed(2)} → ${nextRatioDuty.toFixed(2)}) or reduce leakage L_lk to preserve regulation headroom at ${dcdcState.Vin_min_V} V.`,
+      fixes:
+        nextNpDuty < dcdcRes.Np_actual
+          ? [
+              {
+                id: 'dcdc-duty-np-reduce',
+                label: `Reduce Turns Np = ${dcdcRes.Np_actual} → ${nextNpDuty}T (n = ${nextRatioDuty.toFixed(2)})`,
+                impact: 'Lowers required D_eff at Vin,min and restores regulation headroom',
+                targetKind: 'dcdc',
+                dcdcPatch: { Np_turns: nextNpDuty, turnsRatio_n: nextRatioDuty },
+              },
+            ]
+          : undefined,
+    });
+  }
+
+  // 1g. Control Loop Stability & Subharmonic Peaking (Nominal & Worst-Case Low-Line)
   const fcFloor = dcdcRes.isLLC
     ? 2.5
     : Math.max(2.5, Number((dcdcRes.f0_lc_kHz * 1.6).toFixed(1)));
 
-  if (dcdcState.controlType === 'pcmc' && (!dcdcRes.slopeStable || dcdcRes.Qp_subharmonic > 1.8)) {
-    const dPrime = Math.max(0.12, 1 - (dcdcRes.isLLC ? dcdcRes.Deff_nom * 0.5 : dcdcRes.Deff_nom));
-    const mcTarget = Math.max(1.85, Number(((0.5 + 1 / (Math.PI * 1.15)) / dPrime).toFixed(2)));
-    const isCritSlope = !dcdcRes.slopeStable || dcdcRes.Qp_subharmonic > 2.0;
+  if (
+    dcdcState.controlType === 'pcmc' &&
+    (!dcdcRes.slopeStable ||
+      !dcdcRes.slopeStable_wc ||
+      dcdcRes.Qp_subharmonic > 1.8 ||
+      dcdcRes.Qp_subharmonic_wc > 1.8)
+  ) {
+    const mcTarget = Math.max(1.85, Number(dcdcRes.mc_min_recommended.toFixed(2)));
+    const isCritSlope =
+      !dcdcRes.slopeStable ||
+      !dcdcRes.slopeStable_wc ||
+      dcdcRes.Qp_subharmonic > 2.0 ||
+      dcdcRes.Qp_subharmonic_wc > 2.0;
     alerts.push({
       id: 'dcdc-pcmc-slope',
       severity: isCritSlope ? 'danger' : 'warning',
@@ -402,13 +445,13 @@ export function evaluateDesignAlerts(params: {
       title: isCritSlope
         ? 'PCMC Subharmonic Oscillation Instability'
         : 'Elevated PCMC Subharmonic Peaking Q_p',
-      metric: `Qp = ${dcdcRes.Qp_subharmonic.toFixed(2)} (mc = ${dcdcState.slopeFactor_mc.toFixed(2)}, D_eff = ${(dcdcRes.Deff_nom * 100).toFixed(0)}%)`,
-      actionHint: `Increase slope compensation multiplier m_c ≥ ${mcTarget.toFixed(2)} to clamp Ridley Q_p ≤ 1.15.`,
+      metric: `Qp(nom) = ${dcdcRes.Qp_subharmonic.toFixed(2)} · Qp(Vin,min) = ${dcdcRes.Qp_subharmonic_wc.toFixed(2)} (mc = ${dcdcState.slopeFactor_mc.toFixed(2)}, Deff max = ${(dcdcRes.Deff_max * 100).toFixed(0)}%)`,
+      actionHint: `Increase slope compensation multiplier m_c ≥ ${mcTarget.toFixed(2)} to clamp Ridley Q_p ≤ 1.15–1.25 across ${dcdcState.Vin_min_V}–${dcdcState.Vin_max_V} V.`,
       fixes: [
         {
           id: 'dcdc-slope-fix',
           label: `Set Slope Compensation m_c = ${mcTarget.toFixed(2)}`,
-          impact: 'Restores Q_p ≤ 1.15 and eliminates subharmonic double-pulsing',
+          impact: 'Restores Q_p ≤ 1.25 at both nominal & low-line Vin,min, eliminating subharmonic oscillation',
           targetKind: 'dcdc',
           dcdcPatch: { slopeFactor_mc: mcTarget },
         },
@@ -468,13 +511,12 @@ export function evaluateDesignAlerts(params: {
 
   if (
     !dcdcRes.isLLC &&
-    dcdcState.fc_target_kHz < dcdcRes.f0_lc_kHz * 1.45 &&
-    dcdcRes.f0_lc_kHz * 2.0 <= dcdcState.fsw_kHz / 6
+    dcdcState.fc_target_kHz < Math.max(dcdcRes.f0_lc_kHz * 1.45, dcdcRes.f0_lc_kHz + 0.4)
   ) {
     const fcTargetNext = Number(
       Math.min(
-        dcdcState.fsw_kHz / 8,
-        Math.max(6.0, Math.round(dcdcRes.f0_lc_kHz * 2.2 * 2) / 2)
+        dcdcState.fsw_kHz / 6.5,
+        Math.max(5.5, Math.round(dcdcRes.f0_lc_kHz * 2.2 * 2) / 2)
       ).toFixed(1)
     );
     alerts.push({

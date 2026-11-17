@@ -243,8 +243,8 @@ export function extractCircuitInductors(
       targetL_uH: Math.max(500, Math.round(acdcRes.Lcm_mH * 1000)),
       I_dc_A: 0, // Net flux cancels in bifilar CM winding!
       I_rms_A: acdcRes.Iac_rms_max_A,
-      I_pk_A: 0.6, // Only CM leakage current magnetizes the core
-      deltaI_pp_A: 0.25,
+      I_pk_A: 0.06, // High-impedance CM choke blocks HF CM leakage to ~30-60 mA peak
+      deltaI_pp_A: 0.04,
       f_ripple_kHz: acdcRes.f_emi_fundamental_kHz,
       V_applied_V: 12,
       Tamb_C: 45,
@@ -348,8 +348,8 @@ export function extractCircuitInductors(
     targetL_uH: 1500,
     I_dc_A: 0,
     I_rms_A: Iin_dc_bus * 1.05,
-    I_pk_A: 0.4,
-    deltaI_pp_A: 0.2,
+    I_pk_A: 0.12,
+    deltaI_pp_A: 0.06,
     f_ripple_kHz: dcdcState.fsw_kHz,
     V_applied_V: 10,
     Tamb_C: dcdcState.Tamb_C,
@@ -560,23 +560,27 @@ function solveCoreTrial(
       MAGNET_WIRE_DATABASE.find((w) => w.awg === lockedAwg) ||
       MAGNET_WIRE_DATABASE[4];
     if (lockedStrands === undefined) {
-      parallelStrands = Math.max(1, Math.min(20, Math.ceil(A_cu_req_mm2 / selectedWire.area_mm2)));
+      parallelStrands = Math.max(1, Math.min(48, Math.ceil(A_cu_req_mm2 / selectedWire.area_mm2)));
     }
   } else {
-    // Auto-select wire diameter <= 2.4 * skin depth to curb skin effect, with feasible strands
+    // Auto-select wire diameter <= 2.4 * skin depth to curb skin effect, stepping up AWG when DC/LF current dominates
     const maxBareDiam_mm = Math.max(0.35, Math.min(2.6, 2.4 * skinDepth_mm));
     const candidates = MAGNET_WIRE_DATABASE.filter((w) => w.d_bare_mm <= maxBareDiam_mm);
     selectedWire = candidates[0] || MAGNET_WIRE_DATABASE[MAGNET_WIRE_DATABASE.length - 1];
     if (lockedStrands === undefined) {
-      parallelStrands = Math.max(1, Math.min(16, Math.ceil(A_cu_req_mm2 / selectedWire.area_mm2)));
-      // If > 8 strands needed with thin wire, step up to thicker AWG if DC loss dominates over ripple
+      parallelStrands = Math.max(1, Math.min(48, Math.ceil(A_cu_req_mm2 / selectedWire.area_mm2)));
+      // Step up to thicker wire when > 8 strands would be needed and DC/LF current dominates HF ripple
       if (parallelStrands > 8) {
+        const allowThickMultiplier = req.deltaI_pp_A < req.I_rms_A * 0.55 ? 2.4 : 1.5;
         const thicker = MAGNET_WIRE_DATABASE.find(
-          (w) => Math.ceil(A_cu_req_mm2 / w.area_mm2) <= 6 && (req.deltaI_pp_A < req.I_rms_A * 0.35 || w.d_bare_mm <= maxBareDiam_mm * 1.45)
+          (w) =>
+            Math.ceil(A_cu_req_mm2 / w.area_mm2) <= 10 &&
+            (w.d_bare_mm <= Math.max(maxBareDiam_mm * allowThickMultiplier, 1.65) ||
+              req.deltaI_pp_A < req.I_rms_A * 0.45)
         );
         if (thicker) {
           selectedWire = thicker;
-          parallelStrands = Math.max(1, Math.min(16, Math.ceil(A_cu_req_mm2 / selectedWire.area_mm2)));
+          parallelStrands = Math.max(1, Math.min(48, Math.ceil(A_cu_req_mm2 / selectedWire.area_mm2)));
         }
       }
     }
@@ -954,32 +958,60 @@ export function solveCustomInductorDesign(
   const conductorPref: InductorConductorForm = overrides.conductorForm || 'auto';
 
   if (!chosenCore) {
-    // Auto-select smallest core (sorted by Aw_mm2) that fits window, keeps B_pk < 78% (satStatus==='ok'), & stays < 52°C rise!
+    const evalPool = (mat: InductorMaterialSpec) => {
+      const fam: InductorCoreSpec['family'] =
+        mat.category === 'nanocrystalline' ? 'cm-toroid' : mat.category === 'ferrite' ? 'ferrite' : 'powder';
+      return INDUCTOR_CORE_DATABASE
+        .filter((c) => c.family === fam)
+        .sort((a, b) => a.Aw_mm2 - b.Aw_mm2)
+        .map((c) =>
+          solveCoreTrial(
+            req,
+            c,
+            mat,
+            effTargetL,
+            locks.turnsN ? overrides.turnsN : undefined,
+            locks.airGap_mm ? overrides.airGap_mm : undefined,
+            locks.wireAwg ? overrides.wireAwg : undefined,
+            locks.parallelStrands ? overrides.parallelStrands : undefined,
+            overrides.useLitz,
+            conductorPref,
+            true
+          )
+        );
+    };
+
+    const pickFromTrials = (trials: CustomInductorSolution[]) =>
+      trials.find((t) => t.satStatus === 'ok' && t.windowFitStatus === 'ok' && t.deltaT_C < 52) ||
+      trials.find((t) => t.satStatus === 'ok' && t.windowFitStatus !== 'overflow' && t.deltaT_C < 58) ||
+      trials.find((t) => t.satStatus !== 'critical' && t.windowFitStatus !== 'overflow' && t.deltaT_C < 65);
+
+    const primaryTrials = evalPool(chosenMat);
+    let best = pickFromTrials(primaryTrials);
+
+    // If unlocked material struggles thermally or overflows, try High-Flux 60µ or Gapped Ferrite PC95 automatically
+    if (!best && !locks.materialId && !overrides.materialId && req.role !== 'cm-choke') {
+      const fallbackMatIds = ['high-flux-60', 'ferrite-pc95', 'koolmu-40'];
+      for (const fmId of fallbackMatIds) {
+        const fm = INDUCTOR_MATERIAL_DATABASE.find((m) => m.id === fmId);
+        if (!fm || fm.id === chosenMat.id) continue;
+        const cand = pickFromTrials(evalPool(fm));
+        if (cand) {
+          best = cand;
+          break;
+        }
+      }
+    }
+
+    if (!best) {
+      const safe = primaryTrials.filter((t) => t.satStatus !== 'critical' && t.windowFitStatus !== 'overflow');
+      const poolToSort = safe.length > 0 ? safe : primaryTrials;
+      best = [...poolToSort].sort((a, b) => a.T_hotspot_C - b.T_hotspot_C)[0];
+    }
+    if (best) return best;
     const pool = INDUCTOR_CORE_DATABASE
       .filter((c) => c.family === compatFamily)
       .sort((a, b) => a.Aw_mm2 - b.Aw_mm2);
-    const trials = pool.map((c) =>
-      solveCoreTrial(
-        req,
-        c,
-        chosenMat,
-        effTargetL,
-        locks.turnsN ? overrides.turnsN : undefined,
-        locks.airGap_mm ? overrides.airGap_mm : undefined,
-        locks.wireAwg ? overrides.wireAwg : undefined,
-        locks.parallelStrands ? overrides.parallelStrands : undefined,
-        overrides.useLitz,
-        conductorPref,
-        true
-      )
-    );
-    const best =
-      trials.find((t) => t.satStatus === 'ok' && t.windowFitStatus === 'ok' && t.deltaT_C < 52) ||
-      trials.find((t) => t.satStatus === 'ok' && t.windowFitStatus !== 'overflow' && t.deltaT_C < 52) ||
-      trials.find((t) => t.satStatus !== 'critical' && t.windowFitStatus !== 'overflow' && t.deltaT_C < 52) ||
-      trials.find((t) => t.satStatus !== 'critical' && t.windowFitStatus !== 'overflow') ||
-      trials[trials.length - 1];
-    if (best) return best;
     chosenCore = pool[pool.length - 1] || INDUCTOR_CORE_DATABASE[0];
   }
 
@@ -1233,7 +1265,7 @@ export function extractCircuitCapacitors(
       role: 'x2-emi',
       targetC_uF: acdcRes.Cx_each_uF,
       V_op_pk_V: acdcState.Vac_max_V,
-      V_min_rated_V: 305,
+      V_min_rated_V: Math.max(305, Math.ceil(acdcState.Vac_max_V * 1.12)),
       I_lf_rms_A: 0.45,
       I_hf_rms_A: Math.max(0.8, acdcRes.dIin_net_max_A * 0.4),
       I_total_rms_A: Math.max(1.0, acdcRes.dIin_net_max_A * 0.45),
@@ -1243,14 +1275,16 @@ export function extractCircuitCapacitors(
       description: 'Across L-N mains terminals; certified IEC 60384-14 Class X2 with self-healing film.',
     };
 
+    const yCapLineToPe_Vac =
+      acdcState.Vac_max_V > 300 ? Math.round(acdcState.Vac_max_V / Math.sqrt(3)) : acdcState.Vac_max_V;
     const acY2: CircuitCapacitorRequirement = {
       id: 'acdc-y2',
       designator: 'C_Y1, C_Y2',
       name: 'Earth-Leakage Y1/Y2 Safety Bypass Capacitors',
       role: 'y-safety',
       targetC_uF: (acdcState.Cy_nF ?? acdcRes.Cy_each_nF) * 1e-3,
-      V_op_pk_V: acdcState.Vac_max_V,
-      V_min_rated_V: 250,
+      V_op_pk_V: yCapLineToPe_Vac,
+      V_min_rated_V: Math.max(305, Math.ceil(yCapLineToPe_Vac * 1.25)),
       I_lf_rms_A: (acdcRes.earthLeakage_mA ?? 1.5) * 1e-3,
       I_hf_rms_A: 0.35,
       I_total_rms_A: 0.35,
@@ -1463,13 +1497,15 @@ export function solveCapacitorBank(
 
   let status: 'ok' | 'warning' | 'critical' = 'ok';
   let statusReason = 'Voltage derating <= 80%, RMS ripple within spec, and thermal life nominal.';
+  const isAcSafetyCap = unitPart.dielectric === 'x2-film' || unitPart.dielectric === 'y-safety';
+  const voltageWarnPct = isAcSafetyCap ? 92 : 82;
   if (voltageDerating_pct > 95 || rippleUtilization_pct > 105 || T_hotspot_C > unitPart.Tmax_C) {
     status = 'critical';
     statusReason =
       voltageDerating_pct > 95
         ? `Peak voltage (${req.V_op_pk_V.toFixed(0)}V) exceeds safe rating (${bank_V_rated_V}V). Add series units or choose higher V_rated.`
         : `Ripple current or hotspot (${T_hotspot_C.toFixed(1)}°C > ${unitPart.Tmax_C}°C) exceeded. Increase parallel count P.`;
-  } else if (voltageDerating_pct > 82 || rippleUtilization_pct > 85 || L10_life_hrs < 25000) {
+  } else if (voltageDerating_pct > voltageWarnPct || rippleUtilization_pct > 85 || L10_life_hrs < 25000) {
     status = 'warning';
     statusReason = `Tight derating (${voltageDerating_pct.toFixed(0)}% V_rated, ${rippleUtilization_pct.toFixed(0)}% I_rms, ${(L10_life_hrs / 1000).toFixed(1)}k hrs).`;
   } else if (isClass2Mlcc && (mlccBiasDerate_pct > 20 || (req.role === 'output-filter' && bank_ESR_mOhm < 0.8))) {

@@ -614,10 +614,11 @@ export function solveAcDcDesign(state: AcDcDesignState): AcDcResults {
   // ============================================================================
   const wc_i = 2 * Math.PI * (state.fc_i_kHz * 1e3);
   const Ts_ctrl = 1 / (state.fs_ctrl_kHz * 1e3);
-  const Td_delay = 1.5 * Ts_ctrl;
+  const Td_delay = 0.75 * Ts_ctrl; // Synchronous ADC sampling + trailing-edge DPWM update transport delay
 
-  const boost_i_rad = ((state.pm_i_deg - 90 + (wc_i * Td_delay * 180) / Math.PI) * Math.PI) / 180;
-  const k_boost_i = Math.max(1.3, Math.tan(Math.PI / 4 + Math.max(0.1, Math.min(1.1, boost_i_rad)) / 2));
+  // Plant G_id(s) (-90°) + Type-II Integrator (-90°) = -180° unboosted; lead-lag pair supplies pm_i_deg + w*Td
+  const boost_i_rad = ((state.pm_i_deg + (wc_i * Td_delay * 180) / Math.PI) * Math.PI) / 180;
+  const k_boost_i = Math.max(1.3, Math.tan(Math.PI / 4 + Math.max(0.1, Math.min(1.42, boost_i_rad)) / 2));
 
   const wz_i = wc_i / k_boost_i;
   const wp_i = wc_i * k_boost_i;
@@ -809,12 +810,16 @@ export function solveAcDcDesign(state: AcDcDesignState): AcDcResults {
   // AC-Side DM/CM EMI Filter & Safety Earth Leakage Synthesizer (CISPR 32 Class B)
   // ============================================================================
   const f_emi_fundamental_kHz = nPhases * state.fsw_kHz;
-  const I_ripple_rms_A = dIin_net_max_A / (2 * Math.sqrt(3));
-  // Conducted noise voltage across 50-Ohm LISN
-  const Vdm_unfiltered_dBuV = 20 * Math.log10(Math.max(1e-3, I_ripple_rms_A * 25) * 1e6);
+  // First switching harmonic falling inside CISPR 32 conducted band (>= 150 kHz)
+  const n_cispr_harm = Math.max(1, Math.ceil(150 / Math.max(20, f_emi_fundamental_kHz)));
+  const f_cispr_design_kHz = f_emi_fundamental_kHz * n_cispr_harm;
+  const I_ripple_rms_A = (dIin_net_max_A / (2 * Math.sqrt(3))) * Math.pow(n_cispr_harm, -1.45);
+  // Conducted noise voltage across 50-Ohm LISN after local bridge X-cap HF impedance division (~4.2 Ohm effective source)
+  const Vdm_unfiltered_dBuV = 20 * Math.log10(Math.max(1e-3, I_ripple_rms_A * 4.2) * 1e6);
   const cisprLimitAtFemi_dBuV = 56; // CISPR 32 Class B Average limit at 150kHz-500kHz
   const RequiredAtt_dB = Math.max(24, Vdm_unfiltered_dBuV - cisprLimitAtFemi_dBuV + 6);
-  const fc_dm_kHz = f_emi_fundamental_kHz / Math.pow(10, RequiredAtt_dB / 40);
+  // 2-stage Pi (C_X1 - L_dm - C_X2 + CM leakage) yields ~60 dB/decade above corner fc_dm
+  const fc_dm_kHz = Math.max(12.0, f_cispr_design_kHz / Math.pow(10, RequiredAtt_dB / 60));
   const Cx_each_uF = state.Pout_W >= 6000 ? 2.2 : 1.5;
   const Ldm_uH =
     (1 / (Math.pow(2 * Math.PI * fc_dm_kHz * 1e3, 2) * (Cx_each_uF * 1e-6))) * 1e6;
@@ -831,8 +836,8 @@ export function solveAcDcDesign(state: AcDcDesignState): AcDcResults {
     const cisprQP = f_MHz < 0.5 ? 66 - 10 * Math.log10(f_MHz / 0.15) : f_MHz <= 5 ? 56 : 60;
     const cisprAvg = f_MHz < 0.5 ? 56 - 10 * Math.log10(f_MHz / 0.15) : f_MHz <= 5 ? 46 : 50;
     const f_kHz = f_MHz * 1e3;
-    const unfilt = Vdm_unfiltered_dBuV - 22 * Math.log10(Math.max(1, f_kHz / f_emi_fundamental_kHz));
-    const filterAtt = Math.min(68, 40 * Math.log10(Math.max(1.1, f_kHz / fc_dm_kHz)));
+    const unfilt = Vdm_unfiltered_dBuV - 22 * Math.log10(Math.max(1, f_kHz / f_cispr_design_kHz));
+    const filterAtt = Math.min(76, 60 * Math.log10(Math.max(1.1, f_kHz / fc_dm_kHz)));
     emiSpectrumCurve.push({
       freq_MHz: f_MHz,
       freq_label: f_MHz < 1 ? `${Math.round(f_MHz * 1000)}k` : `${f_MHz}M`,

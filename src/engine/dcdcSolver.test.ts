@@ -15,11 +15,17 @@ import {
   solveCapacitorBank,
   solveCustomInductorDesign,
 } from './passiveDesignEngine';
+import katex from 'katex';
 import { buildDesignReportModel } from '../utils/designReportModel';
+import { calcStringToTexLines } from '../utils/mathTexHelper';
+import { buildAiDesignSnapshot } from './aiAgentEngine';
 import {
   clearAiProviderConfig,
   getDefaultAiProviderConfig,
+  isGeminiThinkingLevelSupported,
+  isOpenAiReasoningModel,
   normalizeAiProviderConfig,
+  sanitizeApiKey,
   toServerAiConfig,
   validateAiProviderConfig,
 } from './aiProviderConfig';
@@ -329,8 +335,8 @@ test('Design Alerts & Report Model catch Rev 4 regressions accurately (oversized
     scopedAlerts: alerts2p2z,
   });
 
-  const ch5 = report.chapters.find((c) => c.id === 'dcdc-ch5-passives');
-  const ch6 = report.chapters.find((c) => c.id === 'dcdc-ch6-control');
+  const ch5 = report.chapters.find((c) => c.id === 'ch-dcdc-passives');
+  const ch6 = report.chapters.find((c) => c.id === 'ch-dcdc-ctrl');
   assert.ok(ch5 && ch6, 'Expected Chapters 5 and 6 in DC-DC report');
   const ch5Text = JSON.stringify(ch5);
   assert.ok(
@@ -378,4 +384,336 @@ test('AI Provider Config validation, normalization, and server payload stripping
   const cleared = clearAiProviderConfig();
   assert.equal(cleared.provider, 'gemini');
   assert.equal(cleared.apiKey, '');
+
+  assert.equal(isOpenAiReasoningModel('o3-mini'), true);
+  assert.equal(isOpenAiReasoningModel('gpt-5-mini'), true);
+  assert.equal(isOpenAiReasoningModel('openai/o4-mini'), true);
+  assert.equal(isOpenAiReasoningModel('gpt-4o'), false);
+  assert.equal(isOpenAiReasoningModel('claude-sonnet-4-20250514'), false);
 });
+
+test('Low-line (Vin_min_V) PCMC subharmonic oscillation & 1-click slope fix restore stability across entire line range', () => {
+  const acdcState = ACDC_PRESETS[0].state;
+  const acdcRes = solveAcDcDesign(acdcState);
+
+  // Set slopeFactor_mc so nominal 400V looks borderline stable, but low-line Vin_min=360V hits Qp_wc > 2.0
+  const lowLineRisk: DcDcDesignState = {
+    ...DCDC_PRESETS[0].state,
+    Vin_min_V: 350,
+    Np_turns: 21,
+    Ns_turns: 3,
+    turnsRatio_n: 7.0,
+    slopeFactor_mc: 1.55,
+  };
+  const resLowLine = solveDcDcDesign(lowLineRisk);
+  assert.ok(
+    resLowLine.Deff_max > resLowLine.Deff_nom,
+    'Expected Deff_max at Vin_min to exceed nominal Deff_nom'
+  );
+  assert.ok(
+    resLowLine.Qp_subharmonic_wc > 2.0,
+    `Expected low-line Qp_subharmonic_wc > 2.0, got ${resLowLine.Qp_subharmonic_wc}`
+  );
+
+  const alerts = evaluateDesignAlerts({
+    dcdcState: lowLineRisk,
+    dcdcRes: resLowLine,
+    acdcState,
+    acdcRes,
+  });
+  const slopeAlert = alerts.danger.find((a) => a.id === 'dcdc-pcmc-slope');
+  assert.ok(slopeAlert, 'Expected Danger dcdc-pcmc-slope alert when low-line Qp_wc > 2.0');
+  const fix = slopeAlert?.fixes?.[0];
+  assert.ok(fix?.dcdcPatch?.slopeFactor_mc, 'Expected 1-click slopeFactor_mc fix');
+
+  const fixedState: DcDcDesignState = { ...lowLineRisk, ...fix!.dcdcPatch };
+  const fixedRes = solveDcDcDesign(fixedState);
+  assert.ok(
+    fixedRes.slopeStable && fixedRes.slopeStable_wc && fixedRes.Qp_subharmonic_wc <= 1.25,
+    `Expected fixed Qp_subharmonic_wc <= 1.25, got ${fixedRes.Qp_subharmonic_wc}`
+  );
+});
+
+test('Low-line duty cycle saturation (D_loss & D_applied_max > 0.94) triggers dcdc-duty-saturation with 1-click fix', () => {
+  const acdcState = ACDC_PRESETS[0].state;
+  const acdcRes = solveAcDcDesign(acdcState);
+
+  const satState: DcDcDesignState = {
+    ...DCDC_PRESETS[0].state,
+    Vin_min_V: 340,
+    Np_turns: 22,
+    Ns_turns: 3,
+    turnsRatio_n: Number((22 / 3).toFixed(4)),
+    Llk_uH: 6.5,
+  };
+  const satRes = solveDcDcDesign(satState);
+  assert.ok(
+    satRes.Dloss_max > 0 && satRes.D_applied_max > 0.94,
+    `Expected D_applied_max > 0.94 with positive Dloss_max, got D_app=${satRes.D_applied_max}, Dloss=${satRes.Dloss_max}`
+  );
+
+  const alerts = evaluateDesignAlerts({
+    dcdcState: satState,
+    dcdcRes: satRes,
+    acdcState,
+    acdcRes,
+  });
+  const dutyAlert = alerts.all.find((a) => a.id === 'dcdc-duty-saturation');
+  assert.ok(dutyAlert, 'Expected dcdc-duty-saturation alert when D_applied_max > 0.94');
+  assert.ok(dutyAlert?.fixes?.[0]?.dcdcPatch?.Np_turns, 'Expected 1-click Np reduction fix');
+});
+
+test('Page 9 ch-audit catches chapter failures even if scopedAlerts is empty', () => {
+  const acdcState = ACDC_PRESETS[0].state;
+  const acdcRes = solveAcDcDesign(acdcState);
+  const brokenState: DcDcDesignState = {
+    ...DCDC_PRESETS[0].state,
+    controlType: 'pcmc',
+    slopeFactor_mc: 1.05,
+    fc_target_kHz: 0.4,
+  };
+  const brokenRes = solveDcDcDesign(brokenState);
+  const passiveRows = solvePassiveRows(brokenState, brokenRes, acdcState, acdcRes);
+
+  const reportWithEmptyAlerts = buildDesignReportModel({
+    scope: 'dcdc',
+    dcdcState: brokenState,
+    dcdcRes: brokenRes,
+    acdcState,
+    acdcRes,
+    ...passiveRows,
+    scopedAlerts: { danger: [], warning: [], all: [] },
+  });
+
+  const chCtrl = reportWithEmptyAlerts.chapters.find((c) => c.id === 'ch-dcdc-ctrl');
+  const chAudit = reportWithEmptyAlerts.chapters.find((c) => c.id === 'ch-audit');
+  assert.ok(chCtrl && chCtrl.status === 'fail', `Expected ch-dcdc-ctrl to fail, got ${chCtrl?.status}`);
+  assert.ok(chAudit && chAudit.status === 'fail', `Expected ch-audit to aggregate chapter fail even with empty scopedAlerts, got ${chAudit?.status}`);
+  assert.ok(
+    JSON.stringify(chAudit.paramTables).includes('FAIL'),
+    'Expected Page 9 Sign-Off Matrix to list chapter FAIL status'
+  );
+});
+
+test('All built-in DCDC_PRESETS (0..3) and ACDC_PRESETS (0..4) solve with 0 Danger alerts and DCDC_PRESETS[0] has 0 Danger / 0 Warning', () => {
+  const baseAcdc = ACDC_PRESETS[0].state;
+  const baseAcdcRes = solveAcDcDesign(baseAcdc);
+  const baseDcdc = DCDC_PRESETS[0].state;
+  const baseDcdcRes = solveDcDcDesign(baseDcdc);
+
+  const bootAlerts = evaluateDesignAlerts({
+    dcdcState: baseDcdc,
+    dcdcRes: baseDcdcRes,
+    acdcState: baseAcdc,
+    acdcRes: baseAcdcRes,
+  });
+  assert.equal(bootAlerts.danger.length, 0, `Expected 0 Danger on boot presets, got ${bootAlerts.danger.map((a) => a.id).join(', ')}`);
+  assert.equal(bootAlerts.warning.length, 0, `Expected 0 Warning on boot presets, got ${bootAlerts.warning.map((a) => a.id).join(', ')}`);
+
+  for (const preset of DCDC_PRESETS) {
+    const res = solveDcDcDesign(preset.state);
+    const al = evaluateDesignAlerts({
+      dcdcState: preset.state,
+      dcdcRes: res,
+      acdcState: baseAcdc,
+      acdcRes: baseAcdcRes,
+    });
+    assert.equal(
+      al.danger.length,
+      0,
+      `Expected 0 Danger alerts on DC-DC preset "${preset.id}", got: ${al.danger.map((a) => a.id).join(', ')}`
+    );
+  }
+
+  for (const preset of ACDC_PRESETS) {
+    const res = solveAcDcDesign(preset.state);
+    const al = evaluateDesignAlerts({
+      dcdcState: baseDcdc,
+      dcdcRes: baseDcdcRes,
+      acdcState: preset.state,
+      acdcRes: res,
+    });
+    assert.equal(
+      al.danger.length,
+      0,
+      `Expected 0 Danger alerts on AC-DC preset "${preset.id}", got: ${al.danger.map((a) => a.id).join(', ')}`
+    );
+  }
+});
+
+test('Analog compensator C0G/NP0 RC bounds hold across pcmc, 2p2z, type-iii, and both 48V and 400V outputs', () => {
+  for (const controlType of ['pcmc', '2p2z', 'type-iii'] as const) {
+    for (const Vout_V of [48, 400]) {
+      const state: DcDcDesignState = {
+        ...DCDC_PRESETS[0].state,
+        controlType,
+        Vout_V,
+        Np_turns: Vout_V === 400 ? 16 : 18,
+        Ns_turns: Vout_V === 400 ? 20 : 3,
+        turnsRatio_n: Vout_V === 400 ? 0.8 : 6.0,
+        Lo_uH: Vout_V === 400 ? 140 : 4.5,
+        Co_uF: Vout_V === 400 ? 220 : 440,
+        ESR_Co_mOhm: Vout_V === 400 ? 120 : 7.5,
+        fc_target_kHz: 7.5,
+        pm_target_deg: 60,
+      };
+      const res = solveDcDcDesign(state);
+      assert.ok(
+        res.R1_kOhm >= 4.7,
+        `[${controlType} ${Vout_V}V] Expected R1_kOhm >= 4.7, got ${res.R1_kOhm}`
+      );
+      assert.ok(
+        res.R2_kOhm >= 10 && res.R2_kOhm <= 220,
+        `[${controlType} ${Vout_V}V] Expected R2_kOhm in [10, 220], got ${res.R2_kOhm}`
+      );
+      assert.ok(
+        res.C1_nF <= 47,
+        `[${controlType} ${Vout_V}V] Expected C1_nF <= 47 nF (C0G-friendly), got ${res.C1_nF}`
+      );
+      assert.ok(
+        res.C2_pF >= 15,
+        `[${controlType} ${Vout_V}V] Expected C2_pF >= 15 pF, got ${res.C2_pF}`
+      );
+    }
+  }
+});
+
+test('calcStringToTexLines produces 100% valid strict KaTeX across all DC-DC and AC-DC presets and report chapters', () => {
+  const acdcDefault = ACDC_PRESETS[0].state;
+  const acdcDefaultRes = solveAcDcDesign(acdcDefault);
+  let checkedCount = 0;
+
+  for (const preset of DCDC_PRESETS) {
+    const dcdcRes = solveDcDcDesign(preset.state);
+    const passiveRows = solvePassiveRows(preset.state, dcdcRes, acdcDefault, acdcDefaultRes);
+    const alerts = evaluateDesignAlerts({
+      dcdcState: preset.state,
+      dcdcRes,
+      acdcState: acdcDefault,
+      acdcRes: acdcDefaultRes,
+    });
+    const report = buildDesignReportModel({
+      scope: 'dcdc',
+      dcdcState: preset.state,
+      dcdcRes,
+      acdcState: acdcDefault,
+      acdcRes: acdcDefaultRes,
+      ...passiveRows,
+      scopedAlerts: alerts,
+    });
+
+    for (const ch of report.chapters) {
+      for (const st of ch.steps) {
+        // Check step governing equation st.tex
+        assert.doesNotThrow(() => {
+          katex.renderToString(st.tex, { displayMode: true, throwOnError: true, strict: false });
+        }, `Failed st.tex on ${preset.id} Step ${st.step}: ${st.tex}`);
+        checkedCount++;
+
+        for (const field of [st.given, st.substitution, st.result]) {
+          const lines = calcStringToTexLines(field);
+          assert.ok(lines.length > 0, `Expected non-empty KaTeX lines for Step ${st.step}`);
+          for (const tex of lines) {
+            assert.doesNotThrow(() => {
+              katex.renderToString(tex, { displayMode: true, throwOnError: true, strict: false });
+            }, `Failed calcStringToTexLines on ${preset.id} Step ${st.step}: ${tex}`);
+            checkedCount++;
+          }
+        }
+      }
+    }
+  }
+
+  for (const preset of ACDC_PRESETS) {
+    const acdcRes = solveAcDcDesign(preset.state);
+    const dcdcDefault = DCDC_PRESETS[0].state;
+    const dcdcDefaultRes = solveDcDcDesign(dcdcDefault);
+    const passiveRows = solvePassiveRows(dcdcDefault, dcdcDefaultRes, preset.state, acdcRes);
+    const alerts = evaluateDesignAlerts({
+      dcdcState: dcdcDefault,
+      dcdcRes: dcdcDefaultRes,
+      acdcState: preset.state,
+      acdcRes,
+    });
+    const report = buildDesignReportModel({
+      scope: 'acdc',
+      dcdcState: dcdcDefault,
+      dcdcRes: dcdcDefaultRes,
+      acdcState: preset.state,
+      acdcRes,
+      ...passiveRows,
+      scopedAlerts: alerts,
+    });
+
+    for (const ch of report.chapters) {
+      for (const st of ch.steps) {
+        assert.doesNotThrow(() => {
+          katex.renderToString(st.tex, { displayMode: true, throwOnError: true, strict: false });
+        }, `Failed st.tex on ${preset.id} Step ${st.step}: ${st.tex}`);
+        checkedCount++;
+        for (const field of [st.given, st.substitution, st.result]) {
+          const lines = calcStringToTexLines(field);
+          assert.ok(lines.length > 0);
+          for (const tex of lines) {
+            assert.doesNotThrow(() => {
+              katex.renderToString(tex, { displayMode: true, throwOnError: true, strict: false });
+            }, `Failed calcStringToTexLines on ${preset.id} Step ${st.step}: ${tex}`);
+            checkedCount++;
+          }
+        }
+      }
+    }
+  }
+
+  assert.ok(checkedCount > 400, `Expected >400 validated KaTeX expressions, got ${checkedCount}`);
+});
+
+test('Gemini API key sanitization and thinkingLevel gating helpers work cleanly', () => {
+  assert.equal(sanitizeApiKey('  "AIzaSyTestKey123"  '), 'AIzaSyTestKey123');
+  assert.equal(sanitizeApiKey("  'sk-test-key' "), 'sk-test-key');
+
+  const norm = normalizeAiProviderConfig({
+    provider: 'gemini',
+    apiKey: ' "AIzaSyCustomUserKey" ',
+    model: ' gemini-2.5-flash ',
+  });
+  assert.equal(norm.apiKey, 'AIzaSyCustomUserKey');
+  assert.equal(norm.model, 'gemini-2.5-flash');
+
+  assert.equal(isGeminiThinkingLevelSupported('gemini-4-hydrogen'), true);
+  assert.equal(isGeminiThinkingLevelSupported('gemini-3.8-flash'), true);
+  assert.equal(isGeminiThinkingLevelSupported('gemini-2.5-flash'), false);
+  assert.equal(isGeminiThinkingLevelSupported('gemini-2.5-pro'), false);
+
+  const acdcState = ACDC_PRESETS[0].state;
+  const acdcRes = solveAcDcDesign(acdcState);
+  const dcdcState = DCDC_PRESETS[0].state;
+  const dcdcRes = solveDcDcDesign(dcdcState);
+  const designAlerts = evaluateDesignAlerts({ dcdcState, dcdcRes, acdcState, acdcRes });
+  const fullSnap = buildAiDesignSnapshot({
+    dcdcState,
+    dcdcRes,
+    acdcState,
+    acdcRes,
+    inductorConfigs: {},
+    capacitorConfigs: {},
+    designAlerts,
+  });
+  const chatSnap = buildAiDesignSnapshot(
+    {
+      dcdcState,
+      dcdcRes,
+      acdcState,
+      acdcRes,
+      inductorConfigs: {},
+      capacitorConfigs: {},
+      designAlerts,
+    },
+    { compactForChat: true }
+  );
+  const fullBytes = JSON.stringify(fullSnap).length;
+  const chatBytes = JSON.stringify(chatSnap).length;
+  assert.ok(chatBytes < fullBytes * 0.5, `Expected compact chat snapshot (${chatBytes}B) < 50% of full (${fullBytes}B)`);
+  assert.ok(Array.isArray((chatSnap.catalogs as { transformerCoreIds?: string[] }).transformerCoreIds));
+});
+

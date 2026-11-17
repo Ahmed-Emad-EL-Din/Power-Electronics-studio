@@ -31,7 +31,7 @@ export const AI_PROVIDER_META: Record<AiProviderId, AiProviderMeta> = {
     requiresKey: false,
     requiresBaseUrl: false,
     supportsWebSearch: true,
-    hint: 'Leave API key blank to use the workspace server key, or enter your own Gemini API key.',
+    hint: 'Enter your Google Gemini API key (works with gemini-2.5-flash/pro or workspace models) or leave blank for server env key.',
   },
   openai: {
     id: 'openai',
@@ -79,6 +79,22 @@ export const AI_PROVIDER_LIST: AiProviderMeta[] = [
 ];
 
 const STORAGE_KEY = 'voltcraft_ai_provider_config_v1';
+const PROFILES_STORAGE_KEY = 'voltcraft_ai_provider_profiles_v1';
+
+export function isOpenAiReasoningModel(model: string): boolean {
+  const bare = model.trim().split('/').pop() || '';
+  return /^(o\d|gpt-5)/i.test(bare);
+}
+
+export function isGeminiThinkingLevelSupported(model: string): boolean {
+  const bare = model.trim().split('/').pop() || '';
+  return /gemini-(?:3|4)/i.test(bare);
+}
+
+export function sanitizeApiKey(raw: unknown): string {
+  if (typeof raw !== 'string') return '';
+  return raw.trim().replace(/^["']|["']$/g, '').trim();
+}
 
 export function getDefaultAiProviderConfig(provider: AiProviderId = 'gemini'): AiProviderConfig {
   const meta = AI_PROVIDER_META[provider] || AI_PROVIDER_META.gemini;
@@ -100,7 +116,7 @@ export function normalizeAiProviderConfig(raw: Partial<AiProviderConfig> | null 
   const meta = AI_PROVIDER_META[provider];
   return {
     provider,
-    apiKey: typeof raw?.apiKey === 'string' ? raw.apiKey.trim() : '',
+    apiKey: sanitizeApiKey(raw?.apiKey),
     model:
       typeof raw?.model === 'string' && raw.model.trim()
         ? raw.model.trim()
@@ -110,6 +126,32 @@ export function normalizeAiProviderConfig(raw: Partial<AiProviderConfig> | null 
         ? raw.baseUrl.trim()
         : meta.defaultBaseUrl,
   };
+}
+
+function loadAllProfiles(): Partial<Record<AiProviderId, AiProviderConfig>> {
+  try {
+    if (typeof localStorage === 'undefined') return {};
+    const raw = localStorage.getItem(PROFILES_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Partial<Record<AiProviderId, Partial<AiProviderConfig>>>;
+    const out: Partial<Record<AiProviderId, AiProviderConfig>> = {};
+    for (const id of ['gemini', 'openai', 'anthropic', 'openai-compatible'] as AiProviderId[]) {
+      if (parsed && parsed[id]) {
+        out[id] = normalizeAiProviderConfig({ ...parsed[id], provider: id });
+      }
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+export function loadAiProviderProfile(provider: AiProviderId): AiProviderConfig {
+  const profiles = loadAllProfiles();
+  if (profiles[provider]) {
+    return profiles[provider]!;
+  }
+  return getDefaultAiProviderConfig(provider);
 }
 
 export function loadAiProviderConfig(): AiProviderConfig {
@@ -129,6 +171,9 @@ export function saveAiProviderConfig(cfg: AiProviderConfig): AiProviderConfig {
   try {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+      const profiles = loadAllProfiles();
+      profiles[normalized.provider] = normalized;
+      localStorage.setItem(PROFILES_STORAGE_KEY, JSON.stringify(profiles));
     }
   } catch {
     // ignore storage quota errors
@@ -141,6 +186,7 @@ export function clearAiProviderConfig(): AiProviderConfig {
   try {
     if (typeof localStorage !== 'undefined') {
       localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(PROFILES_STORAGE_KEY);
     }
   } catch {
     // ignore
@@ -151,14 +197,14 @@ export function clearAiProviderConfig(): AiProviderConfig {
 export function validateAiProviderConfig(cfg: AiProviderConfig): string | null {
   const norm = normalizeAiProviderConfig(cfg);
   if (norm.provider === 'openai' && !norm.apiKey) {
-    return 'OpenAI requires an API key (sk-...). Configure it in AI Provider Settings.';
+    return 'OpenAI requires an API key (sk-...). Configure it in AI Keys / Provider Settings.';
   }
   if (norm.provider === 'anthropic' && !norm.apiKey) {
-    return 'Anthropic Claude requires an API key (sk-ant-...). Configure it in AI Provider Settings.';
+    return 'Anthropic Claude requires an API key (sk-ant-...). Configure it in AI Keys / Provider Settings.';
   }
   if (norm.provider === 'openai-compatible') {
-    if (!norm.baseUrl) {
-      return 'OpenAI-Compatible provider requires a Base URL (e.g. https://openrouter.ai/api/v1 or http://localhost:11434/v1).';
+    if (!norm.baseUrl || !/^https?:\/\//i.test(norm.baseUrl)) {
+      return 'OpenAI-Compatible provider requires a valid http:// or https:// Base URL (e.g. https://openrouter.ai/api/v1 or http://localhost:11434/v1).';
     }
     if (!norm.model) {
       return 'OpenAI-Compatible provider requires a Model ID.';

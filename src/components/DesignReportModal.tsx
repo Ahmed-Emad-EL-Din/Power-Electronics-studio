@@ -235,6 +235,12 @@ export const DesignReportModal: React.FC<DesignReportModalProps> = ({
     ]
   );
 
+  const nonAuditChapters = model.chapters.filter((c) => c.stage !== 'audit');
+  const failedChapters = nonAuditChapters.filter((c) => c.status === 'fail');
+  const warnedChapters = nonAuditChapters.filter((c) => c.status === 'warn');
+  const totalFailCount = scopedAlerts.danger.length + failedChapters.length;
+  const totalWarnCount = scopedAlerts.warning.length + warnedChapters.length;
+
   if (!isOpen) return null;
 
   const handleDownloadPdf = async () => {
@@ -523,7 +529,7 @@ export const DesignReportModal: React.FC<DesignReportModalProps> = ({
         {/* Final Engineering Audit Findings Table */}
         {ch.stage === 'audit' && (
           <>
-            {scopedAlerts.all.length === 0 ? (
+            {scopedAlerts.all.length === 0 && ch.status === 'pass' ? (
               <div className="border border-emerald-500 bg-emerald-50 rounded-md p-4 flex items-start gap-3">
                 <CheckCircle2 className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
                 <div>
@@ -539,39 +545,47 @@ export const DesignReportModal: React.FC<DesignReportModalProps> = ({
               <div className="space-y-2.5">
                 <p className="text-xs text-slate-700">
                   Active verification flagged{' '}
-                  <strong className="text-rose-700">{scopedAlerts.danger.length} critical violation(s)</strong> and{' '}
-                  <strong className="text-amber-700">{scopedAlerts.warning.length} advisory warning(s)</strong>:
+                  <strong className="text-rose-700">
+                    {scopedAlerts.danger.length} critical alert(s) / {failedChapters.length} failed chapter(s)
+                  </strong>{' '}
+                  and{' '}
+                  <strong className="text-amber-700">
+                    {scopedAlerts.warning.length} warning alert(s) / {warnedChapters.length} warned chapter(s)
+                  </strong>
+                  :
                 </p>
-                <div className="border border-slate-300 rounded overflow-hidden">
-                  <table className="w-full text-left border-collapse text-[11px] font-mono">
-                    <thead className="bg-slate-100 border-b border-slate-300 text-slate-700">
-                      <tr>
-                        <th className="py-1.5 px-2.5">Severity</th>
-                        <th className="py-1.5 px-2.5">Stage</th>
-                        <th className="py-1.5 px-2.5">Finding</th>
-                        <th className="py-1.5 px-2.5">Measured Telemetry</th>
-                        <th className="py-1.5 px-2.5">Recommended Fix</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200">
-                      {scopedAlerts.all.map((a) => (
-                        <tr key={a.id}>
-                          <td className="py-1.5 px-2.5 font-bold">
-                            <span className={a.severity === 'danger' ? 'text-rose-700' : 'text-amber-700'}>
-                              {a.severity === 'danger' ? '✖ DANGER' : '▲ WARN'}
-                            </span>
-                          </td>
-                          <td className="py-1.5 px-2.5">{a.domainLabel}</td>
-                          <td className="py-1.5 px-2.5 font-sans font-semibold">{a.title}</td>
-                          <td className="py-1.5 px-2.5 tabular-nums">{a.metric}</td>
-                          <td className="py-1.5 px-2.5 font-sans text-slate-700">
-                            {a.fixes?.[0]?.label || a.actionHint}
-                          </td>
+                {scopedAlerts.all.length > 0 && (
+                  <div className="border border-slate-300 rounded overflow-hidden">
+                    <table className="w-full text-left border-collapse text-[11px] font-mono">
+                      <thead className="bg-slate-100 border-b border-slate-300 text-slate-700">
+                        <tr>
+                          <th className="py-1.5 px-2.5">Severity</th>
+                          <th className="py-1.5 px-2.5">Stage</th>
+                          <th className="py-1.5 px-2.5">Finding</th>
+                          <th className="py-1.5 px-2.5">Measured Telemetry</th>
+                          <th className="py-1.5 px-2.5">Recommended Fix</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {scopedAlerts.all.map((a) => (
+                          <tr key={a.id}>
+                            <td className="py-1.5 px-2.5 font-bold">
+                              <span className={a.severity === 'danger' ? 'text-rose-700' : 'text-amber-700'}>
+                                {a.severity === 'danger' ? '✖ DANGER' : '▲ WARN'}
+                              </span>
+                            </td>
+                            <td className="py-1.5 px-2.5">{a.domainLabel}</td>
+                            <td className="py-1.5 px-2.5 font-sans font-semibold">{a.title}</td>
+                            <td className="py-1.5 px-2.5 tabular-nums">{a.metric}</td>
+                            <td className="py-1.5 px-2.5 font-sans text-slate-700">
+                              {a.fixes?.[0]?.label || a.actionHint}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
 
@@ -693,31 +707,31 @@ export const DesignReportModal: React.FC<DesignReportModalProps> = ({
 
               <div
                 className={`border rounded-md px-3.5 py-2 text-xs font-mono ${
-                  scopedAlerts.danger.length > 0
+                  totalFailCount > 0
                     ? 'border-rose-600 bg-rose-50 text-rose-800'
-                    : scopedAlerts.warning.length > 0
+                    : totalWarnCount > 0
                     ? 'border-amber-600 bg-amber-50 text-amber-900'
                     : 'border-emerald-600 bg-emerald-50 text-emerald-900'
                 }`}
               >
                 <div className="font-bold flex items-center gap-1.5">
-                  {scopedAlerts.danger.length > 0 ? (
+                  {totalFailCount > 0 ? (
                     <ShieldAlert className="w-4 h-4" />
-                  ) : scopedAlerts.warning.length > 0 ? (
+                  ) : totalWarnCount > 0 ? (
                     <AlertTriangle className="w-4 h-4" />
                   ) : (
                     <CheckCircle2 className="w-4 h-4" />
                   )}
                   <span>
-                    {scopedAlerts.danger.length > 0
-                      ? `${scopedAlerts.danger.length} CRITICAL VIOLATION(S)`
-                      : scopedAlerts.warning.length > 0
-                      ? `${scopedAlerts.warning.length} ADVISORY WARNING(S)`
+                    {totalFailCount > 0
+                      ? `${scopedAlerts.danger.length > 0 ? scopedAlerts.danger.length : failedChapters.length} CRITICAL VIOLATION(S)`
+                      : totalWarnCount > 0
+                      ? `${scopedAlerts.warning.length > 0 ? scopedAlerts.warning.length : warnedChapters.length} ADVISORY WARNING(S)`
                       : 'ALL CHECKS NOMINAL'}
                   </span>
                 </div>
                 <div className="text-[10px] mt-0.5 tabular-nums">
-                  Danger: {scopedAlerts.danger.length} · Warning: {scopedAlerts.warning.length}
+                  Danger: {scopedAlerts.danger.length} ({failedChapters.length} ch) · Warning: {scopedAlerts.warning.length} ({warnedChapters.length} ch)
                 </div>
               </div>
             </div>

@@ -399,15 +399,22 @@ export function optimizeDcDcUnlocked(
     }
   }
 
-  // 4. Core Material Auto-Selection (if unlocked)
+  // 4. Core Material Auto-Selection (if unlocked) — lowest actual Steinmetz Pv at f_sw & 90°C
   if (isCanEdit('materialId')) {
-    const matOpt =
-      next.fsw_kHz >= 125 ? 'PC95' : next.fsw_kHz >= 75 ? '3C97' : 'N97';
+    const fswEst = Math.max(10e3, next.fsw_kHz * 1e3);
+    const B_ref_T = Math.max(0.045, 0.14 * Math.pow(100 / Math.max(25, next.fsw_kHz), 0.52));
+    const bestMat = [...MATERIAL_DATABASE].sort((a, b) => {
+      const fA = Math.max(0.75, 1 + a.tempCoeff_c2 * Math.pow(90 - a.T_opt_C, 2));
+      const fB = Math.max(0.75, 1 + b.tempCoeff_c2 * Math.pow(90 - b.T_opt_C, 2));
+      const pvA = a.k_si * Math.pow(fswEst, a.alpha) * Math.pow(B_ref_T, a.beta) * fA;
+      const pvB = b.k_si * Math.pow(fswEst, b.alpha) * Math.pow(B_ref_T, b.beta) * fB;
+      return pvA - pvB;
+    })[0];
     applyStr(
       'materialId',
       'Core Material',
-      matOpt,
-      `Lowest Steinmetz loss density at ${next.fsw_kHz} kHz`
+      bestMat.id,
+      `Lowest Steinmetz loss density at ${next.fsw_kHz} kHz (${bestMat.name})`
     );
   }
 
@@ -491,7 +498,7 @@ export function optimizeDcDcUnlocked(
         : 1.44;
     const vSecReqStrict = isLLC
       ? vSecPkEst * 1.28
-      : Math.max(vSecPkEst * clampMult * 1.25, vSecPkEst * 1.88 * 1.12);
+      : Math.max(vSecPkEst * clampMult * 1.25, vSecPkEst * 1.88 * 1.15);
     const vSecReqFallback = vSecPkEst * clampMult * 1.25;
     const pool = SEMICONDUCTOR_DATABASE.filter(
       (d) =>
@@ -730,7 +737,7 @@ export function optimizeDcDcUnlocked(
 
   // 13. Joint Transformer Core + Winding Turns + Litz Build Co-Optimization
   if (isCanEdit('litzStrandAWG')) {
-    const awgOpt: 38 | 40 | 42 = next.fsw_kHz > 180 ? 42 : next.fsw_kHz > 100 ? 40 : 38;
+    const awgOpt: 38 | 40 | 42 = next.fsw_kHz >= 240 ? 42 : next.fsw_kHz >= 130 ? 40 : 38;
     applyNum('litzStrandAWG', 'Litz AWG', awgOpt, 'AWG', `Skin-depth optimal at ${next.fsw_kHz} kHz`);
   }
   if (isCanEdit('insulationThickness_mm')) {
@@ -795,8 +802,8 @@ export function optimizeDcDcUnlocked(
 
     if (isCanEdit('Np_turns') && isCanEdit('Ns_turns')) {
       const seen = new Set<string>();
-      for (const bScale of [0.82, 1.0, 1.25]) {
-        const bTry = Math.min(0.58 * material.Bsat_100C_T, Math.max(0.035, bHfTarget_T * bScale));
+      for (const bScale of [0.75, 0.95, 1.15, 1.40, 1.65]) {
+        const bTry = Math.min(0.66 * material.Bsat_100C_T, Math.max(0.04, bHfTarget_T * bScale));
         let nsCenter = Math.max(1, Math.round(voltSecHalf / (2 * bTry * Ae_m2 * n)));
         const nsStart = Math.max(1, nsCenter - 1);
         const nsEnd = Math.min(24, nsCenter + 2);
@@ -827,118 +834,135 @@ export function optimizeDcDcUnlocked(
     const interleaveModes: ('none' | 'split-pri' | 'full-interleaved')[] = isCanEdit('interleaving')
       ? baseInterleave === 'full-interleaved'
         ? ['full-interleaved', 'split-pri']
-        : [baseInterleave]
+        : ['split-pri', 'full-interleaved']
       : [next.interleaving];
+
+    const secWindowMult = next.txType === 'center-tapped' ? 2 : 1;
 
     for (const pair of turnPairs) {
       const reqAreaPri = Ipri_est / J_target_A_mm2;
       const rawPri = Math.max(20, Math.round(reqAreaPri / strandArea / 10) * 10);
-      const maxWindowPri = Math.max(40, Math.floor((candCore.Aw_mm2 * 0.28) / (pair.np * strandArea)));
-      const priTry = isCanEdit('priStrands')
+      const maxWindowPri = Math.max(30, Math.floor((candCore.Aw_mm2 * 0.28) / (pair.np * strandArea)));
+      const priTryBase = isCanEdit('priStrands')
         ? clamp(Math.min(rawPri, maxWindowPri), 20, 1200)
         : next.priStrands;
+      const priTryVariants = isCanEdit('priStrands') && priTryBase >= 80
+        ? [priTryBase, clamp(Math.round((priTryBase * 0.80) / 10) * 10, 20, 1200)]
+        : [priTryBase];
 
       const iSecRms = Iout_phase * (next.txType === 'center-tapped' ? 0.72 : 1.0);
       const reqAreaSec = iSecRms / J_target_A_mm2;
       const rawSec = Math.max(30, Math.round(reqAreaSec / strandArea / 10) * 10);
       const maxWindowSec = Math.max(
-        60,
-        Math.floor((candCore.Aw_mm2 * 0.30) / (Math.max(1, pair.ns) * strandArea))
+        40,
+        Math.floor((candCore.Aw_mm2 * 0.30) / (Math.max(1, pair.ns) * secWindowMult * strandArea))
       );
       const secTryBase = isCanEdit('secStrands')
         ? clamp(Math.min(rawSec, maxWindowSec), 30, 1400)
         : next.secStrands;
-      const secTryVariants = isCanEdit('secStrands') && secTryBase >= 240
-        ? [secTryBase, clamp(Math.round((secTryBase * 0.76) / 10) * 10, 60, 1400)]
+      const secTryVariants = isCanEdit('secStrands') && secTryBase >= 140
+        ? Array.from(
+            new Set([
+              secTryBase,
+              clamp(Math.round((secTryBase * 0.80) / 10) * 10, 40, 1400),
+              clamp(Math.round((secTryBase * 0.62) / 10) * 10, 40, 1400),
+            ])
+          )
         : [secTryBase];
 
-      for (const secTry of secTryVariants) {
-        for (const intMode of interleaveModes) {
-          const ratioTry = Number((pair.np / Math.max(1, pair.ns)).toFixed(4));
-          const trialState: DcDcDesignState = {
-            ...next,
-            coreId: candCore.id,
-            Np_turns: pair.np,
-            Ns_turns: pair.ns,
-            turnsRatio_n: ratioTry,
-            priStrands: priTry,
-            secStrands: secTry,
-            interleaving: intMode,
-          };
-          const trialRes = solveDcDcDesign(trialState);
-          const radialEst = estimateTransformerRadialBuildMm({
-            bw_mm: candCore.bw_mm,
-            Ve_mm3: candCore.Ve_mm3,
-            Vin_nom_V: next.Vin_nom_V,
-            Np: pair.np,
-            Ns: pair.ns,
-            isCenterTapped: next.txType === 'center-tapped',
-            priStrands: priTry,
-            secStrands: secTry,
-            litzAwg: next.litzStrandAWG,
-            interleaving: intMode,
-            insulationThickness_mm: next.insulationThickness_mm,
-            estAirGap_mm: Math.max(0.2, trialRes.airGap_mm),
-          });
-          const fits = radialEst <= candCore.hw_mm * 0.90;
-          const fitsComfortably = radialEst <= candCore.hw_mm * 0.77;
-          if (
-            !fitsComfortably &&
-            isCanEdit('interleaving') &&
-            intMode === 'full-interleaved' &&
-            interleaveModes.length > 1
-          ) {
-            continue;
+      for (const priTry of priTryVariants) {
+        for (const secTry of secTryVariants) {
+          for (const intMode of interleaveModes) {
+            const ratioTry = Number((pair.np / Math.max(1, pair.ns)).toFixed(4));
+            const trialState: DcDcDesignState = {
+              ...next,
+              coreId: candCore.id,
+              Np_turns: pair.np,
+              Ns_turns: pair.ns,
+              turnsRatio_n: ratioTry,
+              priStrands: priTry,
+              secStrands: secTry,
+              interleaving: intMode,
+            };
+            const trialRes = solveDcDcDesign(trialState);
+            const radialEst = estimateTransformerRadialBuildMm({
+              bw_mm: candCore.bw_mm,
+              Ve_mm3: candCore.Ve_mm3,
+              Vin_nom_V: next.Vin_nom_V,
+              Np: pair.np,
+              Ns: pair.ns,
+              isCenterTapped: next.txType === 'center-tapped',
+              priStrands: priTry,
+              secStrands: secTry,
+              litzAwg: next.litzStrandAWG,
+              interleaving: intMode,
+              insulationThickness_mm: next.insulationThickness_mm,
+              estAirGap_mm: Math.max(0.2, trialRes.airGap_mm),
+            });
+            const fits = radialEst <= candCore.hw_mm * 0.92;
+            const fitsComfortably = radialEst <= candCore.hw_mm * 0.82;
+            if (
+              !fitsComfortably &&
+              isCanEdit('interleaving') &&
+              intMode === 'full-interleaved' &&
+              interleaveModes.length > 1
+            ) {
+              continue;
+            }
+
+            const utilPct = trialRes.saturationCheck.utilization_100C_pct;
+            const tCore = trialRes.coreThermalAnalysis.Tcore_hotspot_C;
+            const safe =
+              fitsComfortably &&
+              trialRes.saturationCheck.status !== 'critical' &&
+              trialRes.coreThermalAnalysis.coreThermalStable &&
+              tCore <= 108 &&
+              utilPct <= 78;
+
+            const ratioDriftPenalty = locked.turnsRatio_n
+              ? Math.abs(ratioTry - n) * 40
+              : Math.abs(ratioTry - n) * 2.5;
+            const oversizePenalty =
+              utilPct < 12 && candCore.Ve_mm3 >= 35000
+                ? 40
+                : utilPct < 14 && trialRes.Pcu_W > 3.0 * Math.max(0.25, trialRes.Pcore_W) && candCore.Ve_mm3 >= 35000
+                ? 22
+                : 0;
+            const score =
+              trialRes.Pcore_W +
+              trialRes.Pcu_W +
+              0.00022 * candCore.Ve_mm3 +
+              oversizePenalty +
+              ratioDriftPenalty +
+              (utilPct > 75 ? (utilPct - 75) * 0.4 : 0) +
+              (tCore > 100 ? (tCore - 100) * 0.6 : 0) +
+              (fits ? 0 : 120) +
+              (fitsComfortably ? 0 : 18) +
+              (trialRes.saturationCheck.status === 'critical' ? 200 : 0) +
+              (trialRes.coreThermalAnalysis.coreThermalStable ? 0 : 200);
+
+            const item: TxOptCandidate = {
+              coreId: candCore.id,
+              Np: pair.np,
+              Ns: pair.ns,
+              priStrands: priTry,
+              secStrands: secTry,
+              interleaving: intMode,
+              fits,
+              safe,
+              score,
+              Bpk_mT: trialRes.Bpk_mT,
+              utilPct,
+              Tcore_C: tCore,
+            };
+
+            if (safe && (!bestSafe || item.score < bestSafe.score)) {
+              bestSafe = item;
+            }
+            if (!bestFallback || item.score < bestFallback.score) {
+              bestFallback = item;
+            }
           }
-
-          const utilPct = trialRes.saturationCheck.utilization_100C_pct;
-          const tCore = trialRes.coreThermalAnalysis.Tcore_hotspot_C;
-          const safe =
-            fitsComfortably &&
-            trialRes.saturationCheck.status !== 'critical' &&
-            trialRes.coreThermalAnalysis.coreThermalStable &&
-            tCore <= 108 &&
-            utilPct <= 78;
-
-        const ratioDriftPenalty = locked.turnsRatio_n
-          ? Math.abs(ratioTry - n) * 40
-          : Math.abs(ratioTry - n) * 2.5;
-        const oversizePenalty =
-          utilPct < 12 && trialRes.Pcu_W > 3.5 * Math.max(0.25, trialRes.Pcore_W) ? 4.5 : 0;
-        const score =
-          trialRes.Pcore_W +
-          trialRes.Pcu_W +
-          0.00018 * candCore.Ve_mm3 +
-          oversizePenalty +
-          ratioDriftPenalty +
-          (utilPct > 75 ? (utilPct - 75) * 0.4 : 0) +
-          (tCore > 100 ? (tCore - 100) * 0.6 : 0) +
-          (fits ? 0 : 120) +
-          (fitsComfortably ? 0 : 18) +
-          (trialRes.saturationCheck.status === 'critical' ? 200 : 0) +
-          (trialRes.coreThermalAnalysis.coreThermalStable ? 0 : 200);
-
-        const item: TxOptCandidate = {
-          coreId: candCore.id,
-          Np: pair.np,
-          Ns: pair.ns,
-          priStrands: priTry,
-          secStrands: secTry,
-          interleaving: intMode,
-          fits,
-          safe,
-          score,
-          Bpk_mT: trialRes.Bpk_mT,
-          utilPct,
-          Tcore_C: tCore,
-        };
-
-        if (safe && (!bestSafe || item.score < bestSafe.score)) {
-          bestSafe = item;
-        }
-        if (!bestFallback || item.score < bestFallback.score) {
-          bestFallback = item;
-        }
         }
       }
     }
@@ -996,8 +1020,8 @@ export function optimizeDcDcUnlocked(
     const Lo_eq_H = Math.max(1e-6, (next.Lo_uH * 1e-6) / nPhases);
     const Co_H = Math.max(10e-6, next.Co_uF * 1e-6);
     const f0_est_kHz = 1 / (2 * Math.PI * Math.sqrt(Lo_eq_H * Co_H)) / 1e3;
-    const fcFloor = isLLC ? 2.5 : Math.max(4.5, f0_est_kHz * 2.2);
-    const fcCeiling = Math.min(25, Math.max(fcFloor, next.fsw_kHz / 8));
+    const fcFloor = isLLC ? 2.5 : Math.max(5.0, f0_est_kHz * 2.2);
+    const fcCeiling = Math.min(25, Math.max(fcFloor, next.fsw_kHz / 6.5));
     const fcOpt = clamp(
       Number(roundTo(Math.min(fcCeiling, Math.max(fcFloor, next.fsw_kHz / 10)), 0.5).toFixed(1)),
       1.5,
@@ -1008,36 +1032,27 @@ export function optimizeDcDcUnlocked(
       'fc',
       fcOpt,
       'kHz',
-      `Decoupled well above LC f_0 (${f0_est_kHz.toFixed(1)} kHz) & bounded ≤ f_sw/8`
+      `Decoupled well above LC f_0 (${f0_est_kHz.toFixed(1)} kHz) & bounded ≤ f_sw/6.5`
     );
   }
   if (isCanEdit('pm_target_deg')) {
     applyNum('pm_target_deg', 'PM', 58, '°', 'Optimal damping target (58° phase margin)');
   }
   if (isCanEdit('slopeFactor_mc')) {
-    const Deff_nom_est = isLLC
-      ? 0.94
-      : clamp(isCDR ? (2 * nActual * Vout) / Vin : (nActual * Vout) / Vin, 0.15, 0.92);
-    const Deff_wc_est = isLLC
-      ? 0.94
-      : clamp(
-          isCDR
-            ? (2 * nActual * Vout) / Math.max(24, next.Vin_min_V)
-            : (nActual * Vout) / Math.max(24, next.Vin_min_V),
-          0.15,
-          0.94
-        );
+    const preSlopeRes = solveDcDcDesign(next);
+    const Deff_nom_est = preSlopeRes.Deff_nom;
+    const Deff_wc_est = preSlopeRes.Deff_max;
     const dPrimeNom = Math.max(0.08, 1 - (isLLC ? Deff_nom_est * 0.5 : Deff_nom_est));
-    const dPrimeWc = Math.max(0.06, 1 - (isLLC ? Deff_wc_est * 0.5 : Deff_wc_est));
+    const dPrimeWc = Math.max(0.05, 1 - (isLLC ? Deff_wc_est * 0.5 : Deff_wc_est));
     const mcNom = (0.5 + 1 / (Math.PI * 1.15)) / dPrimeNom;
-    const mcWc = (0.5 + 1 / (Math.PI * 2.2)) / dPrimeWc;
-    const mcOpt = clamp(Number(roundTo(Math.max(1.5, mcNom, mcWc), 0.05).toFixed(2)), 1.5, 4.5);
+    const mcWc = (0.5 + 1 / (Math.PI * 1.2)) / dPrimeWc;
+    const mcOpt = clamp(Number(roundTo(Math.max(1.5, mcNom, mcWc), 0.05).toFixed(2)), 1.5, 6.5);
     applyNum(
       'slopeFactor_mc',
       'Slope mc',
       mcOpt,
       '',
-      `Ridley subharmonic damping Q_p ≤ 1.15 at ${(Deff_nom_est * 100).toFixed(0)}% duty & low-line headroom`
+      `Ridley subharmonic damping Q_p ≤ 1.15 at ${(Deff_nom_est * 100).toFixed(0)}% duty & Q_p(Vin,min) ≤ 1.20`
     );
   }
   if (isCanEdit('Rsense_mOhm')) {
@@ -1047,6 +1062,55 @@ export function optimizeDcDcUnlocked(
   if (isCanEdit('fs_digital_kHz')) {
     const fsDigOpt = clamp(roundTo(Math.min(400, next.fsw_kHz * 2), 10), 50, 500);
     applyNum('fs_digital_kHz', 'fs Digital', fsDigOpt, 'kHz', 'Double-update PWM/ADC sampling');
+  }
+
+  // Control loop stability verification guard (ensures PM >= 48°, WC >= 38°, GM >= 6.8 dB)
+  let ctrlVerifyRes = solveDcDcDesign(next);
+  if (
+    ctrlVerifyRes.pm_actual_deg < 48 ||
+    ctrlVerifyRes.pm_wc_min_deg < 38 ||
+    ctrlVerifyRes.gm_actual_dB < 6.8
+  ) {
+    if (isCanEdit('pm_target_deg') && next.pm_target_deg < 65) {
+      let pmTry = next.pm_target_deg;
+      while (
+        pmTry < 65 &&
+        (ctrlVerifyRes.pm_actual_deg < 48 || ctrlVerifyRes.pm_wc_min_deg < 38)
+      ) {
+        pmTry = Math.min(65, pmTry + 3);
+        ctrlVerifyRes = solveDcDcDesign({ ...next, pm_target_deg: pmTry });
+      }
+      if (pmTry !== next.pm_target_deg) {
+        applyNum('pm_target_deg', 'PM', pmTry, '°', 'Verified closed-loop phase margin ≥ 48°');
+      }
+    }
+    if (
+      isCanEdit('fc_target_kHz') &&
+      (ctrlVerifyRes.pm_actual_deg < 48 ||
+        ctrlVerifyRes.pm_wc_min_deg < 38 ||
+        ctrlVerifyRes.gm_actual_dB < 6.8)
+    ) {
+      const fcFloorSafe = isLLC ? 2.5 : Math.max(4.5, ctrlVerifyRes.f0_lc_kHz * 1.75);
+      let fcTry = next.fc_target_kHz;
+      while (
+        fcTry > fcFloorSafe + 0.4 &&
+        (ctrlVerifyRes.pm_actual_deg < 48 ||
+          ctrlVerifyRes.pm_wc_min_deg < 38 ||
+          ctrlVerifyRes.gm_actual_dB < 6.8)
+      ) {
+        fcTry = Math.max(fcFloorSafe, Number((fcTry - 0.5).toFixed(1)));
+        ctrlVerifyRes = solveDcDcDesign({ ...next, fc_target_kHz: fcTry });
+      }
+      if (Math.abs(fcTry - next.fc_target_kHz) > 0.05) {
+        applyNum(
+          'fc_target_kHz',
+          'fc',
+          fcTry,
+          'kHz',
+          `Verified PM ≥ 48° & GM ≥ 6.8 dB while keeping f_c ≥ 1.75×f_0`
+        );
+      }
+    }
   }
 
   // 17. Final Exact Electro-Thermal Verification Guard (nParallelSec & Rth_heatsink_CW)

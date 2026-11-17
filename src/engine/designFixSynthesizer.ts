@@ -333,20 +333,33 @@ export function synthesizeDcdcCompactCoreFixes(
   const nTarget = res.Np_actual / Math.max(1, res.Ns_actual);
   const bSat100_T = Math.max(0.25, res.material.Bsat_100C_T);
   const bTarget_T = Math.min(
-    0.45 * bSat100_T,
+    0.48 * bSat100_T,
     Math.max(0.05, 0.14 * Math.pow(100 / Math.max(25, state.fsw_kHz), 0.52))
   );
   const voltSec_Vs = res.voltSec_applied_Vus * 1e-6;
   const awgArea: Record<number, number> = { 38: 0.00811, 40: 0.00487, 42: 0.00317 };
-  const useAwg = state.fsw_kHz >= 140 && state.litzStrandAWG < 40 ? 40 : state.litzStrandAWG;
-  const sArea = awgArea[useAwg] || 0.00487;
   const basePmag = res.coreThermalAnalysis.Pmag_total_W;
+  const secWindowMult = state.txType === 'center-tapped' ? 2 : 1;
+  const isCT = state.txType === 'center-tapped';
+  const iPriReq = Math.max(1, res.I_lead_turnoff_A * 0.88);
+  const iSecReq = Math.max(2, res.Iout_phase_A * (isCT ? 0.72 : 1.0));
+  const J_target = 4.6;
 
   const smallerCores = CORE_DATABASE.filter(
     (c) => c.id !== 'elp64' && c.id !== state.coreId && c.Ve_mm3 < res.core.Ve_mm3 * 0.92
   ).sort((a, b) => b.Ve_mm3 - a.Ve_mm3);
 
+  const awgCandidates = Array.from(
+    new Set<number>([
+      state.fsw_kHz >= 130 ? 40 : state.litzStrandAWG,
+      state.litzStrandAWG,
+      40,
+      ...(state.fsw_kHz >= 180 ? [42] : []),
+    ])
+  ).filter((a): a is 38 | 40 | 42 => a === 38 || a === 40 || a === 42);
+
   interface CompactCandidate {
+    coreId: string;
     fix: DesignAlertFix;
     score: number;
   }
@@ -354,47 +367,76 @@ export function synthesizeDcdcCompactCoreFixes(
 
   for (const core of smallerCores) {
     const nsRaw = Math.max(1, Math.round(voltSec_Vs / (2 * bTarget_T * (core.Ae_mm2 * 1e-6) * nTarget)));
-    const npRaw = Math.max(2, Math.round(nsRaw * nTarget));
-    const maxPri = Math.max(30, Math.floor((core.Aw_mm2 * 0.28) / (npRaw * sArea)));
-    const maxSec = Math.max(50, Math.floor((core.Aw_mm2 * 0.30) / (nsRaw * sArea)));
-    const priStrands = Math.min(state.priStrands, maxPri);
-    const secStrands = Math.min(state.secStrands, maxSec);
-    const ratio = Number((npRaw / nsRaw).toFixed(4));
+    const nsChoices = Array.from(new Set([nsRaw, Math.max(1, nsRaw - 1), nsRaw + 1]));
 
-    const patch: Partial<DcDcDesignState> = {
-      coreId: core.id,
-      Np_turns: npRaw,
-      Ns_turns: nsRaw,
-      turnsRatio_n: ratio,
-      litzStrandAWG: useAwg as 38 | 40 | 42,
-      priStrands,
-      secStrands,
-    };
-    const trialState: DcDcDesignState = { ...state, ...patch };
-    const trialRes = solveDcDcDesign(trialState);
-    if (
-      trialRes.saturationCheck.status === 'critical' ||
-      !trialRes.coreThermalAnalysis.coreThermalStable ||
-      trialRes.coreThermalAnalysis.Tcore_hotspot_C > 112 ||
-      trialRes.saturationCheck.utilization_100C_pct > 75
-    ) {
-      continue;
+    let bestForCore: CompactCandidate | null = null;
+    for (const useAwg of awgCandidates) {
+      const sArea = awgArea[useAwg] || 0.00487;
+      for (const nsTry of nsChoices) {
+        const npTry = Math.max(2, Math.round(nsTry * nTarget));
+        const maxPri = Math.max(30, Math.floor((core.Aw_mm2 * 0.28) / (npTry * sArea)));
+        const maxSec = Math.max(40, Math.floor((core.Aw_mm2 * 0.30) / (nsTry * secWindowMult * sArea)));
+        const rawPri = Math.max(30, Math.round(iPriReq / J_target / sArea / 10) * 10);
+        const rawSec = Math.max(40, Math.round(iSecReq / J_target / sArea / 10) * 10);
+        const priBase = Math.min(1200, Math.min(rawPri, maxPri));
+        const secBase = Math.min(1400, Math.min(rawSec, maxSec));
+        const ratio = Number((npTry / nsTry).toFixed(4));
+
+        for (const scale of [1.0, 0.8]) {
+          const priStrands = Math.max(25, Math.round((priBase * scale) / 10) * 10);
+          const secStrands = Math.max(40, Math.round((secBase * scale) / 10) * 10);
+
+          for (const intMode of ['full-interleaved', 'split-pri'] as const) {
+            const patch: Partial<DcDcDesignState> = {
+              coreId: core.id,
+              Np_turns: npTry,
+              Ns_turns: nsTry,
+              turnsRatio_n: ratio,
+              litzStrandAWG: useAwg,
+              priStrands,
+              secStrands,
+              interleaving: intMode,
+            };
+            const trialState: DcDcDesignState = { ...state, ...patch };
+            const trialRes = solveDcDcDesign(trialState);
+            if (
+              trialRes.saturationCheck.status === 'critical' ||
+              !trialRes.coreThermalAnalysis.coreThermalStable ||
+              trialRes.coreThermalAnalysis.Tcore_hotspot_C > 112 ||
+              trialRes.saturationCheck.utilization_100C_pct > 75 ||
+              trialRes.saturationCheck.utilization_100C_pct < 12
+            ) {
+              continue;
+            }
+            const win = checkTxWindowFits(trialState, trialRes);
+            if (!win.fitsInWindow || !win.creepagePass) continue;
+
+            const pMagNew = trialRes.coreThermalAnalysis.Pmag_total_W;
+            const tightPenalty = win.isTightMargin ? 12 : 0;
+            const score =
+              (basePmag - pMagNew) * 15 -
+              pMagNew -
+              0.00012 * core.Ve_mm3 -
+              tightPenalty;
+            const cand: CompactCandidate = {
+              coreId: core.id,
+              score,
+              fix: {
+                id: `dcdc-compact-${core.id}`,
+                label: `Downsize to ${core.name} (${npTry}/${nsTry}T, ${trialRes.Bpk_mT.toFixed(0)} mT, AWG${useAwg})`,
+                impact: `P_mag ${basePmag.toFixed(2)}→${pMagNew.toFixed(2)}W (P_cu ${res.Pcu_W.toFixed(1)}→${trialRes.Pcu_W.toFixed(1)}W) · ${trialRes.saturationCheck.utilization_100C_pct.toFixed(0)}% B_sat · T=${trialRes.coreThermalAnalysis.Tcore_hotspot_C.toFixed(0)}°C`,
+                targetKind: 'dcdc',
+                dcdcPatch: patch,
+              },
+            };
+            if (!bestForCore || cand.score > bestForCore.score) {
+              bestForCore = cand;
+            }
+          }
+        }
+      }
     }
-    const win = checkTxWindowFits(trialState, trialRes);
-    if (!win.fitsInWindow || !win.creepagePass) continue;
-
-    const pMagNew = trialRes.coreThermalAnalysis.Pmag_total_W;
-    const score = (basePmag - pMagNew) * 15 - pMagNew - 0.00012 * core.Ve_mm3;
-    scored.push({
-      score,
-      fix: {
-        id: `dcdc-compact-${core.id}`,
-        label: `Downsize to ${core.name} (${npRaw}/${nsRaw}T, ${trialRes.Bpk_mT.toFixed(0)} mT)`,
-        impact: `P_mag ${basePmag.toFixed(2)}→${pMagNew.toFixed(2)}W (P_cu ${res.Pcu_W.toFixed(1)}→${trialRes.Pcu_W.toFixed(1)}W) · ${trialRes.saturationCheck.utilization_100C_pct.toFixed(0)}% B_sat · T=${trialRes.coreThermalAnalysis.Tcore_hotspot_C.toFixed(0)}°C`,
-        targetKind: 'dcdc',
-        dcdcPatch: patch,
-      },
-    });
+    if (bestForCore) scored.push(bestForCore);
   }
 
   scored.sort((a, b) => b.score - a.score);

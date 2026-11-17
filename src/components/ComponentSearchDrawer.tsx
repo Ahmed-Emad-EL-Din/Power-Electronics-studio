@@ -172,9 +172,21 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
         }),
       });
 
-      const data = await response.json();
+      const rawText = await response.text();
+      let data: Record<string, unknown> = {};
+      if (rawText) {
+        try {
+          data = JSON.parse(rawText) as Record<string, unknown>;
+        } catch {
+          throw new Error(
+            `Component search returned non-JSON (${response.status}): ${rawText.replace(/<[^>]+>/g, ' ').trim().slice(0, 150)}`
+          );
+        }
+      }
       if (!response.ok) {
-        throw new Error(data.error || `Search request failed (${response.status})`);
+        throw new Error(
+          (typeof data.error === 'string' && data.error) || `Search request failed (${response.status})`
+        );
       }
 
       const rawComponents = Array.isArray(data.components) ? data.components : [];

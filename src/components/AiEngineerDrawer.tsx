@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -103,6 +103,12 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
   const [chatInput, setChatInput] = useState<string>('');
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (activeTab === 'chat') {
+      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatMessages.length, isSendingChat, activeTab]);
 
   const activeStaged = useMemo(
     () => stagedFixes.filter((f) => !f.skipped && !f.applied),
@@ -743,6 +749,19 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
             onSubmit={handleChatSubmit}
             className="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0B0F17] space-y-2"
           >
+            <div className="flex items-center justify-between gap-2 text-[10px] font-mono text-slate-500 dark:text-slate-400">
+              <span className="truncate">
+                {AI_PROVIDER_META[aiConfig.provider].shortLabel} · {aiConfig.model}
+                {aiConfig.apiKey ? ' (User Key)' : ' (Env Key)'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSettingsOpen(true)}
+                className="text-cyan-700 dark:text-cyan-400 hover:underline shrink-0 cursor-pointer"
+              >
+                Change Key / Model
+              </button>
+            </div>
             <div className="flex items-end gap-2">
               <textarea
                 rows={2}

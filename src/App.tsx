@@ -34,12 +34,14 @@ import {
   stageAndValidateAiFixes,
 } from './engine/aiAgentEngine';
 import {
+  AI_PROVIDER_META,
   AiProviderConfig,
   loadAiProviderConfig,
   saveAiProviderConfig,
   toServerAiConfig,
   validateAiProviderConfig,
 } from './engine/aiProviderConfig';
+import { AiProviderSettingsPanel } from './components/AiProviderSettingsPanel';
 import {
   DEFAULT_CAP_BANK_LOCKS,
   DEFAULT_INDUCTOR_LOCKS,
@@ -63,6 +65,7 @@ import {
   CheckCircle2,
   X,
   Bot,
+  KeyRound,
 } from 'lucide-react';
 
 export default function App() {
@@ -150,6 +153,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
   const [aiSendingChat, setAiSendingChat] = useState<boolean>(false);
   const [aiLastAuditedFingerprint, setAiLastAuditedFingerprint] = useState<string>('');
   const [aiConfig, setAiConfigState] = useState<AiProviderConfig>(() => loadAiProviderConfig());
+  const [aiKeysModalOpen, setAiKeysModalOpen] = useState<boolean>(false);
   const pendingVerificationRef = useRef<{ active: boolean; appliedSummary: string[] }>({
     active: false,
     appliedSummary: [],
@@ -159,6 +163,15 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
     setAiConfigState(saveAiProviderConfig(next));
     setAiAuditError(null);
   };
+
+  useEffect(() => {
+    if (!aiKeysModalOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setAiKeysModalOpen(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [aiKeysModalOpen]);
 
   const [pinnedAcdc, setPinnedAcdc] = useState<AcDcDesignState | null>(null);
   const [pinnedDcdc, setPinnedDcdc] = useState<DcDcDesignState | null>(null);
@@ -255,11 +268,32 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
           aiConfig: toServerAiConfig(aiConfig),
         }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.error || `AI service returned HTTP ${res.status}`);
+      const rawText = await res.text();
+      let data: Record<string, unknown> = {};
+      if (rawText) {
+        try {
+          data = JSON.parse(rawText) as Record<string, unknown>;
+        } catch {
+          if (!res.ok) {
+            const snippet = rawText.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180);
+            throw new Error(`AI service returned HTTP ${res.status}: ${snippet || res.statusText}`);
+          }
+          if (/<html|<!doctype/i.test(rawText)) {
+            throw new Error(
+              'AI request received an HTML page instead of JSON (proxy timeout or session refresh). Try again or switch to gemini-2.5-flash in AI Keys.'
+            );
+          }
+          throw new Error(
+            `AI service returned non-JSON (${res.status}): ${rawText.slice(0, 140)}`
+          );
+        }
       }
-      const parsed = data as AiAgentServerResponse;
+      if (!res.ok) {
+        throw new Error(
+          (typeof data?.error === 'string' && data.error) || `AI service returned HTTP ${res.status}`
+        );
+      }
+      const parsed = data as unknown as AiAgentServerResponse;
       setAiOverallVerdict(parsed.overallVerdict);
       setAiHeadline(parsed.headline);
       setAiExecutiveSummary(parsed.executiveSummary);
@@ -419,26 +453,49 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
     setAiSendingChat(true);
 
     try {
-      const snapshot = buildAiDesignSnapshot(aiContextInputs);
+      const snapshot = buildAiDesignSnapshot(aiContextInputs, { compactForChat: true });
       const res = await fetch('/api/ai-agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           mode: 'chat',
           userMessage: question,
-          chatHistory: nextHistory.map((m) => ({
-            role: m.role === 'user' ? 'user' : 'model',
-            text: m.text,
-          })),
+          chatHistory: nextHistory
+            .filter((m) => !m.error)
+            .map((m) => ({
+              role: m.role === 'user' ? 'user' : 'model',
+              text: m.text,
+            })),
           snapshot,
           aiConfig: toServerAiConfig(aiConfig),
         }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.error || `AI service returned HTTP ${res.status}`);
+      const rawText = await res.text();
+      let data: Record<string, unknown> = {};
+      if (rawText) {
+        try {
+          data = JSON.parse(rawText) as Record<string, unknown>;
+        } catch {
+          if (!res.ok) {
+            const snippet = rawText.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180);
+            throw new Error(`AI service returned HTTP ${res.status}: ${snippet || res.statusText}`);
+          }
+          if (/<html|<!doctype/i.test(rawText)) {
+            throw new Error(
+              'AI request received an HTML page instead of JSON (proxy timeout or session refresh). Try again or switch to gemini-2.5-flash in AI Keys.'
+            );
+          }
+          throw new Error(
+            `AI service returned non-JSON (${res.status}): ${rawText.slice(0, 140)}`
+          );
+        }
       }
-      const parsed = data as AiAgentServerResponse;
+      if (!res.ok) {
+        throw new Error(
+          (typeof data?.error === 'string' && data.error) || `AI service returned HTTP ${res.status}`
+        );
+      }
+      const parsed = data as unknown as AiAgentServerResponse;
       const attached = stageAndValidateAiFixes(parsed.proposedFixes || [], aiContextInputs);
       setAiChatMessages((prev) => [
         ...prev,
@@ -1011,6 +1068,32 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
 
           <button
             type="button"
+            onClick={() => setAiKeysModalOpen(true)}
+            aria-expanded={aiKeysModalOpen}
+            className={`h-8 px-2.5 text-xs font-medium rounded-md border transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+              aiKeysModalOpen
+                ? 'bg-cyan-600 border-cyan-600 text-white font-semibold'
+                : validateAiProviderConfig(aiConfig)
+                ? 'bg-amber-500/10 border-amber-500/60 text-amber-700 dark:text-amber-300 hover:bg-amber-500/15'
+                : 'bg-white dark:bg-[#131A26] border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:border-cyan-500/60'
+            }`}
+            title={`Configure AI API Keys & Provider (${AI_PROVIDER_META[aiConfig.provider].label} · ${aiConfig.model})`}
+          >
+            <KeyRound className="w-3.5 h-3.5 shrink-0" />
+            <span>AI Keys · {AI_PROVIDER_META[aiConfig.provider].shortLabel}</span>
+            <span
+              className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                validateAiProviderConfig(aiConfig)
+                  ? 'bg-amber-500'
+                  : aiConfig.apiKey
+                  ? 'bg-emerald-500'
+                  : 'bg-cyan-500'
+              }`}
+            />
+          </button>
+
+          <button
+            type="button"
             onClick={handleToggleAiEngineer}
             aria-pressed={aiEnabled}
             className={`h-8 px-2.5 text-xs font-medium rounded-md border transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
@@ -1216,6 +1299,28 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
         capacitorConfigs={capacitorConfigs}
         alerts={designAlerts}
       />
+
+      {/* TOP-BAR AI PROVIDER & API KEYS MODAL */}
+      {aiKeysModalOpen && (
+        <div
+          className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-[2px]"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Configure AI Provider and API Keys"
+          onClick={() => setAiKeysModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-lg rounded-lg shadow-2xl bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-700 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <AiProviderSettingsPanel
+              aiConfig={aiConfig}
+              onChangeAiConfig={handleChangeAiConfig}
+              onClose={() => setAiKeysModalOpen(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

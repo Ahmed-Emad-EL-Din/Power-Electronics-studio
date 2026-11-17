@@ -516,7 +516,14 @@ export function buildDesignReportModel(params: {
       stage: 'dcdc',
       title: 'DC-DC Converter Topology, Operating Envelope & Turns Ratio',
       subtitle: 'Turns Ratio Optimization, Duty-Cycle Loss & ZVS vs Duty Window',
-      status: 'pass',
+      status:
+        clampedSecUtil_pct > 90 || (!dcdcRes.isLLC && dcdcRes.D_applied_max >= 0.985)
+          ? 'fail'
+          : clampedSecUtil_pct > 80 ||
+            maxVdsSecUtil_pct > 88 ||
+            (!dcdcRes.isLLC && (dcdcRes.D_applied_nom > 0.92 || dcdcRes.D_applied_max > 0.94))
+          ? 'warn'
+          : 'pass',
       intro: `Analytical synthesis of the isolated ${dcdcState.topology.toUpperCase()} converter (${dcdcState.txType} secondary, ${dcdcState.rectMode === 'sync-fet' ? 'Synchronous MOSFETs' : 'Schottky Rectifiers'}) delivering ${Vout} V / ${dcdcRes.Iout_total_A.toFixed(1)} A (${Pout} W) from ${Vin_min}–${Vin_max} Vdc.`,
       rationale: {
         heading: `Why Topology (${dcdcState.topology.toUpperCase()}), Turns Ratio (${dcdcRes.Np_actual}:${dcdcRes.Ns_actual}) & Rectifier (${dcdcState.rectMode}) Were Chosen`,
@@ -558,22 +565,32 @@ export function buildDesignReportModel(params: {
           title: dcdcRes.isLLC ? 'LLC Resonant Frequency f_r, Inductance Ratio L_n & Q-Factor' : 'Effective Duty Ratio D_eff, Commutation Duty Loss D_loss & Applied Duty',
           given: dcdcRes.isLLC
             ? `L_r = ${dcdcState.Llk_uH} µH, L_m = ${dcdcState.Lm_uH} µH, C_r = ${dcdcState.Cr_nF} nF, V_out = ${Vout} V`
-            : `V_in,nom = ${Vin_nom} V, V_out = ${Vout} V, n = ${N_ratio.toFixed(2)}, L_lk = ${dcdcState.Llk_uH} µH, f_sw = ${dcdcState.fsw_kHz} kHz`,
+            : `V_in = ${Vin_min}–${Vin_nom} V, V_out = ${Vout} V, n = ${N_ratio.toFixed(2)}, L_lk = ${dcdcState.Llk_uH} µH, f_sw = ${dcdcState.fsw_kHz} kHz`,
           tex: dcdcRes.isLLC
             ? `f_r = \\frac{1}{2\\pi\\sqrt{L_r C_r}}, \\quad L_n = \\frac{L_m}{L_r}, \\quad Q = \\frac{\\sqrt{L_r/C_r}}{\\frac{8 n^2}{\\pi^2} R_L}`
-            : `D_{\\text{eff}} = \\frac{n\\, V_{\\text{out}}}{V_{\\text{in}}}, \\quad D_{\\text{loss}} = \\frac{2\\, L_{\\text{lk}}\\, I_{\\text{out,ph}}\\, f_{\\text{sw}}}{n\\, V_{\\text{in}}}, \\quad D_{\\text{app}} = D_{\\text{eff}} + D_{\\text{loss}}`,
+            : `D_{\\text{eff}} = \\frac{${dcdcState.txType === 'current-doubler' ? '2n' : 'n'}\\, V_{\\text{out}}}{V_{\\text{in}}}, \\quad D_{\\text{loss}} = \\frac{4\\, L_{\\text{lk}}\\, I_{\\text{pri,valley}}\\, f_{\\text{sw}}}{V_{\\text{in}}}, \\quad D_{\\text{app}} = D_{\\text{eff}} + D_{\\text{loss}}`,
           formulaPlain: dcdcRes.isLLC
             ? 'fr = 1 / (2*pi*sqrt(Lr*Cr)) ;  Ln = Lm / Lr ;  Q = Z_r / R_ac'
-            : 'D_eff = n*V_out / V_in ;  D_loss = 2*L_lk*I_out*f_sw / (n*V_in) ;  D_app = D_eff + D_loss',
+            : `D_eff = ${dcdcState.txType === 'current-doubler' ? '2*' : ''}n*V_out / V_in ;  D_loss = 4*L_lk*I_pri,valley*f_sw / V_in ;  D_app = D_eff + D_loss`,
           substitution: dcdcRes.isLLC
             ? `f_r = 1 / (2π√(${dcdcState.Llk_uH}e-6 × ${dcdcState.Cr_nF}e-9)) = ${dcdcRes.fr_kHz.toFixed(2)} kHz ; f_m = ${dcdcRes.fm_kHz.toFixed(1)} kHz`
-            : `D_eff = ${N_ratio.toFixed(2)} × ${Vout} / ${Vin_nom} = ${(dcdcRes.Deff_nom * 100).toFixed(1)}% ; D_loss = ${(dcdcRes.Dloss_nom * 100).toFixed(1)}%`,
+            : `Nom (${Vin_nom}V): D_eff = ${(dcdcRes.Deff_nom * 100).toFixed(1)}%, ΔD = ${(dcdcRes.Dloss_nom * 100).toFixed(1)}% ; Low-line (${Vin_min}V): D_eff = ${(dcdcRes.Deff_max * 100).toFixed(1)}%, ΔD = ${(dcdcRes.Dloss_max * 100).toFixed(1)}%`,
           result: dcdcRes.isLLC
             ? `f_r = ${dcdcRes.fr_kHz.toFixed(1)} kHz · f_n = ${dcdcRes.fn_nom.toFixed(3)} · L_n = ${dcdcRes.Ln_ratio.toFixed(1)} · Q = ${dcdcRes.Q_factor.toFixed(2)}`
-            : `D_applied = ${(dcdcRes.D_applied_nom * 100).toFixed(1)}% (Phase Shift φ = ${dcdcRes.phaseShift_deg.toFixed(1)}°)`,
+            : `D_app(nom) = ${(dcdcRes.D_applied_nom * 100).toFixed(1)}% · D_app(Vin,min) = ${(dcdcRes.D_applied_max * 100).toFixed(1)}% (φ = ${dcdcRes.phaseShift_deg.toFixed(1)}°)`,
           verdict: {
-            status: !dcdcRes.isLLC && dcdcRes.D_applied_nom > 0.92 ? 'warn' : 'pass',
-            label: !dcdcRes.isLLC && dcdcRes.D_applied_nom > 0.92 ? 'Tight Duty Margin' : 'Duty Margin Nominal',
+            status:
+              !dcdcRes.isLLC && dcdcRes.D_applied_max >= 0.985
+                ? 'fail'
+                : !dcdcRes.isLLC && (dcdcRes.D_applied_nom > 0.92 || dcdcRes.D_applied_max > 0.94)
+                ? 'warn'
+                : 'pass',
+            label:
+              !dcdcRes.isLLC && dcdcRes.D_applied_max >= 0.985
+                ? 'Low-Line Duty Saturation'
+                : !dcdcRes.isLLC && (dcdcRes.D_applied_nom > 0.92 || dcdcRes.D_applied_max > 0.94)
+                ? 'Tight Low-Line Duty Margin'
+                : 'Duty Margin Nominal',
           },
         },
         {
@@ -911,12 +928,23 @@ export function buildDesignReportModel(params: {
       title: `Control Loop Compensation (${dcdcState.controlType.toUpperCase()}) & Middlebrook Stability`,
       subtitle: 'LC Double-Pole Placement, Subharmonic Ramp Damping & Input Filter Impedance Margin',
       status:
-        dcdcRes.pm_actual_deg < 30 || (!dcdcRes.slopeStable && dcdcState.controlType === 'pcmc')
+        dcdcRes.pm_actual_deg < 30 ||
+        dcdcRes.pm_wc_min_deg < 20 ||
+        (dcdcState.controlType === 'pcmc' &&
+          (!dcdcRes.slopeStable ||
+            !dcdcRes.slopeStable_wc ||
+            dcdcRes.Qp_subharmonic > 2.0 ||
+            dcdcRes.Qp_subharmonic_wc > 2.0))
           ? 'fail'
-          : !dcdcRes.middlebrookStable || dcdcRes.pm_actual_deg < 45
+          : !dcdcRes.middlebrookStable ||
+            dcdcRes.pm_actual_deg < 45 ||
+            (dcdcState.controlType === 'pcmc' &&
+              (dcdcRes.Qp_subharmonic > 1.8 || dcdcRes.Qp_subharmonic_wc > 1.8)) ||
+            (!dcdcRes.isLLC &&
+              dcdcState.fc_target_kHz < Math.max(dcdcRes.f0_lc_kHz * 1.45, dcdcRes.f0_lc_kHz + 0.4))
           ? 'warn'
           : 'pass',
-      intro: `Synthesizes closed-loop analog/digital pole-zero networks across nominal and worst-case LC tolerances, verifies subharmonic inner current ramp stability, and checks Middlebrook input filter interaction.`,
+      intro: `Synthesizes closed-loop analog/digital pole-zero networks across nominal and worst-case LC tolerances, verifies subharmonic inner current ramp stability across ${Vin_min}–${Vin_max} V, and checks Middlebrook input filter interaction.`,
       rationale: {
         heading:
           dcdcState.controlType === 'pcmc'
@@ -936,7 +964,7 @@ export function buildDesignReportModel(params: {
                 : `Type-II Compensator Phase Boost (f_z1 → f_p1)`,
             detail:
               dcdcState.controlType === 'pcmc'
-                ? `Injects S_e = ${dcdcRes.Se_ramp_V_us.toFixed(3)} V/µs artificial ramp against downslope S_f = ${dcdcRes.Sf_downslope_V_us.toFixed(3)} V/µs, clamping Ridley subharmonic Q_p = ${dcdcRes.Qp_subharmonic.toFixed(2)} cleanly below oscillation threshold.`
+                ? `Injects S_e = ${dcdcRes.Se_ramp_V_us.toFixed(3)} V/µs artificial ramp against downslope S_f = ${dcdcRes.Sf_downslope_V_us.toFixed(3)} V/µs, keeping Q_p(nom) = ${dcdcRes.Qp_subharmonic.toFixed(2)} and low-line Q_p(Vin,min) = ${dcdcRes.Qp_subharmonic_wc.toFixed(2)} cleanly below oscillation threshold.`
                 : dcdcRes.isTwoZeroComp
                 ? `Places dual zeros near f_0 (${dcdcRes.fz1_kHz.toFixed(2)} / ${dcdcRes.fz2_kHz.toFixed(2)} kHz) to cancel LC −180° phase lag and dual poles above f_esr (${dcdcRes.fp1_kHz.toFixed(2)} / ${dcdcRes.fp2_kHz.toFixed(1)} kHz) for high-frequency noise roll-off.`
                 : `Places single Type-II zero f_z1 = ${dcdcRes.fz1_kHz.toFixed(2)} kHz for target phase boost and high-frequency pole f_p1 = ${dcdcRes.fp1_kHz.toFixed(2)} kHz to attenuate switching ripple.`,
@@ -951,23 +979,34 @@ export function buildDesignReportModel(params: {
         {
           step: `${cD6}.1`,
           title: 'Power-Stage LC Double Pole f_0, ESR Zero f_z,esr & Subharmonic Q_p Check',
-          given: `L_o = ${dcdcState.Lo_uH} µH, C_o = ${dcdcState.Co_uF} µF, ESR = ${dcdcState.ESR_Co_mOhm} mΩ, D_eff = ${(D_ind_pcmc * 100).toFixed(1)}%, m_c = ${dcdcRes.mc_slope.toFixed(2)}`,
+          given: `L_o = ${dcdcState.Lo_uH} µH, C_o = ${dcdcState.Co_uF} µF, ESR = ${dcdcState.ESR_Co_mOhm} mΩ, D_eff(nom/max) = ${(D_ind_pcmc * 100).toFixed(1)}%/${(dcdcRes.Deff_max * 100).toFixed(1)}%, m_c = ${dcdcRes.mc_slope.toFixed(2)}`,
           tex: `f_0 = \\frac{1}{2\\pi\\sqrt{L_o C_o}}, \\quad f_{z,\\text{esr}} = \\frac{1}{2\\pi\\, R_{\\text{ESR}}\\, C_o}, \\quad Q_p = \\frac{1}{\\pi\\left(m_c(1-D_{\\text{eff}}) - 0.5\\right)}`,
           formulaPlain: 'f0 = 1/(2*pi*sqrt(Lo*Co)) ;  fz,esr = 1/(2*pi*ESR*Co) ;  Qp = 1 / (pi*(mc*(1-D_eff) - 0.5))',
-          substitution: `f_0 = ${dcdcRes.f0_lc_kHz.toFixed(2)} kHz (WC ${dcdcRes.f0_wc_min_kHz.toFixed(2)}–${dcdcRes.f0_wc_max_kHz.toFixed(2)} kHz) ; f_esr = ${dcdcRes.f_esr_kHz.toFixed(1)} kHz ; Q_p = 1/(π×(${dcdcRes.mc_slope.toFixed(2)}×${D_prime_pcmc.toFixed(3)} - 0.5)) = ${dcdcRes.Qp_subharmonic.toFixed(2)}`,
+          substitution: `f_0 = ${dcdcRes.f0_lc_kHz.toFixed(2)} kHz (WC ${dcdcRes.f0_wc_min_kHz.toFixed(2)}–${dcdcRes.f0_wc_max_kHz.toFixed(2)} kHz) ; f_esr = ${dcdcRes.f_esr_kHz.toFixed(1)} kHz ; Q_p(nom) = ${dcdcRes.Qp_subharmonic.toFixed(2)} · Q_p(Vin,min) = ${dcdcRes.Qp_subharmonic_wc.toFixed(2)}`,
           result:
             dcdcState.controlType === 'pcmc'
-              ? `f_0 = ${dcdcRes.f0_lc_kHz.toFixed(2)} kHz · f_esr = ${dcdcRes.f_esr_kHz.toFixed(1)} kHz · Subharmonic Q_p = ${dcdcRes.Qp_subharmonic.toFixed(2)}`
+              ? `f_0 = ${dcdcRes.f0_lc_kHz.toFixed(2)} kHz · f_esr = ${dcdcRes.f_esr_kHz.toFixed(1)} kHz · Q_p(nom) = ${dcdcRes.Qp_subharmonic.toFixed(2)} · Q_p(Vin,min) = ${dcdcRes.Qp_subharmonic_wc.toFixed(2)}`
               : `f_0 = ${dcdcRes.f0_lc_kHz.toFixed(2)} kHz · f_esr = ${dcdcRes.f_esr_kHz.toFixed(1)} kHz · PCMC Q_p N/A (${dcdcState.controlType.toUpperCase()})`,
           verdict:
             dcdcState.controlType !== 'pcmc'
               ? { status: 'pass', label: `N/A (${dcdcState.controlType.toUpperCase()} Mode)` }
               : {
-                  status: !dcdcRes.slopeStable || dcdcRes.Qp_subharmonic > 2.0 ? 'fail' : dcdcRes.Qp_subharmonic > 1.8 ? 'warn' : 'pass',
+                  status:
+                    !dcdcRes.slopeStable ||
+                    !dcdcRes.slopeStable_wc ||
+                    dcdcRes.Qp_subharmonic > 2.0 ||
+                    dcdcRes.Qp_subharmonic_wc > 2.0
+                      ? 'fail'
+                      : dcdcRes.Qp_subharmonic > 1.8 || dcdcRes.Qp_subharmonic_wc > 1.8
+                      ? 'warn'
+                      : 'pass',
                   label:
-                    !dcdcRes.slopeStable || dcdcRes.Qp_subharmonic > 2.0
+                    !dcdcRes.slopeStable ||
+                    !dcdcRes.slopeStable_wc ||
+                    dcdcRes.Qp_subharmonic > 2.0 ||
+                    dcdcRes.Qp_subharmonic_wc > 2.0
                       ? 'Subharmonic Oscillation Risk'
-                      : dcdcRes.Qp_subharmonic > 1.8
+                      : dcdcRes.Qp_subharmonic > 1.8 || dcdcRes.Qp_subharmonic_wc > 1.8
                       ? 'Elevated Q_p Peaking'
                       : 'Subharmonic Damped',
                 },
@@ -982,15 +1021,23 @@ export function buildDesignReportModel(params: {
           result: `PM = ${dcdcRes.pm_actual_deg.toFixed(1)}° · GM = ${dcdcRes.gm_actual_dB.toFixed(1)} dB · Middlebrook ΔZ = ${dcdcRes.middlebrookMargin_dB.toFixed(1)} dB`,
           verdict: {
             status:
-              dcdcRes.pm_actual_deg < 30 || (dcdcState.controlType === 'pcmc' && !dcdcRes.slopeStable)
+              dcdcRes.pm_actual_deg < 30 ||
+              dcdcRes.pm_wc_min_deg < 20 ||
+              (dcdcState.controlType === 'pcmc' && (!dcdcRes.slopeStable || !dcdcRes.slopeStable_wc))
                 ? 'fail'
-                : !dcdcRes.middlebrookStable || dcdcRes.pm_actual_deg < 45
+                : !dcdcRes.middlebrookStable ||
+                  dcdcRes.pm_actual_deg < 45 ||
+                  (!dcdcRes.isLLC &&
+                    dcdcState.fc_target_kHz < Math.max(dcdcRes.f0_lc_kHz * 1.45, dcdcRes.f0_lc_kHz + 0.4))
                 ? 'warn'
                 : 'pass',
             label:
-              dcdcRes.pm_actual_deg >= 45 && dcdcRes.middlebrookStable
+              dcdcRes.pm_actual_deg >= 45 &&
+              dcdcRes.middlebrookStable &&
+              (dcdcRes.isLLC ||
+                dcdcState.fc_target_kHz >= Math.max(dcdcRes.f0_lc_kHz * 1.45, dcdcRes.f0_lc_kHz + 0.4))
                 ? 'Stable Loop & EMI Margin'
-                : 'Tight Control / EMI Margin',
+                : 'Tight Control / Bandwidth Margin',
           },
         },
       ],
@@ -1007,8 +1054,8 @@ export function buildDesignReportModel(params: {
             dcdcRes.isTwoZeroComp
               ? ['Poles / Zeros', 'f_p1 / f_p2', `${dcdcRes.fp1_kHz.toFixed(2)} kHz / ${dcdcRes.fp2_kHz.toFixed(1)} kHz`, 'Cancels ESR zero & attenuates HF switching noise']
               : ['Poles / Zeros', 'f_p1 (HF Roll-Off)', `${dcdcRes.fp1_kHz.toFixed(2)} kHz (f_p2 N/A in 2P2Z)`, 'Attenuates switching ripple above crossover f_c'],
-            ['Analog Op-Amp', dcdcRes.isTwoZeroComp ? 'R1 / R2 / R3' : 'R1 / R2', dcdcRes.isTwoZeroComp ? `${dcdcRes.R1_kOhm.toFixed(1)} kΩ / ${dcdcRes.R2_kOhm.toFixed(1)} kΩ / ${dcdcRes.R3_kOhm.toFixed(1)} kΩ` : `${dcdcRes.R1_kOhm.toFixed(1)} kΩ / ${dcdcRes.R2_kOhm.toFixed(1)} kΩ`, 'Standard E96 feedback & gain resistors'],
-            ['Analog Op-Amp', dcdcRes.isTwoZeroComp ? 'C1 / C2 / C3' : 'C1 / C2', dcdcRes.isTwoZeroComp ? `${dcdcRes.C1_nF.toFixed(2)} nF / ${dcdcRes.C2_pF.toFixed(0)} pF / ${dcdcRes.C3_nF.toFixed(2)} nF` : `${dcdcRes.C1_nF.toFixed(2)} nF / ${dcdcRes.C2_pF.toFixed(0)} pF`, 'Pure integrator pole at origin + phase lead-lag'],
+            ['Analog Op-Amp', dcdcRes.isTwoZeroComp ? 'R1 / R2 / R3' : 'R1 / R2', dcdcRes.isTwoZeroComp ? `${dcdcRes.R1_kOhm.toFixed(1)} kΩ / ${dcdcRes.R2_kOhm.toFixed(1)} kΩ / ${dcdcRes.R3_kOhm.toFixed(1)} kΩ` : `${dcdcRes.R1_kOhm.toFixed(1)} kΩ / ${dcdcRes.R2_kOhm.toFixed(1)} kΩ`, 'Standard E96 feedback & gain resistors (1% thin-film)'],
+            ['Analog Op-Amp', dcdcRes.isTwoZeroComp ? 'C1 / C2 / C3 (C0G/NP0)' : 'C1 / C2 (C0G/NP0)', dcdcRes.isTwoZeroComp ? `${dcdcRes.C1_nF.toFixed(2)} nF / ${dcdcRes.C2_pF.toFixed(0)} pF / ${dcdcRes.C3_nF.toFixed(2)} nF` : `${dcdcRes.C1_nF.toFixed(2)} nF / ${dcdcRes.C2_pF.toFixed(0)} pF`, 'C0G/NP0 class-I dielectric (zero DC-bias drift); integrator + lead-lag'],
             ['Digital DSP', dcdcRes.isTwoZeroComp ? 'b0, b1, b2, b3' : 'b0, b1, b2', dcdcRes.isTwoZeroComp ? `${dcdcRes.b0.toFixed(4)}, ${dcdcRes.b1.toFixed(4)}, ${dcdcRes.b2.toFixed(4)}, ${dcdcRes.b3.toFixed(4)}` : `${dcdcRes.b0.toFixed(4)}, ${dcdcRes.b1.toFixed(4)}, ${dcdcRes.b2.toFixed(4)}`, `Discretized at f_s = ${dcdcState.fs_digital_kHz} kHz`],
             ['Middlebrook', 'L_emi / C_emi / R_d', `${dcdcRes.L_emi_uH.toFixed(0)} µH / ${dcdcRes.C_emi_uF.toFixed(0)} µF / ${dcdcRes.Rd_emi_Ohm.toFixed(2)} Ω`, `Separation margin ΔZ_MB = ${dcdcRes.middlebrookMargin_dB.toFixed(1)} dB`],
           ],
@@ -1024,20 +1071,30 @@ export function buildDesignReportModel(params: {
   }
 
   // ============================================================================
-  // FINAL AUDIT CHAPTER
+  // FINAL AUDIT CHAPTER (Aggregates BOTH scopedAlerts AND all preceding chapter statuses)
   // ============================================================================
   const cAudit = String(chIdx++);
+  const priorChapters = [...chapters];
+  const failedChapters = priorChapters.filter((c) => c.status === 'fail');
+  const warnedChapters = priorChapters.filter((c) => c.status === 'warn');
+  const auditStatus: 'pass' | 'warn' | 'fail' =
+    scopedAlerts.danger.length > 0 || failedChapters.length > 0
+      ? 'fail'
+      : scopedAlerts.warning.length > 0 || warnedChapters.length > 0
+      ? 'warn'
+      : 'pass';
+
   chapters.push({
     id: 'ch-audit',
     num: cAudit,
     stage: 'audit',
     title: 'Final Engineering Audit & Hardware Sign-Off',
     subtitle: 'Automated Limit Audit Summary & Hardware Release Readiness Checklist',
-    status: scopedAlerts.danger.length > 0 ? 'fail' : scopedAlerts.warning.length > 0 ? 'warn' : 'pass',
+    status: auditStatus,
     intro:
-      scopedAlerts.all.length === 0
-        ? 'All magnetic flux saturation checks, Steinmetz core thermal equilibria, semiconductor breakdown & junction SOA margins, passive capacitor banks, control loop margins, and IEC safety clearances pass engineering verification.'
-        : `The automated verification engine identified ${scopedAlerts.danger.length} critical violation(s) and ${scopedAlerts.warning.length} advisory warning(s) requiring attention prior to PCB release.`,
+      auditStatus === 'pass'
+        ? 'All magnetic flux saturation checks, Steinmetz core thermal equilibria, semiconductor breakdown & junction SOA margins, passive capacitor banks, control loop margins, and IEC safety clearances pass engineering verification across all chapters.'
+        : `The automated verification engine flagged ${scopedAlerts.danger.length} critical alert(s), ${scopedAlerts.warning.length} warning alert(s), ${failedChapters.length} failed chapter(s), and ${warnedChapters.length} warned chapter(s) requiring attention prior to PCB release.`,
     rationale: {
       heading: 'Verification Basis & Methodology',
       points: [
@@ -1047,11 +1104,31 @@ export function buildDesignReportModel(params: {
         },
         {
           label: 'Safety & Reliability Standards Checked',
-          detail: '100°C B–H saturation knee (<85%), 125°C core & junction ceilings, 80%–90% V_DS derating, IEC 62368-1 creepage & Y1 DC isolation rating, IEC 61000-3 harmonics, and ≥45° control phase margin.',
+          detail: '100°C B–H saturation knee (<85%), 125°C core & junction ceilings, 80%–90% V_DS derating, IEC 62368-1 creepage & Y1 DC isolation rating, IEC 61000-3 harmonics, low-line PCMC Q_p <= 1.8, and >= 45 deg control phase margin.',
         },
       ],
     },
     steps: [],
+    paramTables: [
+      {
+        title: `Table ${cAudit}.1 — Chapter-by-Chapter Engineering Sign-Off Matrix`,
+        headers: ['Chapter', 'Engineering Domain', 'Verdict', 'Sign-Off Summary'],
+        rows: priorChapters.map((c) => {
+          const failedSteps = c.steps.filter((s) => s.verdict?.status === 'fail').map((s) => s.verdict?.label || s.title);
+          const warnedSteps = c.steps.filter((s) => s.verdict?.status === 'warn').map((s) => s.verdict?.label || s.title);
+          const verdictText = c.status === 'fail' ? '✖ FAIL' : c.status === 'warn' ? '▲ WARN' : '● PASS';
+          const detailText =
+            failedSteps.length > 0
+              ? `Fail: ${failedSteps.join('; ')}`
+              : warnedSteps.length > 0
+              ? `Warn: ${warnedSteps.join('; ')}`
+              : c.status === 'pass'
+              ? 'All chapter steps & BOM rules verified nominal'
+              : c.subtitle;
+          return [`Ch ${c.num}`, c.title, verdictText, detailText];
+        }),
+      },
+    ],
   });
 
   const dcdcTxLabel =

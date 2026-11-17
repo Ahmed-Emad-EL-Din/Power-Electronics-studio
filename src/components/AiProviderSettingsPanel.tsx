@@ -15,7 +15,8 @@ import {
   AiProviderConfig,
   AiProviderId,
   clearAiProviderConfig,
-  getDefaultAiProviderConfig,
+  isOpenAiReasoningModel,
+  loadAiProviderProfile,
   validateAiProviderConfig,
 } from '../engine/aiProviderConfig';
 
@@ -27,8 +28,8 @@ interface AiProviderSettingsPanelProps {
 }
 
 const MODEL_SUGGESTIONS: Record<AiProviderId, string[]> = {
-  gemini: ['gemini-4-hydrogen', 'gemini-3.8-flash'],
-  openai: ['gpt-4o', 'gpt-4.1', 'o3-mini'],
+  gemini: ['gemini-4-hydrogen', 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3.8-flash'],
+  openai: ['gpt-4o', 'gpt-4.1', 'o3-mini', 'gpt-5-mini'],
   anthropic: ['claude-sonnet-4-20250514', 'claude-3-7-sonnet-latest'],
   'openai-compatible': ['deepseek-chat', 'deepseek-reasoner', 'llama-3.3-70b-versatile'],
 };
@@ -60,15 +61,25 @@ export const AiProviderSettingsPanel: React.FC<AiProviderSettingsPanelProps> = (
   const handleSelectProvider = (nextProvider: AiProviderId) => {
     if (nextProvider === aiConfig.provider) return;
     perProviderCacheRef.current[aiConfig.provider] = aiConfig;
-    const cached = perProviderCacheRef.current[nextProvider];
-    onChangeAiConfig(cached ? { ...cached } : getDefaultAiProviderConfig(nextProvider));
+    const cached = perProviderCacheRef.current[nextProvider] || loadAiProviderProfile(nextProvider);
+    onChangeAiConfig({ ...cached });
   };
 
   const handleFieldChange = (patch: Partial<AiProviderConfig>) => {
-    onChangeAiConfig({
+    const next: AiProviderConfig = {
       ...aiConfig,
       ...patch,
-    });
+    };
+    if (
+      next.provider === 'gemini' &&
+      patch.apiKey !== undefined &&
+      patch.apiKey.trim() &&
+      !aiConfig.apiKey.trim() &&
+      (next.model === 'gemini-4-hydrogen' || next.model === 'gemini-3.8-flash')
+    ) {
+      next.model = 'gemini-2.5-flash';
+    }
+    onChangeAiConfig(next);
   };
 
   const handleReset = () => {
@@ -275,11 +286,24 @@ export const AiProviderSettingsPanel: React.FC<AiProviderSettingsPanelProps> = (
         </div>
       )}
 
+      {aiConfig.provider === 'gemini' && aiConfig.apiKey && (
+        <div className="text-[10px] text-cyan-700 dark:text-cyan-300/90 leading-snug">
+          Personal Gemini key detected: if a workspace model alias (e.g. gemini-4-hydrogen) is unavailable for your key, requests automatically fall back to gemini-2.5-flash.
+        </div>
+      )}
+
       {!meta.supportsWebSearch && (
         <div className="text-[10px] text-amber-700 dark:text-amber-300/90 leading-snug">
           Note: Live Component Search uses {meta.shortLabel} datasheet knowledge without live Google Web Search grounding.
         </div>
       )}
+
+      {(aiConfig.provider === 'openai' || aiConfig.provider === 'openai-compatible') &&
+        isOpenAiReasoningModel(aiConfig.model) && (
+          <div className="text-[10px] text-cyan-700 dark:text-cyan-300/90 leading-snug">
+            Reasoning model mode ({aiConfig.model}): unsupported temperature parameter is automatically omitted.
+          </div>
+        )}
 
       <div className="text-[10px] text-slate-500 dark:text-slate-400 leading-snug">
         {meta.hint} API keys are stored only in your browser localStorage and forwarded per-request to your selected provider via the local server proxy.

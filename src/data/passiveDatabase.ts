@@ -477,6 +477,24 @@ export const INDUCTOR_CORE_DATABASE: InductorCoreSpec[] = [
     Rth_CW: 6.2,
     approxCost_USD: 8.60,
   },
+  {
+    id: 'cm-63mm',
+    name: 'CM Toroid 63mm (OD 63.0 × ID 40.0 × H 25.0 mm)',
+    shape: 'toroid',
+    family: 'cm-toroid',
+    od_or_A_mm: 63.0,
+    id_or_B_mm: 40.0,
+    h_or_C_mm: 25.0,
+    Ae_mm2: 230.0,
+    le_mm: 161.8,
+    Ve_mm3: 37214,
+    Aw_mm2: 1256,
+    bw_mm: 40.0,
+    hw_mm: 40.0,
+    MLT_base_mm: 85.0,
+    Rth_CW: 4.6,
+    approxCost_USD: 12.40,
+  },
 ];
 
 // ============================================================================
