@@ -9,6 +9,8 @@
 > - [`docs/04-GRAPH-TOOLS-AND-VISUALIZATION.md`](./docs/04-GRAPH-TOOLS-AND-VISUALIZATION.md) — 4-channel oscilloscope, 2D efficiency heatmaps, Monte Carlo histograms, CSV/SVG
 > - [`docs/05-AI-AND-AGENT.md`](./docs/05-AI-AND-AGENT.md) — Compact telemetry, audit presets, what-if trade-off sweeps, multi-provider resilience
 > - [`docs/06-MODELING-SIMULATION-AND-EXPORT.md`](./docs/06-MODELING-SIMULATION-AND-EXPORT.md) — RK4 switched ODE transient solver, SPICE `.cir` export, C2000/STM32 `.h` firmware, KiCad BOM
+> - [`docs/07-STUDIO-UPGRADE-PLAN.md`](./docs/07-STUDIO-UPGRADE-PLAN.md) — UI color tokens, shell & tool organization, graph deduplication & interactivity, **PCMC + Type-II**, and **Live LCSC Library**
+> - [`.agents/skills/INDEX.md`](./.agents/skills/INDEX.md) — Curated GitHub AI engineering skills (`precision-lab-ui`, `lcsc-live-sourcing`, `pcmc-type2-control`)
 
 ---
 
@@ -212,6 +214,40 @@
 ### Task 35 — Native Desktop Bridge Preparation (Future Tauri v2 Alignment)
 - [ ] Align all engine DTOs (`DcDcResults`, `AcDcResults`, `WaveformPoint`, `SpiceNetlist`) for clean serialization with `antigravity-desktop-roadmap/` Rust/Tauri IPC contracts
 - [ ] Support optional `ngspice` / `LTspice` batch simulation runner hook when running inside desktop shell
+
+---
+
+## Phase G — Professional UI, Tool Organization, Graph Consolidation, PCMC + Type-II & Live LCSC (See `docs/07-STUDIO-UPGRADE-PLAN.md`)
+
+### Task 36 — Precision Bench Instrument Color Tokens & CSS Refactor
+- [ ] Define unified semantic tokens (`--bg-canvas`, `--bg-panel`, `--bg-elevated`, `--bg-inset`, `--border-hairline`, `--border-strong`, `--text-primary/secondary/muted`, `--accent-brand`, `--status-pass/warn/danger`) in `src/index.css` for Light ("Architectural CAD Sheet") and Dark ("Lab Bench Graphite") parity
+- [ ] Standardize colorblind-safe 6-channel oscilloscope/plot palette (`CH1..CH6` + dashed `#94A3B8` Pin Ref)
+- [ ] Eliminate hardcoded legacy dark hex overrides (`#111827`, `#0B0E17`, `#07090E`, etc.) and enforce `tabular-nums`, `focus-visible`, `aria-label`, and `overscroll-behavior: contain`
+
+### Task 37 — Shell Reorganization, Contextual Tool Placement & Graph Deduplication
+- [ ] Streamline `src/App.tsx` top command bar into 3 focused zones: `[Project Pill + Undo/Redo]` | `[AC-DC PFC | DC-DC Stage | Control & Stability | Scope & Verification | Parts, LCSC & BOM]` | `[Alerts | Pin Ref | AI Copilot | Export ▾ | Theme]`
+- [ ] Move `AI Keys` settings inside `AiEngineerDrawer` header and consolidate `.json` / `.cir` / `.h` / `.csv` / PDF exports into one `Export ▾` menu
+- [ ] Remove all 8 duplicated panels/graphs across `DcDcWorkbench.tsx` (13 → 6 single-row sub-tabs), `AcDcWorkbench.tsx` (10 → 6 sub-tabs), and `SmallSignalDashboard.tsx` ("One Canonical Home per Tool")
+- [ ] Add contextual inline `"Swap from LCSC…"` actions on semiconductor/passive cards and interactive `CircuitSchematics.tsx` click-to-inspect jump links
+
+### Task 38 — Interactive & Numerically Accurate Graphing Engine Upgrade
+- [ ] Fix `InteractiveChart.tsx` so pinned `refData` remains visible when zoomed/panned even without `refEvaluator`
+- [ ] Add `ResizeObserver` coordinate responsiveness, pointer-centered scroll-wheel zoom (with lock toggle), keyboard cursor stepping (`←`/`→`, `[`/`]`, `R`), interactive legend toggles, and synchronized cross-chart X-cursor bus
+- [ ] Wire `onPointClick` across parametric sweeps (`fsw`, `Bpk`, `Llk`, `Rg`) with Undo history integration
+
+### Task 39 — `PCMC + Compensator Type-II` (`pcmc-type-ii`) Physics, Op-Amp/OTA & ODE Integration
+- [ ] Add `'pcmc-type-ii'` (`DcDcControlType`, aliasing legacy `'pcmc'`) + `compensatorImpl: 'opamp' | 'ota' | 'digital-2p2z'` and `otaGm_uS` to `databases.ts`
+- [ ] Implement exact Ridley PCMC plant in `dcdcEngine.ts`: $H_{\text{dc}} = \frac{R_{\text{load}}}{R_i}\frac{1}{1 + \frac{R_{\text{load}} T_{s,\text{eff}}}{L_{o,\text{eq}}}(m_c D' - 0.5)}$, $\omega_{p1} = \frac{1}{R_{\text{load}}C_o} + \frac{m_c D' - 0.5}{L_{o,\text{eq}} C_o f_{\text{eff}}}$, and $H_e(s)$ subharmonic double pole at $\pi f_{\text{eff}}$
+- [ ] Support both **Op-Amp Type-II** and **OTA ($g_m$) Type-II** (`SLVA662` / `switchmode.io`) symmetric $k$-factor + ESR-pole synthesis, E96 resistor snapping, and exact Tustin `2P2Z` coefficients
+- [ ] Update `transientOdeSolver.ts` with inner peak-current envelope + outer Type-II discrete 2P2Z loop and add dedicated unit tests in `dcdcSolver.test.ts`
+
+### Task 40 — Zero-Key Live LCSC / JLCPCB Component Library & BOM Verification
+- [ ] Add `GET /api/lcsc/search`, `GET /api/lcsc/part/:lcscCode`, and `POST /api/lcsc/verify-bom` in `server.ts` proxying `jlcsearch.tscircuit.com` + `wmsc.lcsc.com` with TTL caching and rate-limit spacing (zero AI key required)
+- [ ] Auto-map live LCSC parametric attributes (`paramVOList`) into `SemiconductorSpec` / passive ratings with live stock, `Basic` vs `Extended ($3 fee)` badges, price breaks (`1/10/100/1000`), and direct PDF datasheet links
+- [ ] Persist equipped/custom LCSC parts in `localStorage` and export JLCPCB-compliant BOM CSV (`Comment,Designator,Footprint,LCSC Part #`)
+
+### Task 41 — Full Verification & Visual Quality Gate
+- [ ] Pass `npm run lint`, all `tsx --test` suites (including PCMC+Type-II & live LCSC mapper tests), `npm run build`, and live preview inspection in both Light & Dark modes
 
 ---
 
