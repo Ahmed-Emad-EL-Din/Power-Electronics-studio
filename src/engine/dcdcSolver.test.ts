@@ -851,3 +851,117 @@ test('SPICE .cir Netlist & Embedded C Header Exporters emit valid netlists and T
   assert.ok(header.includes('#endif /* POWERSTAGE_CONTROL_CFG_H */'));
 });
 
+test('Dowell Litz proximity factor scales physically with interleaving and AWG strand gauge', () => {
+  const base = DCDC_PRESETS[0].state;
+  const rNone = solveDcDcDesign({ ...base, fsw_kHz: 200, interleaving: 'none', litzStrandAWG: 38 });
+  const rSplit = solveDcDcDesign({ ...base, fsw_kHz: 200, interleaving: 'split-pri', litzStrandAWG: 38 });
+  const rFull = solveDcDcDesign({ ...base, fsw_kHz: 200, interleaving: 'full-interleaved', litzStrandAWG: 38 });
+  const rAwg40 = solveDcDcDesign({ ...base, fsw_kHz: 200, interleaving: 'split-pri', litzStrandAWG: 40 });
+
+  assert.ok(rNone.Fr_dowell_pri > 1.05, `Expected measurable Dowell Fr at 200kHz, got ${rNone.Fr_dowell_pri}`);
+  assert.ok(rNone.Fr_dowell_pri > rSplit.Fr_dowell_pri, 'Expected non-interleaved Fr > split-pri Fr');
+  assert.ok(rSplit.Fr_dowell_pri > rFull.Fr_dowell_pri, 'Expected split-pri Fr > full-interleaved Fr');
+  assert.ok(rSplit.Fr_dowell_pri > rAwg40.Fr_dowell_pri, 'Expected AWG38 Fr > finer AWG40 Fr');
+});
+
+test('Dead-time-bounded ZVS & LLC low-line gain alerts synthesize safe 1-click fixes', () => {
+  const acdcState = ACDC_PRESETS[0].state;
+  const acdcRes = solveAcDcDesign(acdcState);
+
+  // 1. PSFB with overly short dead-time triggers zvsDeadTimeInsufficient
+  const shortDtState: DcDcDesignState = {
+    ...DCDC_PRESETS[0].state,
+    Llk_uH: 8.0,
+    deadTime_ns: 12,
+  };
+  const shortDtRes = solveDcDcDesign(shortDtState);
+  assert.equal(shortDtRes.zvsDeadTimeInsufficient, true);
+  assert.equal(shortDtRes.zvsAchieved, false);
+  assert.ok(shortDtRes.Vds_res_lag_V > 5);
+
+  const shortDtAlerts = evaluateDesignAlerts({
+    dcdcState: shortDtState,
+    dcdcRes: shortDtRes,
+    acdcState,
+    acdcRes,
+  });
+  const zvsAlert = shortDtAlerts.all.find((a) => a.id === 'dcdc-zvs-incomplete');
+  assert.ok(zvsAlert && zvsAlert.fixes && zvsAlert.fixes.length > 0);
+  const zvsFixed = solveDcDcDesign({ ...shortDtState, ...zvsAlert.fixes[0].dcdcPatch });
+  assert.equal(zvsFixed.zvsAchieved, true);
+
+  // 2. LLC with excessive Lm and low Vin_min fails low-line gain and gets cured without corrupting Lr
+  const llcBase = DCDC_PRESETS[3].state;
+  const llcLowGainState: DcDcDesignState = {
+    ...llcBase,
+    Vin_min_V: 300,
+    Lm_uH: 380,
+  };
+  const llcLowGainRes = solveDcDcDesign(llcLowGainState);
+  assert.equal(llcLowGainRes.llcRegulatesMinLine, false);
+  const llcAlerts = evaluateDesignAlerts({
+    dcdcState: llcLowGainState,
+    dcdcRes: llcLowGainRes,
+    acdcState,
+    acdcRes,
+  });
+  const gainAlert = llcAlerts.all.find((a) => a.id === 'dcdc-llc-gain-deficit');
+  assert.ok(gainAlert && gainAlert.fixes && gainAlert.fixes.length > 0);
+  const gainFixed = solveDcDcDesign({ ...llcLowGainState, ...gainAlert.fixes[0].dcdcPatch });
+  assert.equal(gainFixed.llcRegulatesMinLine, true);
+});
+
+test('evalFullWaveforms numerical RMS & DC averages match analytical solver currents', () => {
+  for (const preset of DCDC_PRESETS) {
+    const res = solveDcDcDesign(preset.state);
+    const N = 2000;
+    const T_us = 1000 / preset.state.fsw_kHz;
+    let sumIlo = 0;
+    let sumIpri2 = 0;
+    let imPkWf = 0;
+    for (let i = 0; i < N; i++) {
+      const pt = res.evaluators.evalFullWaveforms(((i + 0.5) / N) * T_us);
+      sumIlo += pt.i_lo_A;
+      sumIpri2 += pt.i_pri_A * pt.i_pri_A;
+      imPkWf = Math.max(imPkWf, Math.abs(pt.i_lm_A ?? 0));
+    }
+    const meanIlo = sumIlo / N;
+    const rmsIpriWf = Math.sqrt(sumIpri2 / N);
+    const iloErrPct = (Math.abs(meanIlo - res.Iout_phase_A) / res.Iout_phase_A) * 100;
+    const imErrPct = (Math.abs(imPkWf - res.Im_pk_A) / Math.max(0.1, res.Im_pk_A)) * 100;
+    assert.ok(iloErrPct < 2.5, `[${preset.id}] Expected mean(i_lo) ≈ Iout_phase within 2.5%, got ${iloErrPct.toFixed(2)}%`);
+    assert.ok(imErrPct < 2.5, `[${preset.id}] Expected max(|i_lm|) ≈ Im_pk within 2.5%, got ${imErrPct.toFixed(2)}%`);
+    assert.ok(rmsIpriWf > 0.5 && Number.isFinite(rmsIpriWf));
+  }
+});
+
+test('Auto-Optimizer solves unlocked LLC across low-line 330V with 0 Danger alerts & standard parts', () => {
+  const acdcState = ACDC_PRESETS[0].state;
+  const acdcRes = solveAcDcDesign(acdcState);
+  const unlocked = makeUnlockedDcdcLocks();
+  const llcInit: DcDcDesignState = {
+    ...DCDC_PRESETS[3].state,
+    Vin_min_V: 330,
+    Lm_uH: 320,
+    deadTime_ns: 60,
+  };
+  const opt = optimizeDcDcUnlocked(llcInit, llcInit, 'Vin_min_V', unlocked);
+  const res = solveDcDcDesign(opt.nextState);
+  assert.equal(res.llcRegulatesMinLine, true);
+  assert.equal(res.zvsAchieved, true);
+  const alerts = evaluateDesignAlerts({
+    dcdcState: opt.nextState,
+    dcdcRes: res,
+    acdcState,
+    acdcRes,
+  });
+  const dcdcDangers = alerts.danger.filter((a) => a.domain === 'dcdc');
+  assert.equal(
+    dcdcDangers.length,
+    0,
+    `Expected 0 DC-DC Danger alerts on optimized LLC, got: ${dcdcDangers.map((a) => a.id).join(', ')}`
+  );
+  assert.ok([5, 8, 10, 12, 15, 20, 25, 30, 33, 40, 50, 68, 75, 100].includes(opt.nextState.Rsense_mOhm));
+});
+
+

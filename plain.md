@@ -87,7 +87,7 @@
 - [x] Upgrade `WaveformPoint` & `evalFullWaveforms(t_us)` in `dcdcEngine.ts` to compute authentic cycle-by-cycle `v_pri_V`, `i_pri_A`, `v_sec_V`, `i_lo_A`, `i_lm_A` (magnetizing ramp), and `v_cr_V` (resonant capacitor voltage for LLC / clamping plateau for PSFB)
 - [x] Model PSFB dead-time $C_{\text{oss}}$ resonant charging transition (`v_pri` finite slew rate) and leakage-inductance duty-loss current commutation interval accurately
 - [x] Model LLC switching above/at/below resonance ($f_{\text{sw}} > f_r$, $f_{\text{sw}} = f_r$, $f_{\text{sw}} < f_r$ DCM secondary current clamping) in `evalFullWaveforms`
-- [ ] Validate RMS and average values integrated numerically over `evalFullWaveforms` against closed-form analytical `Ipri_rms_A`, `Iout_phase_A`, and `Im_pk_A`
+- [x] Validate RMS and average values integrated numerically over `evalFullWaveforms` against closed-form analytical `Ipri_rms_A`, `Iout_phase_A`, and `Im_pk_A`
 
 ### Task 15 — Monte Carlo Tolerance & Worst-Case Corner Analysis Engine
 - [x] Build `src/engine/monteCarloEngine.ts` with deterministic seeded PRNG (Mulberry32) and Box-Muller Gaussian sampling

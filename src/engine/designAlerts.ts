@@ -28,10 +28,12 @@ import {
   synthesizeCapacitorAlertFixes,
   synthesizeDcdcCompactCoreFixes,
   synthesizeDcdcCoreThermalFixes,
+  synthesizeDcdcLlcGainFixes,
   synthesizeDcdcSaturationFixes,
   synthesizeDcdcSemiThermalFixes,
   synthesizeDcdcVoltageFixes,
   synthesizeDcdcWindowFixes,
+  synthesizeDcdcZvsFixes,
   synthesizeInductorAlertFixes,
 } from './designFixSynthesizer';
 
@@ -357,7 +359,7 @@ export function evaluateDesignAlerts(params: {
     });
   }
 
-  // 1f. ZVS Soft-Switching Loss Check
+  // 1f. ZVS Soft-Switching Loss & Dead-Time Check
   if (!dcdcRes.zvsAchieved) {
     alerts.push({
       id: 'dcdc-zvs-incomplete',
@@ -366,21 +368,37 @@ export function evaluateDesignAlerts(params: {
       domainLabel: 'DC-DC',
       subTab: 'graphs',
       subTabLabel: 'ZVS & Tank Graphs',
-      title: 'Incomplete Lagging-Leg ZVS (Partial Hard Switching)',
-      metric: `Tank energy ${dcdcRes.zvsEnergyRatio_pct.toFixed(0)}% · V_ds,res = ${dcdcRes.Vds_res_lag_V.toFixed(0)} V`,
-      actionHint: `Increase L_lk ≥ ${dcdcRes.Llk_crit_fullLoad_uH.toFixed(1)} µH or adjust dead-time toward ${dcdcRes.t_dead_opt_ns.toFixed(0)} ns.`,
-      fixes: [
-        {
-          id: 'dcdc-zvs-tune',
-          label: `Set Optimal Tank L_lk = ${dcdcRes.Llk_opt_35pct_uH.toFixed(1)} µH & t_dead = ${Math.round(dcdcRes.t_dead_opt_ns)} ns`,
-          impact: 'Guarantees full lagging-leg ZVS down to ~35% load',
-          targetKind: 'dcdc',
-          dcdcPatch: {
-            Llk_uH: Number(dcdcRes.Llk_opt_35pct_uH.toFixed(1)),
-            deadTime_ns: Math.round(dcdcRes.t_dead_opt_ns),
-          },
-        },
-      ],
+      title: dcdcRes.zvsDeadTimeInsufficient
+        ? 'Insufficient Dead-Time for Complete ZVS'
+        : 'Incomplete Lagging-Leg ZVS (Partial Hard Switching)',
+      metric: dcdcRes.zvsDeadTimeInsufficient
+        ? `t_dead = ${dcdcState.deadTime_ns} ns < ${dcdcRes.t_dead_zvs_req_ns.toFixed(0)} ns req · V_ds,res = ${dcdcRes.Vds_res_lag_V.toFixed(0)} V`
+        : `Tank energy ${dcdcRes.zvsEnergyRatio_pct.toFixed(0)}% · V_ds,res = ${dcdcRes.Vds_res_lag_V.toFixed(0)} V`,
+      actionHint: dcdcRes.zvsDeadTimeInsufficient
+        ? `Increase dead-time toward ${dcdcRes.t_dead_opt_ns.toFixed(0)} ns so Coss finishes discharging before turn-on.`
+        : dcdcRes.isLLC
+        ? `Lower L_m to raise I_m,pk or increase dead-time toward ${dcdcRes.t_dead_opt_ns.toFixed(0)} ns.`
+        : `Increase L_lk ≥ ${dcdcRes.Llk_crit_fullLoad_uH.toFixed(1)} µH or adjust dead-time toward ${dcdcRes.t_dead_opt_ns.toFixed(0)} ns.`,
+      fixes: synthesizeDcdcZvsFixes(dcdcState, dcdcRes),
+    });
+  }
+
+  // LLC Low-Line Peak Inductive Gain Deficit Check
+  if (dcdcRes.isLLC && !dcdcRes.llcRegulatesMinLine) {
+    alerts.push({
+      id: 'dcdc-llc-gain-deficit',
+      severity: dcdcRes.M_peak_zvs < dcdcRes.M_req_max ? 'danger' : 'warning',
+      domain: 'dcdc',
+      domainLabel: 'DC-DC',
+      subTab: 'graphs',
+      subTabLabel: 'ZVS & Tank Graphs',
+      title:
+        dcdcRes.M_peak_zvs < dcdcRes.M_req_max
+          ? 'LLC Low-Line Gain Deficit (Cannot Regulate at Vin,min)'
+          : 'Tight LLC Low-Line Inductive Gain Margin',
+      metric: `M_peak,ZVS = ${dcdcRes.M_peak_zvs.toFixed(2)} vs M_req(${dcdcState.Vin_min_V}V) = ${dcdcRes.M_req_max.toFixed(2)} (${dcdcRes.llcGainMargin_pct.toFixed(1)}% margin)`,
+      actionHint: `Lower L_m (reduce L_n = L_m/L_r) or reduce turns ratio n to boost peak inductive gain above M_req.`,
+      fixes: synthesizeDcdcLlcGainFixes(dcdcState, dcdcRes),
     });
   }
 
