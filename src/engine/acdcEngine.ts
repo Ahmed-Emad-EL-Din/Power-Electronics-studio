@@ -418,8 +418,9 @@ export function solveAcDcDesign(state: AcDcDesignState): AcDcResults {
   // ============================================================================
   // Iterative Electro-Thermal Power Losses & Efficiency
   // ============================================================================
+  const Tamb_sys_C = state.capAmbient_C !== undefined ? Math.max(15, state.capAmbient_C - 5) : 40;
   const alpha_rds = sw.alpha_R_per_C;
-  let Tj_fast_C = 40 + 25;
+  let Tj_fast_C = Tamb_sys_C + 25;
   let Pcond_fast_W = 0;
   let Psw_total_W = 0;
   let Prr_W = 0;
@@ -447,7 +448,7 @@ export function solveAcDcDesign(state: AcDcDesignState): AcDcResults {
       0.5 * (sw.Coss_er_pF * 1e-12) * state.Vdc_bus_V * state.Vdc_bus_V;
     Psw_total_W = nPhases * fsw_Hz * Esw_cycle_J + Prr_W + Pgate_W;
     const P_per_dev = (Pcond_fast_W + Psw_total_W) / (2 * nPhases);
-    Tj_fast_C = Math.min(200, 40 + P_per_dev * (sw.Rth_JC_CW + 0.45));
+    Tj_fast_C = Math.min(200, Tamb_sys_C + P_per_dev * (sw.Rth_JC_CW + 0.45));
   }
 
   const Iac_avg_A = (2 * Math.sqrt(2) * Iac_rms_nom_A) / Math.PI;
@@ -549,11 +550,13 @@ export function solveAcDcDesign(state: AcDcDesignState): AcDcResults {
   const Pv_mW_cm3 = 42 * Math.pow(state.fsw_kHz, 1.46) * Math.pow(Math.max(0.01, deltaB_max_T / 2), 2.1);
   const Pind_core_W = nPhases * (Pv_mW_cm3 * 1e-3 * Ve_pfc_cm3);
   const Pind_total_W = Pind_cu_W + Pind_core_W;
-  const Tcore_pfc_C = 40 + (Pind_total_W / nActiveInductors) * 5.8;
+  const Rth_pfc_core_CW = 5.8 * Math.pow(21.3 / Math.max(8, Ve_pfc_cm3), 0.55);
+  const Tcore_pfc_C = Tamb_sys_C + (Pind_total_W / nActiveInductors) * Rth_pfc_core_CW;
 
   const Pcap_W = ICdc_total_rms_A * ICdc_total_rms_A * (state.ESR_Cdc_mOhm * 1e-3);
   const capTempRise_C = (Pcap_W / capBankParallelCount) * 8.2;
-  const capHotspot_C = 45 + capTempRise_C;
+  const capAmbient_C = state.capAmbient_C ?? 45;
+  const capHotspot_C = capAmbient_C + capTempRise_C;
   const capLife_hours = Math.min(250000, 8000 * Math.pow(2, (105 - capHotspot_C) / 10));
   const capLife_years = capLife_hours / 8760;
 

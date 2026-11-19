@@ -75,6 +75,57 @@ function checkTxWindowFits(state: DcDcDesignState, res: DcDcResults) {
   });
 }
 
+function scoreDcdcPatchSideEffects(
+  baseState: DcDcDesignState,
+  patch: Partial<DcDcDesignState>
+): { trialRes: DcDcResults; safetyPenalty: number; tag: string } {
+  const trialState: DcDcDesignState = { ...baseState, ...patch };
+  const trialRes = solveDcDcDesign(trialState);
+  const win = checkTxWindowFits(trialState, trialRes);
+  const tjLim = trialState.Tj_max_limit_C ?? 125;
+
+  let penalty = 0;
+  const issues: string[] = [];
+  if (trialRes.saturationCheck.status === 'critical') {
+    penalty += 500;
+    issues.push('sat');
+  }
+  if (!win.fitsInWindow || !win.creepagePass) {
+    penalty += 400;
+    issues.push('window');
+  }
+  if (!trialRes.thermalStable || trialRes.Tj_pri_C > tjLim || trialRes.Tj_sec_C > tjLim) {
+    penalty += 350;
+    issues.push('Tj');
+  }
+  if (!trialRes.coreThermalAnalysis.coreThermalStable || trialRes.coreThermalAnalysis.Tcore_hotspot_C > 125) {
+    penalty += 300;
+    issues.push('Tcore');
+  }
+  if ((trialState.Vin_max_V / Math.max(1, trialRes.priDevice.Vds_max_V)) * 100 > 90) {
+    penalty += 450;
+    issues.push('Vds,pri');
+  }
+  if ((trialRes.Vsec_overshoot_V / Math.max(1, trialRes.secDevice.Vds_max_V)) * 100 > 90) {
+    penalty += 450;
+    issues.push('Vds,sec');
+  }
+  if (!trialRes.isLLC && trialRes.D_applied_max > 0.94) {
+    penalty += 250;
+    issues.push('duty-sat');
+  }
+  if (trialRes.isLLC && !trialRes.llcRegulatesMinLine) {
+    penalty += 250;
+    issues.push('gain');
+  }
+  if (!trialRes.zvsAchieved) {
+    penalty += 80;
+    issues.push('ZVS');
+  }
+  const tag = issues.length === 0 ? 'Clean' : `Check ${issues.join('/')}`;
+  return { trialRes, safetyPenalty: penalty, tag };
+}
+
 // ----------------------------------------------------------------------------
 // 1. TRANSFORMER CORE OVER-TEMP & THERMAL RUNAWAY FIX SYNTHESIZER
 // ----------------------------------------------------------------------------
@@ -208,61 +259,75 @@ export function synthesizeDcdcCoreThermalFixes(
 }
 
 // ----------------------------------------------------------------------------
-// 2. TRANSFORMER SATURATION FIX SYNTHESIZER
+// 2. TRANSFORMER SATURATION FIX SYNTHESIZER (SCREENED FOR SIDE EFFECTS)
 // ----------------------------------------------------------------------------
 export function synthesizeDcdcSaturationFixes(
   state: DcDcDesignState,
   res: DcDcResults
 ): DesignAlertFix[] {
-  const fixes: DesignAlertFix[] = [];
+  const candidates: { fix: DesignAlertFix; score: number }[] = [];
   const ratio = res.Ns_actual / Math.max(1, res.Np_actual);
 
   if (res.saturationCheck.recommendedMinNp_turns > res.Np_actual) {
-    const nextNp = res.saturationCheck.recommendedSafeNp_turns > res.saturationCheck.recommendedMinNp_turns
-      ? res.saturationCheck.recommendedSafeNp_turns
-      : res.saturationCheck.recommendedMinNp_turns;
+    const nextNp =
+      res.saturationCheck.recommendedSafeNp_turns > res.saturationCheck.recommendedMinNp_turns
+        ? res.saturationCheck.recommendedSafeNp_turns
+        : res.saturationCheck.recommendedMinNp_turns;
     const nextNs = Math.max(1, Math.round(nextNp * ratio));
     const nextRatio = Number((nextNp / nextNs).toFixed(4));
-    const trialRes = solveDcDcDesign({ ...state, Np_turns: nextNp, Ns_turns: nextNs, turnsRatio_n: nextRatio });
-    fixes.push({
-      id: 'dcdc-sat-np',
-      label: `Set Safe Turns Np = ${nextNp}T (Ns = ${nextNs}T)`,
-      impact: `B_pk ${res.Bpk_mT.toFixed(0)} → ${trialRes.Bpk_mT.toFixed(0)} mT (${trialRes.saturationCheck.utilization_100C_pct.toFixed(0)}% B_sat)`,
-      targetKind: 'dcdc',
-      dcdcPatch: { Np_turns: nextNp, Ns_turns: nextNs, turnsRatio_n: nextRatio },
-    });
-  }
-
-  if (res.saturationCheck.recommendedCoreId && res.saturationCheck.recommendedCoreName) {
-    const trialRes = solveDcDcDesign({ ...state, coreId: res.saturationCheck.recommendedCoreId });
-    fixes.push({
-      id: 'dcdc-sat-core',
-      label: `Upgrade Core to ${res.saturationCheck.recommendedCoreName}`,
-      impact: `B_pk ${res.Bpk_mT.toFixed(0)} → ${trialRes.Bpk_mT.toFixed(0)} mT (${trialRes.saturationCheck.utilization_100C_pct.toFixed(0)}% B_sat)`,
-      targetKind: 'dcdc',
-      dcdcPatch: { coreId: res.saturationCheck.recommendedCoreId },
-    });
-  }
-
-  if (res.saturationCheck.recommendedMaterialId) {
-    const trialRes = solveDcDcDesign({
-      ...state,
-      materialId: res.saturationCheck.recommendedMaterialId,
-      customSteinmetzEnabled: false,
-    });
-    fixes.push({
-      id: 'dcdc-sat-mat',
-      label: `Switch Ferrite to ${res.saturationCheck.recommendedMaterialId}`,
-      impact: `Raises 100°C B_sat margin (${trialRes.saturationCheck.utilization_100C_pct.toFixed(0)}% used)`,
-      targetKind: 'dcdc',
-      dcdcPatch: {
-        materialId: res.saturationCheck.recommendedMaterialId,
-        customSteinmetzEnabled: false,
+    const patch: Partial<DcDcDesignState> = {
+      Np_turns: nextNp,
+      Ns_turns: nextNs,
+      turnsRatio_n: nextRatio,
+    };
+    const { trialRes, safetyPenalty, tag } = scoreDcdcPatchSideEffects(state, patch);
+    candidates.push({
+      score: 100 - safetyPenalty - trialRes.saturationCheck.utilization_100C_pct * 0.2,
+      fix: {
+        id: 'dcdc-sat-np',
+        label: `Set Safe Turns Np = ${nextNp}T (Ns = ${nextNs}T)`,
+        impact: `B_pk ${res.Bpk_mT.toFixed(0)} → ${trialRes.Bpk_mT.toFixed(0)} mT (${trialRes.saturationCheck.utilization_100C_pct.toFixed(0)}% B_sat) · ${tag}`,
+        targetKind: 'dcdc',
+        dcdcPatch: patch,
       },
     });
   }
 
-  return fixes.slice(0, 3);
+  if (res.saturationCheck.recommendedCoreId && res.saturationCheck.recommendedCoreName) {
+    const patch: Partial<DcDcDesignState> = { coreId: res.saturationCheck.recommendedCoreId };
+    const { trialRes, safetyPenalty, tag } = scoreDcdcPatchSideEffects(state, patch);
+    candidates.push({
+      score: 110 - safetyPenalty - trialRes.saturationCheck.utilization_100C_pct * 0.2,
+      fix: {
+        id: 'dcdc-sat-core',
+        label: `Upgrade Core to ${res.saturationCheck.recommendedCoreName}`,
+        impact: `B_pk ${res.Bpk_mT.toFixed(0)} → ${trialRes.Bpk_mT.toFixed(0)} mT (${trialRes.saturationCheck.utilization_100C_pct.toFixed(0)}% B_sat) · ${tag}`,
+        targetKind: 'dcdc',
+        dcdcPatch: patch,
+      },
+    });
+  }
+
+  if (res.saturationCheck.recommendedMaterialId) {
+    const patch: Partial<DcDcDesignState> = {
+      materialId: res.saturationCheck.recommendedMaterialId,
+      customSteinmetzEnabled: false,
+    };
+    const { trialRes, safetyPenalty, tag } = scoreDcdcPatchSideEffects(state, patch);
+    candidates.push({
+      score: 95 - safetyPenalty,
+      fix: {
+        id: 'dcdc-sat-mat',
+        label: `Switch Ferrite to ${res.saturationCheck.recommendedMaterialId}`,
+        impact: `Raises 100°C B_sat margin (${trialRes.saturationCheck.utilization_100C_pct.toFixed(0)}% used) · ${tag}`,
+        targetKind: 'dcdc',
+        dcdcPatch: patch,
+      },
+    });
+  }
+
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates.slice(0, 3).map((c) => c.fix);
 }
 
 // ----------------------------------------------------------------------------
@@ -494,29 +559,39 @@ export function synthesizeDcdcVoltageFixes(
   state: DcDcDesignState,
   res: DcDcResults
 ): DesignAlertFix[] {
-  const fixes: DesignAlertFix[] = [];
+  const scored: { fix: DesignAlertFix; score: number }[] = [];
   if (kind === 'pri') {
     const suitable = SEMICONDUCTOR_DATABASE.filter(
       (s) => (s.role === 'primary' || s.role === 'both') && s.Vds_max_V >= state.Vin_max_V * 1.25
     ).sort((a, b) => a.Rds_on_25C_mOhm - b.Rds_on_25C_mOhm);
-    for (const dev of suitable.slice(0, 2)) {
-      fixes.push({
-        id: `dcdc-pri-dev-${dev.id}`,
-        label: `Equip ${dev.id} (${dev.Vds_max_V}V ${dev.Rds_on_25C_mOhm}mΩ)`,
-        impact: `Vds derating ${((state.Vin_max_V / dev.Vds_max_V) * 100).toFixed(0)}% (≤80% target)`,
-        targetKind: 'dcdc',
-        dcdcPatch: { priDeviceId: dev.id },
+    for (const dev of suitable.slice(0, 5)) {
+      const patch: Partial<DcDcDesignState> = { priDeviceId: dev.id };
+      const { trialRes, safetyPenalty, tag } = scoreDcdcPatchSideEffects(state, patch);
+      const score = 200 - safetyPenalty + trialRes.efficiency_pct * 4 - trialRes.Tj_pri_C * 0.5;
+      scored.push({
+        score,
+        fix: {
+          id: `dcdc-pri-dev-${dev.id}`,
+          label: `Equip ${dev.id} (${dev.Vds_max_V}V ${dev.Rds_on_25C_mOhm}mΩ)`,
+          impact: `Vds ${((state.Vin_max_V / dev.Vds_max_V) * 100).toFixed(0)}% · Tj=${trialRes.Tj_pri_C.toFixed(0)}°C · η=${trialRes.efficiency_pct.toFixed(1)}% · ${tag}`,
+          targetKind: 'dcdc',
+          dcdcPatch: patch,
+        },
       });
     }
   } else {
     if (state.txType === 'center-tapped') {
-      const tRes = solveDcDcDesign({ ...state, txType: 'full-bridge' });
-      fixes.push({
-        id: 'dcdc-sec-fb',
-        label: 'Switch Secondary to Full-Bridge Rectifier (Halves V_sec)',
-        impact: `V_sec,pk ${res.Vsec_overshoot_V.toFixed(0)}V → ${tRes.Vsec_overshoot_V.toFixed(0)}V`,
-        targetKind: 'dcdc',
-        dcdcPatch: { txType: 'full-bridge' },
+      const patch: Partial<DcDcDesignState> = { txType: 'full-bridge' };
+      const { trialRes, safetyPenalty, tag } = scoreDcdcPatchSideEffects(state, patch);
+      scored.push({
+        score: 210 - safetyPenalty + trialRes.efficiency_pct * 3,
+        fix: {
+          id: 'dcdc-sec-fb',
+          label: 'Switch Secondary to Full-Bridge Rectifier (Halves V_sec)',
+          impact: `V_sec,pk ${res.Vsec_overshoot_V.toFixed(0)}V → ${trialRes.Vsec_overshoot_V.toFixed(0)}V · ${tag}`,
+          targetKind: 'dcdc',
+          dcdcPatch: patch,
+        },
       });
     }
     const minVdsSafe = Math.max(res.Vsec_overshoot_V * 1.2, res.Vsec_unclamped_pk_V * 1.05);
@@ -529,19 +604,198 @@ export function synthesizeDcdcVoltageFixes(
         : SEMICONDUCTOR_DATABASE.filter(
             (s) => (s.role === 'secondary' || s.role === 'both') && s.Vds_max_V >= res.Vsec_overshoot_V * 1.2
           ).sort((a, b) => a.Vds_max_V - b.Vds_max_V || a.Rds_on_25C_mOhm - b.Rds_on_25C_mOhm);
-    for (const dev of suitable.slice(0, 2)) {
+    for (const dev of suitable.slice(0, 4)) {
       const recParallel = dev.Rds_on_25C_mOhm > 8 && state.nParallelSec < 2 ? 2 : state.nParallelSec;
-      const tRes = solveDcDcDesign({ ...state, secDeviceId: dev.id, nParallelSec: recParallel });
-      fixes.push({
-        id: `dcdc-sec-dev-${dev.id}`,
-        label: `Equip ${recParallel}× ${dev.id} (${dev.Vds_max_V}V ${dev.Rds_on_25C_mOhm}mΩ)`,
-        impact: `V_pk/V_DS ${((res.Vsec_unclamped_pk_V / dev.Vds_max_V) * 100).toFixed(0)}% unclamped · Tj,sec=${tRes.Tj_sec_C.toFixed(0)}°C`,
-        targetKind: 'dcdc',
-        dcdcPatch: { secDeviceId: dev.id, nParallelSec: recParallel },
+      const patch: Partial<DcDcDesignState> = { secDeviceId: dev.id, nParallelSec: recParallel };
+      const { trialRes, safetyPenalty, tag } = scoreDcdcPatchSideEffects(state, patch);
+      scored.push({
+        score: 200 - safetyPenalty + trialRes.efficiency_pct * 4 - trialRes.Tj_sec_C * 0.5,
+        fix: {
+          id: `dcdc-sec-dev-${dev.id}`,
+          label: `Equip ${recParallel}× ${dev.id} (${dev.Vds_max_V}V ${dev.Rds_on_25C_mOhm}mΩ)`,
+          impact: `V_pk/V_DS ${((res.Vsec_unclamped_pk_V / dev.Vds_max_V) * 100).toFixed(0)}% unclamped · Tj,sec=${trialRes.Tj_sec_C.toFixed(0)}°C · ${tag}`,
+          targetKind: 'dcdc',
+          dcdcPatch: patch,
+        },
       });
     }
   }
-  return fixes;
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, 3).map((s) => s.fix);
+}
+
+// ----------------------------------------------------------------------------
+// 4b. ZVS SOFT-SWITCHING & DEAD-TIME FIX SYNTHESIZER (PSFB & LLC AWARE)
+// ----------------------------------------------------------------------------
+export function synthesizeDcdcZvsFixes(
+  state: DcDcDesignState,
+  res: DcDcResults
+): DesignAlertFix[] {
+  const scored: { fix: DesignAlertFix; score: number }[] = [];
+
+  const evalZvsCandidate = (id: string, label: string, patch: Partial<DcDcDesignState>) => {
+    const { trialRes, safetyPenalty, tag } = scoreDcdcPatchSideEffects(state, patch);
+    if (!trialRes.zvsAchieved && trialRes.zvsEnergyRatio_pct <= res.zvsEnergyRatio_pct + 5 && trialRes.Vds_res_lag_V >= res.Vds_res_lag_V - 5) {
+      return;
+    }
+    const zvsBonus = trialRes.zvsAchieved ? 400 : trialRes.zvsEnergyRatio_pct * 1.2;
+    const score = zvsBonus - safetyPenalty + trialRes.efficiency_pct * 4;
+    scored.push({
+      score,
+      fix: {
+        id,
+        label,
+        impact: `${trialRes.zvsAchieved ? 'Full ZVS' : `Vds,res=${trialRes.Vds_res_lag_V.toFixed(0)}V`} · Tank ${trialRes.zvsEnergyRatio_pct.toFixed(0)}% · η=${trialRes.efficiency_pct.toFixed(1)}% · ${tag}`,
+        targetKind: 'dcdc',
+        dcdcPatch: patch,
+      },
+    });
+  };
+
+  // Candidate 1: Dead-time adjustment (always safe to test first for both PSFB and LLC)
+  const targetTd = Math.min(400, Math.max(res.t_dead_opt_ns, Math.ceil(res.t_dead_zvs_req_ns * 1.2 / 5) * 5));
+  if (Math.abs(targetTd - state.deadTime_ns) >= 5) {
+    evalZvsCandidate(
+      'dcdc-zvs-deadtime',
+      `Tune Dead-Time t_dead = ${state.deadTime_ns} → ${targetTd} ns`,
+      { deadTime_ns: targetTd }
+    );
+  }
+
+  if (res.isLLC) {
+    // LLC: Reduce Lm_uH to boost magnetizing ZVS current without shifting series f_r = 1/(2π√(Lr*Cr))
+    for (const lmScale of [0.75, 0.58]) {
+      const nextLm = Math.max(25, Math.round((state.Lm_uH * lmScale) / 5) * 5);
+      if (nextLm < state.Lm_uH) {
+        evalZvsCandidate(
+          `dcdc-zvs-llc-lm-${nextLm}`,
+          `Lower Magnetizing Inductance L_m = ${state.Lm_uH} → ${nextLm} µH`,
+          { Lm_uH: nextLm, deadTime_ns: Math.max(state.deadTime_ns, targetTd) }
+        );
+      }
+    }
+  } else {
+    // PSFB: Tune L_lk inside [L_lk,crit, L_lk,max_duty] so ZVS improves without saturating low-line duty
+    const safeLlk = Number(
+      Math.max(
+        res.Llk_crit_fullLoad_uH * 1.15,
+        Math.min(res.Llk_opt_35pct_uH, res.Llk_max_duty_uH * 0.92)
+      ).toFixed(1)
+    );
+    if (safeLlk > state.Llk_uH * 0.95) {
+      evalZvsCandidate(
+        'dcdc-zvs-psfb-llk',
+        `Set Tank L_lk = ${safeLlk.toFixed(1)} µH & t_dead = ${targetTd} ns`,
+        { Llk_uH: safeLlk, deadTime_ns: targetTd }
+      );
+    }
+  }
+
+  // Candidate 3: Lower-Coss primary switch (e.g. GaN / lower-Coss SiC)
+  const vReq = state.Vin_max_V * 1.28;
+  const lowCossPri = SEMICONDUCTOR_DATABASE.filter(
+    (d) =>
+      (d.role === 'primary' || d.role === 'both') &&
+      d.id !== state.priDeviceId &&
+      d.Vds_max_V >= vReq &&
+      d.Coss_er_pF < res.priDevice.Coss_er_pF * 0.8
+  ).sort((a, b) => a.Coss_er_pF - b.Coss_er_pF);
+  if (lowCossPri[0]) {
+    evalZvsCandidate(
+      `dcdc-zvs-pri-${lowCossPri[0].id}`,
+      `Switch to Lower-Coss ${lowCossPri[0].id} (${lowCossPri[0].Coss_er_pF} pF)`,
+      { priDeviceId: lowCossPri[0].id }
+    );
+  }
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, 3).map((s) => s.fix);
+}
+
+// ----------------------------------------------------------------------------
+// 4c. LLC LOW-LINE GAIN MARGIN FIX SYNTHESIZER
+// ----------------------------------------------------------------------------
+export function synthesizeDcdcLlcGainFixes(
+  state: DcDcDesignState,
+  res: DcDcResults
+): DesignAlertFix[] {
+  const scored: { fix: DesignAlertFix; score: number }[] = [];
+
+  // 1. Scan target Ln = Lm / Lr ratios [5.5, 4.5, 3.6, 3.0] so even high initial Lm recovers
+  for (const targetLn of [5.5, 4.5, 3.6, 3.0]) {
+    const nextLm = Math.max(20, Math.round((state.Llk_uH * targetLn) / 5) * 5);
+    if (nextLm >= state.Lm_uH) continue;
+    const patch: Partial<DcDcDesignState> = { Lm_uH: nextLm };
+    const { trialRes, safetyPenalty, tag } = scoreDcdcPatchSideEffects(state, patch);
+    if (trialRes.llcRegulatesMinLine) {
+      scored.push({
+        score: 320 - safetyPenalty + trialRes.efficiency_pct * 3,
+        fix: {
+          id: `dcdc-llc-lm-${nextLm}`,
+          label: `Reduce L_m = ${state.Lm_uH} → ${nextLm} µH (L_n = ${(nextLm / state.Llk_uH).toFixed(1)})`,
+          impact: `M_peak ${res.M_peak_zvs.toFixed(2)} → ${trialRes.M_peak_zvs.toFixed(2)} (Req ${trialRes.M_req_max.toFixed(2)}) · ${tag}`,
+          targetKind: 'dcdc',
+          dcdcPatch: patch,
+        },
+      });
+      break;
+    }
+  }
+
+  // 2. Lower primary turns Np (reduces M_req while keeping core safe)
+  if (res.Np_actual > 3) {
+    for (const frac of [0.88, 0.78]) {
+      const nextNp = Math.max(2, Math.round(res.Np_actual * frac));
+      if (nextNp >= res.Np_actual) continue;
+      const nextRatio = Number((nextNp / Math.max(1, res.Ns_actual)).toFixed(4));
+      const patch: Partial<DcDcDesignState> = { Np_turns: nextNp, turnsRatio_n: nextRatio };
+      const { trialRes, safetyPenalty, tag } = scoreDcdcPatchSideEffects(state, patch);
+      if (trialRes.llcRegulatesMinLine) {
+        scored.push({
+          score: 280 - safetyPenalty + trialRes.efficiency_pct * 3,
+          fix: {
+            id: `dcdc-llc-np-${nextNp}`,
+            label: `Lower Turns Np = ${res.Np_actual} → ${nextNp}T (n = ${nextRatio.toFixed(2)})`,
+            impact: `Lowers M_req ${res.M_req_max.toFixed(2)} → ${trialRes.M_req_max.toFixed(2)} (M_peak=${trialRes.M_peak_zvs.toFixed(2)}) · ${tag}`,
+            targetKind: 'dcdc',
+            dcdcPatch: patch,
+          },
+        });
+        break;
+      }
+    }
+  }
+
+  // 3. Combined Ln + Np fix when wide Vin range requires both higher tank boost & lower turns ratio
+  if (res.Np_actual > 3) {
+    for (const targetLn of [4.8, 3.6]) {
+      const nextLm = Math.max(20, Math.round((state.Llk_uH * targetLn) / 5) * 5);
+      const nextNp = Math.max(2, Math.round(res.Np_actual * 0.88));
+      const nextRatio = Number((nextNp / Math.max(1, res.Ns_actual)).toFixed(4));
+      const patch: Partial<DcDcDesignState> = {
+        Lm_uH: nextLm,
+        Np_turns: nextNp,
+        turnsRatio_n: nextRatio,
+      };
+      const { trialRes, safetyPenalty, tag } = scoreDcdcPatchSideEffects(state, patch);
+      if (trialRes.llcRegulatesMinLine) {
+        scored.push({
+          score: 255 - safetyPenalty + trialRes.efficiency_pct * 3,
+          fix: {
+            id: `dcdc-llc-combo-${nextLm}-${nextNp}`,
+            label: `Tune L_m = ${nextLm} µH & Np = ${nextNp}T (L_n = ${(nextLm / state.Llk_uH).toFixed(1)})`,
+            impact: `M_peak ${trialRes.M_peak_zvs.toFixed(2)} ≥ M_req ${trialRes.M_req_max.toFixed(2)} · ${tag}`,
+            targetKind: 'dcdc',
+            dcdcPatch: patch,
+          },
+        });
+        break;
+      }
+    }
+  }
+
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, 3).map((s) => s.fix);
 }
 
 export function synthesizeInductorAlertFixes(
@@ -679,11 +933,16 @@ export function synthesizeAcDcFixes(
       });
     }
   } else if (alertId === 'acdc-earth-leak-danger' || alertId === 'acdc-earth-leak-warn') {
-    const targetCy = alertId === 'acdc-earth-leak-danger' ? 4.7 : 2.2;
+    const cyLimit_nF = (0.00072 / (2 * Math.PI * state.f_line_Hz * Math.max(100, state.Vac_max_V))) * 1e9;
+    const ySeries = [1.0, 2.2, 3.3, 4.7, 6.8, 10];
+    let targetCy = ySeries[0];
+    for (const c of ySeries) {
+      if (c <= cyLimit_nF * 1.01) targetCy = c;
+    }
     fixes.push({
       id: 'acdc-cy',
       label: `Reduce Y2 Capacitance C_Y to ${targetCy} nF per leg`,
-      impact: `Brings 50/60Hz PE touch current cleanly below IEC 62368 ceiling`,
+      impact: `Brings 50/60Hz PE touch current cleanly below 0.75 mA IEC 62368 ceiling at ${state.Vac_max_V} Vac`,
       targetKind: 'acdc',
       acdcPatch: { Cy_nF: targetCy },
     });

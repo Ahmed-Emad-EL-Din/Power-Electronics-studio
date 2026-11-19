@@ -205,14 +205,20 @@ export interface DcDcResults {
   I_lead_turnoff_A: number;
   zvsAchieved: boolean;
   zvsLeadAchieved: boolean;
+  zvsDeadTimeInsufficient: boolean;
   Vds_res_lag_V: number;
   t_dead_min_ns: number;
+  t_dead_zvs_req_ns: number;
   t_dead_opt_ns: number;
   P_min_zvs_pct: number;
   Llk_crit_fullLoad_uH: number;
   Llk_crit_halfLoad_uH: number;
   Llk_opt_35pct_uH: number;
   Llk_max_duty_uH: number;
+  M_req_max: number;
+  M_peak_zvs: number;
+  llcGainMargin_pct: number;
+  llcRegulatesMinLine: boolean;
 
   // Secondary Rectifier, Ringing & Clamp Stress
   Vsec_ideal_pk_V: number;
@@ -220,6 +226,7 @@ export interface DcDcResults {
   Vsec_ringing_delta_V: number;
   Vsec_overshoot_V: number;
   Vsec_unclamped_pk_V: number;
+  zeta_unclamped: number;
   f_ring_MHz: number;
   Z0_ring_Ohm: number;
   Isec_rms_per_dev_A: number;
@@ -358,6 +365,9 @@ export interface DcDcResults {
   C1_nF: number;
   C2_pF: number;
   C3_nF: number;
+  C1_e24_nF: number;
+  C2_e24_pF: number;
+  C3_e24_nF: number;
   Q_charge_nC: number;
   Vth_charge_V: number;
   L_emi_uH: number;
@@ -428,6 +438,45 @@ const AWG_DIAM_MM: Record<number, number> = {
   40: 0.0787,
   42: 0.0635,
 };
+
+const E24_MANTISSAS = [
+  1.0, 1.1, 1.2, 1.3, 1.5, 1.6, 1.8, 2.0, 2.2, 2.4, 2.7, 3.0,
+  3.3, 3.6, 3.9, 4.3, 4.7, 5.1, 5.6, 6.2, 6.8, 7.5, 8.2, 9.1,
+];
+
+function snapToSeries(val: number, mantissas: number[]): number {
+  if (!Number.isFinite(val) || val <= 0) return val;
+  const exp = Math.floor(Math.log10(val));
+  const scale = Math.pow(10, exp);
+  const norm = val / scale;
+  let best = mantissas[0] * scale;
+  let bestErr = Math.abs(val - best);
+  for (const m of mantissas) {
+    for (const s of [scale * 0.1, scale, scale * 10]) {
+      const cand = m * s;
+      const err = Math.abs(val - cand);
+      if (err < bestErr) {
+        bestErr = err;
+        best = cand;
+      }
+    }
+  }
+  return Number(best.toPrecision(4));
+}
+
+function snapToE96(val: number): number {
+  if (!Number.isFinite(val) || val <= 0) return val;
+  const exp = Math.floor(Math.log10(val));
+  const scale = Math.pow(10, exp);
+  const norm = val / scale;
+  const idx = Math.round(96 * Math.log10(Math.max(1.0, norm)));
+  const snappedNorm = Number(Math.pow(10, idx / 96).toFixed(2));
+  return Number((snappedNorm * scale).toPrecision(3));
+}
+
+function snapToE24(val: number): number {
+  return snapToSeries(val, E24_MANTISSAS);
+}
 
 function calcHyperbolicDowell(delta: number, mLayers: number): number {
   const d = Math.max(0.02, Math.min(delta, 8.0));
@@ -584,6 +633,10 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
   let Dloss_max = 0.06;
   let D_applied_max = 0.78;
   let M_gain_nom = 1.0;
+  let M_req_max = 1.0;
+  let M_peak_zvs = 1.0;
+  let llcGainMargin_pct = 20.0;
+  let llcRegulatesMinLine = true;
 
   if (!isLLC) {
     Deff_nom = Math.min(0.94, isCDR ? (2 * n * Vout) / Vin : (n * Vout) / Vin);
@@ -605,6 +658,10 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
     const Ipri_valley_min = I_lo_valley_min * k_refl;
     Dloss_max = Math.min(0.36, (4 * fsw * Llk * Ipri_valley_min) / Vin_min_safe);
     D_applied_max = Math.min(0.99, Deff_max + Dloss_max);
+    M_req_max = Deff_max;
+    M_peak_zvs = 0.96;
+    llcGainMargin_pct = ((0.96 - D_applied_max) / 0.96) * 100;
+    llcRegulatesMinLine = D_applied_max <= 0.96;
   } else {
     const fn2 = fn_nom * fn_nom;
     const realPart = 1 + (1 / Ln_ratio) * (1 - 1 / Math.max(fn2, 0.05));
@@ -616,6 +673,27 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
     Deff_max = Deff_nom;
     Dloss_max = Dloss_nom;
     D_applied_max = D_applied_nom;
+
+    // LLC Low-Line Peak Inductive-Region Gain & Regulation Margin
+    const Vin_min_safe = Math.max(10, Math.min(state.Vin_min_V, Vin));
+    const V_bridge_min = isHalfBridge ? Vin_min_safe * 0.5 : Vin_min_safe;
+    M_req_max = ((isCDR ? 2 * n : n) * Vout) / Math.max(10, V_bridge_min);
+    let mPeakZvsRaw = 0;
+    const fnMinSweep = Math.max(0.22, 0.85 / Math.sqrt(1 + Ln_ratio));
+    for (let i = 0; i <= 120; i++) {
+      const fnTry = fnMinSweep + ((1.05 - fnMinSweep) * i) / 120;
+      const xIm = Q_factor * Ln_ratio * fnTry;
+      const imZin = Q_factor * (fnTry - 1 / fnTry) + xIm / (1 + xIm * xIm);
+      if (imZin >= 0) {
+        const reM = 1 + (1 / Ln_ratio) * (1 - 1 / (fnTry * fnTry));
+        const imM = Q_factor * (fnTry - 1 / fnTry);
+        const mTry = 1 / Math.sqrt(reM * reM + imM * imM);
+        if (mTry > mPeakZvsRaw) mPeakZvsRaw = mTry;
+      }
+    }
+    M_peak_zvs = Math.max(0.5, mPeakZvsRaw * 0.96); // 4% realistic dead-time & winding drop allowance
+    llcGainMargin_pct = ((M_peak_zvs - M_req_max) / Math.max(0.1, M_req_max)) * 100;
+    llcRegulatesMinLine = M_peak_zvs >= M_req_max * 1.03;
   }
 
   const phaseShift_deg = D_applied_nom * 180;
@@ -641,7 +719,7 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
     (deltaIout_net_A * (state.ESR_Co_mOhm * 1e-3) + deltaIout_net_A / (8 * fRipple_Hz * Co)) * 1e3;
 
   // ============================================================================
-  // FIX 1: SEPARATE LEADING-LEG vs LAGGING-LEG ZVS ENERGY & RESIDUAL Vds
+  // FIX 1: SEPARATE LEADING-LEG vs LAGGING-LEG ZVS ENERGY, DEAD-TIME & RESIDUAL Vds
   // ============================================================================
   const Coss_eff_F = priDevice.Coss_er_pF * 1e-12 * state.nParallelPri;
   const Ctr_F = state.Ctr_par_pF * 1e-12;
@@ -650,33 +728,80 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
   const E_oss_lag_uJ = 0.5 * C_node_F * V_bridge * V_bridge * 1e6;
 
   const Im_pk_A = (V_bridge * Deff_nom * Tsw) / (4 * Lm);
+  // In LLC at or below resonance (fn <= 1), secondary current reaches zero before turn-off so only Im_pk drives ZVS.
+  // Above resonance (fn > 1), residual reflected secondary current adds in quadrature.
+  const llcResidualLoadFactor =
+    isLLC && fn_nom > 1.0 ? Math.sin(Math.PI * Math.min(0.42, (fn_nom - 1.0) / fn_nom)) * 0.65 : 0;
   const I_lead_turnoff_A = isLLC
-    ? Math.max(Im_pk_A, Iout_phase_A * k_refl * 0.45)
+    ? Math.hypot(Im_pk_A, Iout_phase_A * k_refl * llcResidualLoadFactor)
     : Math.max(0.4, (Iout_phase_A + deltaILo_phase_A / 2) * k_refl + Im_pk_A);
   const I_lag_turnoff_A = isLLC
-    ? Math.max(Im_pk_A, Iout_phase_A * k_refl * 0.42)
+    ? Math.hypot(Im_pk_A, Iout_phase_A * k_refl * llcResidualLoadFactor * 0.92)
     : Math.max(0.2, (Iout_phase_A - deltaILo_phase_A / 2) * k_refl + Im_pk_A * 0.5);
 
   // Leading leg commutates with reflected output filter inductance (Llk + n^2 * Lo)
-  const L_lead_eff_H = isLLC ? Llk : Llk + (Lo / (k_refl * k_refl)) * 0.35;
+  const L_lead_eff_H = isLLC ? Llk + Lm : Llk + (Lo / (k_refl * k_refl)) * 0.35;
   const E_lead_avail_uJ = 0.5 * L_lead_eff_H * I_lead_turnoff_A * I_lead_turnoff_A * 1e6;
-  const zvsLeadAchieved = E_lead_avail_uJ >= E_oss_lag_uJ;
 
-  // Lagging leg commutates with Llk only during freewheeling transition
-  const E_lk_avail_uJ = 0.5 * Llk * I_lag_turnoff_A * I_lag_turnoff_A * 1e6;
+  // Lagging leg (PSFB: Llk only; LLC: Lr + Lm when secondary disconnects below resonance)
+  const L_zvs_lag_H = isLLC
+    ? fn_nom <= 1.02
+      ? Llk + Lm
+      : Llk + Lm * Math.max(0.08, 1 - 2.5 * (fn_nom - 1.02))
+    : Llk;
+  const E_lk_avail_uJ = 0.5 * L_zvs_lag_H * I_lag_turnoff_A * I_lag_turnoff_A * 1e6;
   const zvsEnergyRatio_pct = (E_lk_avail_uJ / Math.max(E_oss_lag_uJ, 0.01)) * 100;
-  const I_zvs_min_A = Math.sqrt((2 * E_oss_lag_uJ * 1e-6) / Llk);
-  const zvsAchieved = E_lk_avail_uJ >= E_oss_lag_uJ;
-  const Vds_res_lag_V = zvsAchieved
-    ? 0
-    : Math.sqrt(Math.max(0, V_bridge * V_bridge - (Llk * I_lag_turnoff_A * I_lag_turnoff_A) / C_node_F));
-  const t_dead_min_ns = (Math.PI / 2) * Math.sqrt(Llk * C_node_F) * 1e9;
+  const I_zvs_min_A = Math.sqrt((2 * E_oss_lag_uJ * 1e-6) / L_zvs_lag_H);
+
+  const Z0_zvs_Ohm = Math.sqrt(L_zvs_lag_H / Math.max(C_node_F, 1e-12));
+  const w0_zvs_rad = 1 / Math.sqrt(Math.max(L_zvs_lag_H * C_node_F, 1e-18));
   const Coss_tr_node_F = 2 * (priDevice.Coss_tr_pF * 1e-12 * state.nParallelPri) + Ctr_F;
-  const t_dead_opt_ns = Math.round(Math.max(45, (Math.PI / 2) * Math.sqrt(Llk * Coss_tr_node_F) * 1e9));
+
+  const t_dead_min_ns = isLLC
+    ? (C_node_F * V_bridge / Math.max(0.1, I_lag_turnoff_A)) * 1e9
+    : (Math.PI / 2) * Math.sqrt(Llk * C_node_F) * 1e9;
+  const t_dead_zvs_req_ns = isLLC
+    ? t_dead_min_ns
+    : E_lk_avail_uJ >= E_oss_lag_uJ
+    ? (Math.asin(Math.min(1, V_bridge / Math.max(1e-3, I_lag_turnoff_A * Z0_zvs_Ohm))) / w0_zvs_rad) * 1e9
+    : t_dead_min_ns;
+  const t_dead_opt_ns = Math.round(
+    Math.max(
+      45,
+      isLLC
+        ? ((Coss_tr_node_F * V_bridge) / Math.max(0.1, I_lag_turnoff_A)) * 1e9 * 1.25
+        : (Math.PI / 2) * Math.sqrt(Llk * Coss_tr_node_F) * 1e9
+    )
+  );
+
+  const t_dead_s = Math.max(5e-9, state.deadTime_ns * 1e-9);
+  const zvsEnergyOk = E_lk_avail_uJ >= E_oss_lag_uJ;
+  const zvsTimeOk = state.deadTime_ns >= t_dead_zvs_req_ns;
+  const zvsDeadTimeInsufficient = zvsEnergyOk && !zvsTimeOk;
+  const zvsAchieved = zvsEnergyOk && zvsTimeOk;
+  const zvsLeadAchieved = E_lead_avail_uJ >= E_oss_lag_uJ && state.deadTime_ns >= (C_node_F * V_bridge / Math.max(0.2, I_lead_turnoff_A)) * 1e9 * 0.7;
+
+  const evalResidualVds = (iTurnOff_A: number, eAvail_uJ: number) => {
+    if (eAvail_uJ >= E_oss_lag_uJ && zvsTimeOk) return 0;
+    if (isLLC) {
+      const vSlew = (iTurnOff_A * t_dead_s) / Math.max(C_node_F, 1e-12);
+      const vE =
+        eAvail_uJ >= E_oss_lag_uJ
+          ? 0
+          : Math.sqrt(Math.max(0, V_bridge * V_bridge - (L_zvs_lag_H * iTurnOff_A * iTurnOff_A) / C_node_F));
+      return Math.max(vE, V_bridge - vSlew);
+    }
+    const thetaDt = Math.min(Math.PI / 2, w0_zvs_rad * t_dead_s);
+    const vSwing = iTurnOff_A * Z0_zvs_Ohm * Math.sin(thetaDt);
+    return Math.max(0, V_bridge - vSwing);
+  };
+  const Vds_res_lag_V = zvsAchieved ? 0 : evalResidualVds(I_lag_turnoff_A, E_lk_avail_uJ);
 
   // Minimum load percentage where lagging-leg ZVS is achieved (100% energy ratio)
   const P_min_zvs_pct = isLLC
-    ? Math.max(5, Math.min(100, (I_zvs_min_A / Math.max(Im_pk_A, 0.2)) * 18))
+    ? zvsAchieved
+      ? Math.max(5, Math.min(100, (I_zvs_min_A / Math.max(Im_pk_A, 0.2)) * 18))
+      : 100
     : Math.max(
         5,
         Math.min(
@@ -700,14 +825,19 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
   const evalZvsLoad = (loadPct: number) => {
     const ratio = Math.max(0.02, loadPct / 100);
     const iLagAtLoad = isLLC
-      ? Math.max(Im_pk_A, Iout_phase_A * ratio * k_refl * 0.42)
+      ? Math.hypot(Im_pk_A, Iout_phase_A * ratio * k_refl * llcResidualLoadFactor * 0.92)
       : Math.max(0.15, (Iout_phase_A * ratio - deltaILo_phase_A * 0.35) * k_refl + Im_pk_A * 0.5);
-    const eAvail_uJ = 0.5 * Llk * iLagAtLoad * iLagAtLoad * 1e6;
+    const eAvail_uJ = 0.5 * L_zvs_lag_H * iLagAtLoad * iLagAtLoad * 1e6;
     const zvsPct = Math.min(350, (eAvail_uJ / Math.max(E_oss_lag_uJ, 0.01)) * 100);
+    const tReqLoad_ns = isLLC
+      ? (C_node_F * V_bridge / Math.max(0.1, iLagAtLoad)) * 1e9
+      : eAvail_uJ >= E_oss_lag_uJ
+      ? (Math.asin(Math.min(1, V_bridge / Math.max(1e-3, iLagAtLoad * Z0_zvs_Ohm))) / w0_zvs_rad) * 1e9
+      : t_dead_min_ns;
     const vRes =
-      eAvail_uJ >= E_oss_lag_uJ
+      eAvail_uJ >= E_oss_lag_uJ && state.deadTime_ns >= tReqLoad_ns
         ? 0
-        : Math.sqrt(Math.max(0, V_bridge * V_bridge - (Llk * iLagAtLoad * iLagAtLoad) / C_node_F));
+        : evalResidualVds(iLagAtLoad, eAvail_uJ);
     return {
       y1: Number(zvsPct.toFixed(1)),
       y2: Number(vRes.toFixed(1)),
@@ -732,14 +862,41 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
   const f_ring_MHz = f_ring_Hz / 1e6;
   const Z0_ring_Ohm = Math.sqrt(Llk_sec_H / Math.max(Coss_sec_F, 50e-12));
 
-  const Vsec_unclamped_pk_V = Vsec_ideal_max_V * 1.88;
+  // Physics-based damped RLC step overshoot + secondary Qrr inductive recovery kick
+  const d_strand_ring_m = (AWG_DIAM_MM[state.litzStrandAWG] || 0.1016) * 1e-3;
+  const Rsec_dc_ring_Ohm =
+    (RHO_CU_100C * Ns_actual * (core.MLT_mm * 1e-3)) /
+    (state.secStrands * Math.PI * Math.pow(d_strand_ring_m / 2, 2));
+  const Rsec_dev_ring_Ohm = (secDevice.Rds_on_25C_mOhm * 1e-3 * 1.35) / Math.max(1, state.nParallelSec);
+  const R_ring_loop_Ohm = Rsec_dc_ring_Ohm + (isCT ? Rsec_dev_ring_Ohm : 2 * Rsec_dev_ring_Ohm) + 0.015;
+  const zeta_unclamped = isLLC
+    ? Math.max(0.24, Math.min(0.45, R_ring_loop_Ohm / (2 * Math.max(Z0_ring_Ohm, 1)) + 0.24))
+    : Math.max(0.042, Math.min(0.14, R_ring_loop_Ohm / (2 * Math.max(Z0_ring_Ohm, 1)) + 0.038));
+  const os_unclamped = Math.exp(
+    (-Math.PI * zeta_unclamped) / Math.sqrt(Math.max(0.05, 1 - zeta_unclamped * zeta_unclamped))
+  );
+  const v_qrr_kick_V = isLLC
+    ? 0
+    : Math.min(
+        0.16 * Vsec_ideal_max_V,
+        0.22 *
+          Math.sqrt(
+            (2 * (secDevice.Qrr_nC * 1e-9) * Vsec_ideal_max_V) / Math.max(Coss_sec_F, 50e-12)
+          )
+      );
+  const Vsec_unclamped_pk_V = isLLC
+    ? Vsec_ideal_max_V * (1 + 0.28 * os_unclamped)
+    : Vsec_ideal_max_V * (1 + os_unclamped) + v_qrr_kick_V;
   const Vsec_ringing_delta_V = Vsec_unclamped_pk_V - Vsec_ideal_max_V;
   const clampFactor =
     state.clampVariant === 'active-clamp' ? 1.14 : state.clampVariant === 'pri-diode-clamp' ? 1.24 : 1.44;
   const Vsec_overshoot_V = isLLC ? Vsec_ideal_max_V * 1.08 : Vsec_ideal_max_V * clampFactor;
 
   const nSecDevices = state.txType === 'full-bridge' ? 4 : 2;
-  const Isec_rms_total_A = isCDR
+  const Isec_rms_total_A = isLLC
+    ? ((Math.PI / (2 * Math.SQRT2)) * Iout_phase_A) /
+      Math.sqrt(Math.max(0.45, Math.min(1.0, fn_nom)))
+    : isCDR
     ? Iout_phase_A * 0.72
     : Iout_phase_A * Math.sqrt(Math.max(0.35, Deff_nom));
   const Isec_rms_per_dev_A = Isec_rms_total_A / Math.sqrt(nSecDevices / 2);
@@ -756,12 +913,12 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
     : 1.15 * fsw * (Csnub_pF * 1e-12) * Vsec_overshoot_V * Vsec_overshoot_V * nPhases;
 
   const w_ring = 2 * Math.PI * f_ring_Hz;
-  const zeta_unclamped = 0.06;
+  const unclampedRingEnvAmp = Math.max(0.1, (Vsec_unclamped_pk_V - Vsec_ideal_max_V) / Math.max(1, Vsec_ideal_max_V));
   const zeta_snubbed =
     state.clampVariant === 'active-clamp' ? 0.68 : state.clampVariant === 'pri-diode-clamp' ? 0.52 : 0.34;
   const evalRinging = (t_ns: number) => {
     const t_s = Math.max(0, t_ns) * 1e-9;
-    const env_unclamped = 0.88 * Math.exp(-zeta_unclamped * w_ring * t_s) * Math.cos(w_ring * t_s);
+    const env_unclamped = unclampedRingEnvAmp * Math.exp(-zeta_unclamped * w_ring * t_s) * Math.cos(w_ring * t_s);
     const env_snubbed =
       (clampFactor - 1.0) * Math.exp(-zeta_snubbed * w_ring * t_s) * Math.cos(w_ring * 0.82 * t_s);
     return {
@@ -1024,17 +1181,24 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
 
   const M_sections =
     state.interleaving === 'full-interleaved' ? 4 : state.interleaving === 'split-pri' ? 2 : 1;
+  const h_ins_m = Math.max(0.05e-3, state.insulationThickness_mm * 1e-3);
+  const hw_m = core.hw_mm * 1e-3;
+  const bw_m = core.bw_mm * 1e-3;
+  // Margin tape (~6-10mm total axial creepage) reduces active winding breadth b_eff
+  const bw_eff_m = Math.max(bw_m * 0.48, bw_m - (state.Vin_max_V > 550 ? 0.010 : 0.006));
+  const eta_litz_pack = Math.sqrt(Math.PI / 4);
   const m_pri = Math.max(
     1,
-    (Np_actual * Math.sqrt(state.priStrands) * d_strand_m) / (core.bw_mm * 1e-3 * M_sections)
+    (Np_actual * state.priStrands * d_strand_m * eta_litz_pack) / (bw_eff_m * M_sections)
   );
   const m_sec = Math.max(
     1,
-    (Ns_actual * Math.sqrt(state.secStrands) * d_strand_m) / (core.bw_mm * 1e-3 * M_sections)
+    (Ns_actual * (isCT ? 2 : 1) * state.secStrands * d_strand_m * eta_litz_pack) /
+      (bw_eff_m * M_sections)
   );
   const m_pri_nonInt = Math.max(
     1,
-    (Np_actual * Math.sqrt(state.priStrands) * d_strand_m) / (core.bw_mm * 1e-3 * 1)
+    (Np_actual * state.priStrands * d_strand_m * eta_litz_pack) / (bw_eff_m * 1)
   );
 
   const Fr_dowell_pri = calcHyperbolicDowell(xi, m_pri);
@@ -1066,7 +1230,11 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
   const Rsec_ac_mOhm = Rsec_dc * Fr_dowell_sec * 1e3;
 
   const Ipri_rms_A = isLLC
-    ? Math.hypot(1.11 * Iout_phase_A * k_refl, Im_pk_A / Math.sqrt(2))
+    ? Math.hypot(
+        ((Math.PI / (2 * Math.SQRT2)) * Iout_phase_A * k_refl) /
+          Math.sqrt(Math.max(0.45, Math.min(1.0, fn_nom))),
+        Im_pk_A / Math.sqrt(2)
+      )
     : Iout_phase_A * k_refl * Math.sqrt(Deff_nom + (1 - Deff_nom) * 0.72) * 1.02;
   const Pcu_W =
     (Ipri_rms_A * Ipri_rms_A * (Rpri_ac_mOhm * 1e-3) +
@@ -1077,11 +1245,6 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
     (Np_actual * state.priStrands + Ns_actual * state.secStrands * (isCT ? 2 : 1)) * (A_strand_m2 * 1e6);
   const windowFill_pct = (Acu_mm2 / (core.Aw_mm2 * 0.42)) * 100;
 
-  const h_ins_m = Math.max(0.05e-3, state.insulationThickness_mm * 1e-3);
-  const hw_m = core.hw_mm * 1e-3;
-  const bw_m = core.bw_mm * 1e-3;
-  // Margin tape (~6-8mm total axial creepage) reduces active winding breadth b_eff
-  const bw_eff_m = Math.max(bw_m * 0.48, bw_m - (state.Vin_max_V > 550 ? 0.010 : 0.006));
   const Llk_geom_uH =
     ((MU_0 * Np_actual * Np_actual * MLT_m) / (bw_eff_m * M_sections * M_sections)) *
     (h_ins_m + hw_m / 3) *
@@ -1895,12 +2058,17 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
       ? Math.min(scaleMax, Math.max(scaleMin, idealImpedanceScale))
       : Math.max(0.47, Math.min(470, scaleMax));
 
-  const R1_Ohm = R1_base_Ohm * impedanceScale;
-  const R2_Ohm = R2_base_Ohm * impedanceScale;
-  const R3_Ohm = R3_base_Ohm * impedanceScale;
-  const C1_F = C1_base_F / impedanceScale;
-  const C2_F = C2_base_F / impedanceScale;
-  const C3_F = C3_base_F / impedanceScale;
+  const R1_Ohm_raw = R1_base_Ohm * impedanceScale;
+  const R2_Ohm_raw = R2_base_Ohm * impedanceScale;
+  const R3_Ohm_raw = R3_base_Ohm * impedanceScale;
+
+  // Snap resistors to standard E96 1% values and scale C1/C2/C3 to preserve exact zero/pole cancellation
+  const R1_Ohm = Math.max(R1_min_Ohm, Math.min(4_700_000, snapToE96(R1_Ohm_raw)));
+  const R2_Ohm = Math.max(10_000, Math.min(215_000, snapToE96(R2_Ohm_raw)));
+  const R3_Ohm = Math.max(1_000, snapToE96(R3_Ohm_raw));
+  const C1_F = 1 / (wz1 * R2_Ohm);
+  const C2_F = 1 / (wp1 * Kp_ctrl * R1_Ohm);
+  const C3_F = 1 / (wp2 * R3_Ohm);
 
   const R1_kOhm = R1_Ohm / 1e3;
   const R2_kOhm = R2_Ohm / 1e3;
@@ -1908,6 +2076,9 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
   const C1_nF = C1_F * 1e9;
   const C2_pF = C2_F * 1e12;
   const C3_nF = C3_F * 1e9;
+  const C1_e24_nF = snapToE24(C1_nF);
+  const C2_e24_pF = snapToE24(C2_pF);
+  const C3_e24_nF = snapToE24(C3_nF);
 
   // ============================================================================
   // FIX 3: EXACT TUSTIN BILINEAR TRANSFORM s = (2/Ts)*(1 - z^-1)/(1 + z^-1)
@@ -2422,12 +2593,22 @@ inline void DcDc_Control_ISR(float v_out_adc, float i_pri_adc) {
   if (!zvsAchieved) {
     warnings.push({
       severity: 'warn',
-      text: `Incomplete Lagging-Leg ZVS (${zvsEnergyRatio_pct.toFixed(0)}% energy, Vds,res = ${Vds_res_lag_V.toFixed(0)} V): Increase L_lk ≥ ${Llk_crit_fullLoad_uH.toFixed(1)} µH.`,
+      text: zvsDeadTimeInsufficient
+        ? `Insufficient Dead-Time for ZVS (${state.deadTime_ns} ns < ${t_dead_zvs_req_ns.toFixed(0)} ns req, Vds,res = ${Vds_res_lag_V.toFixed(0)} V): Increase t_dead ≥ ${t_dead_opt_ns} ns.`
+        : isLLC
+        ? `Incomplete LLC ZVS (${zvsEnergyRatio_pct.toFixed(0)}% energy, t_dead,req = ${t_dead_zvs_req_ns.toFixed(0)} ns): Reduce L_m or increase t_dead ≥ ${t_dead_opt_ns} ns.`
+        : `Incomplete Lagging-Leg ZVS (${zvsEnergyRatio_pct.toFixed(0)}% energy, Vds,res = ${Vds_res_lag_V.toFixed(0)} V): Increase L_lk ≥ ${Llk_crit_fullLoad_uH.toFixed(1)} µH.`,
     });
   } else {
     warnings.push({
       severity: 'ok',
-      text: `ZVS Verified on Leading & Lagging Legs (${zvsEnergyRatio_pct.toFixed(0)}% tank energy margin, t_dead,min = ${t_dead_min_ns.toFixed(0)} ns).`,
+      text: `ZVS Verified on Leading & Lagging Legs (${zvsEnergyRatio_pct.toFixed(0)}% tank energy margin, t_dead,req = ${t_dead_zvs_req_ns.toFixed(0)} ns).`,
+    });
+  }
+  if (isLLC && !llcRegulatesMinLine) {
+    warnings.push({
+      severity: 'error',
+      text: `LLC Low-Line Gain Deficit: Peak inductive gain M_peak = ${M_peak_zvs.toFixed(2)} < M_req(${state.Vin_min_V}V) = ${M_req_max.toFixed(2)}. Lower L_n (reduce L_m) or adjust turns ratio.`,
     });
   }
   if (!thermalStable) {
@@ -2494,19 +2675,26 @@ inline void DcDc_Control_ISR(float v_out_adc, float i_pri_adc) {
     I_lead_turnoff_A,
     zvsAchieved,
     zvsLeadAchieved,
+    zvsDeadTimeInsufficient,
     Vds_res_lag_V,
     t_dead_min_ns,
+    t_dead_zvs_req_ns,
     t_dead_opt_ns,
     P_min_zvs_pct,
     Llk_crit_fullLoad_uH,
     Llk_crit_halfLoad_uH,
     Llk_opt_35pct_uH,
     Llk_max_duty_uH,
+    M_req_max,
+    M_peak_zvs,
+    llcGainMargin_pct,
+    llcRegulatesMinLine,
     Vsec_ideal_pk_V,
     Vsec_ideal_max_V,
     Vsec_ringing_delta_V,
     Vsec_overshoot_V,
     Vsec_unclamped_pk_V,
+    zeta_unclamped,
     f_ring_MHz,
     Z0_ring_Ohm,
     Isec_rms_per_dev_A,
@@ -2635,6 +2823,9 @@ inline void DcDc_Control_ISR(float v_out_adc, float i_pri_adc) {
     C1_nF,
     C2_pF,
     C3_nF,
+    C1_e24_nF,
+    C2_e24_pF,
+    C3_e24_nF,
     Q_charge_nC,
     Vth_charge_V,
     L_emi_uH,

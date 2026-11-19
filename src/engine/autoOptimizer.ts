@@ -247,11 +247,26 @@ function estimateTransformerRadialBuildMm(params: {
 }
 
 const Y_CAP_SERIES_NF = [1.0, 2.2, 3.3, 4.7, 6.8, 10, 15, 22];
+const SHUNT_SERIES_MOHM = [5, 8, 10, 12, 15, 20, 25, 30, 33, 40, 50, 68, 75, 100];
+const RG_E24_SERIES_OHM = [1.0, 1.5, 2.2, 2.7, 3.3, 3.9, 4.7, 5.1, 5.6, 6.8, 8.2, 10, 12, 15, 18, 22];
 
 function snapFloor(val: number, series: number[]): number {
   let chosen = series[0];
   for (const s of series) {
     if (s <= val * 1.01) chosen = s;
+  }
+  return chosen;
+}
+
+function snapNearest(val: number, series: number[]): number {
+  let chosen = series[0];
+  let bestDiff = Math.abs(val - chosen);
+  for (const s of series) {
+    const diff = Math.abs(val - s);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      chosen = s;
+    }
   }
   return chosen;
 }
@@ -669,9 +684,10 @@ export function optimizeDcDcUnlocked(
     applyNum('Vgs_drive_V', 'Vgs Drive', vgsOpt, 'V', `Datasheet optimal Vgs for ${priDevice.tech}`);
   }
   if (isCanEdit('Rg_ext_Ohm')) {
-    const rgOpt =
+    const rgRaw =
       priDevice.tech === 'GaN HEMT' ? 2.2 : priDevice.tech === 'SiC MOSFET' ? 4.7 : 8.2;
-    applyNum('Rg_ext_Ohm', 'Rg,ext', rgOpt, 'Ω', `Balanced dv/dt & E_sw for ${priDevice.tech}`);
+    const rgOpt = snapNearest(rgRaw, RG_E24_SERIES_OHM);
+    applyNum('Rg_ext_Ohm', 'Rg,ext', rgOpt, 'Ω', `E24 optimal dv/dt & E_sw for ${priDevice.tech}`);
   }
   if (isCanEdit('deadTime_ns')) {
     const tdOpt = clamp(
@@ -1014,6 +1030,73 @@ export function optimizeDcDcUnlocked(
     );
   }
 
+  // 15b. Post-Turns-Sync Tank, ZVS, Dead-Time & Low-Line Gain/Duty Verification Pass
+  let postTxRes = solveDcDcDesign(next);
+  if (isLLC && !postTxRes.llcRegulatesMinLine && isCanEdit('Lm_uH')) {
+    let lmTry = next.Lm_uH;
+    const lmFloor = Math.max(15, Math.round(next.Llk_uH * 3.0));
+    while (lmTry > lmFloor && !postTxRes.llcRegulatesMinLine) {
+      lmTry = Math.max(lmFloor, Math.round((lmTry * 0.88) / 5) * 5);
+      postTxRes = solveDcDcDesign({ ...next, Lm_uH: lmTry });
+      if (lmTry <= lmFloor) break;
+    }
+    if (lmTry !== next.Lm_uH) {
+      applyNum(
+        'Lm_uH',
+        'Lm',
+        lmTry,
+        'µH',
+        `Adjusted L_n = ${(lmTry / next.Llk_uH).toFixed(1)} to guarantee low-line LLC gain M_peak ≥ M_req(${next.Vin_min_V}V)`
+      );
+    }
+  }
+
+  if (!isLLC && postTxRes.D_applied_max > 0.935 && isCanEdit('Llk_uH')) {
+    const safeLlkCap = Number(Math.max(postTxRes.Llk_crit_fullLoad_uH * 1.12, postTxRes.Llk_max_duty_uH * 0.90).toFixed(1));
+    if (safeLlkCap < next.Llk_uH && safeLlkCap >= 1.0) {
+      applyNum(
+        'Llk_uH',
+        'L_lk',
+        safeLlkCap,
+        'µH',
+        `Trimmed L_lk within low-line duty headroom (D_app,max ≤ 94%)`
+      );
+      postTxRes = solveDcDcDesign(next);
+    }
+  }
+
+  if (!postTxRes.zvsAchieved) {
+    if (!isLLC && isCanEdit('Llk_uH') && !postTxRes.zvsDeadTimeInsufficient) {
+      const zvsLlk = Number(
+        Math.max(
+          postTxRes.Llk_crit_fullLoad_uH * 1.18,
+          Math.min(postTxRes.Llk_opt_35pct_uH, postTxRes.Llk_max_duty_uH * 0.92)
+        ).toFixed(1)
+      );
+      if (zvsLlk > next.Llk_uH) {
+        applyNum('Llk_uH', 'L_lk', zvsLlk, 'µH', 'Post-turns ZVS verification tank boost');
+        postTxRes = solveDcDcDesign(next);
+      }
+    }
+    if (isLLC && isCanEdit('Lm_uH') && !postTxRes.zvsDeadTimeInsufficient) {
+      const lmZvs = clamp(roundTo(next.Lm_uH * 0.78, 5), 15, 2500);
+      if (lmZvs < next.Lm_uH) {
+        applyNum('Lm_uH', 'Lm', lmZvs, 'µH', 'Boosted I_m,pk for complete LLC ZVS');
+        postTxRes = solveDcDcDesign(next);
+      }
+    }
+    if (!postTxRes.zvsAchieved && isCanEdit('deadTime_ns')) {
+      const tdReq = clamp(
+        roundTo(Math.max(postTxRes.t_dead_opt_ns, postTxRes.t_dead_zvs_req_ns * 1.25), 5),
+        40,
+        450
+      );
+      if (tdReq > next.deadTime_ns) {
+        applyNum('deadTime_ns', 't_dead', tdReq, 'ns', 'Verified dead-time completes Coss ZVS discharge');
+      }
+    }
+  }
+
   // 16. Control Loop & Current Sense Auto-Tuning
   const nActual = Math.max(0.2, next.Np_turns / Math.max(1, next.Ns_turns));
   if (isCanEdit('fc_target_kHz')) {
@@ -1056,8 +1139,9 @@ export function optimizeDcDcUnlocked(
     );
   }
   if (isCanEdit('Rsense_mOhm')) {
-    const rsOpt = clamp(Math.round((2100 / Math.max(4, Ipri_est * 1.4)) / 5) * 5, 5, 100);
-    applyNum('Rsense_mOhm', 'Rsense', rsOpt, 'mΩ', 'Scaled for full 3.3V ADC dynamic range');
+    const rsRaw = clamp(2100 / Math.max(4, Ipri_est * 1.4), 5, 100);
+    const rsOpt = snapNearest(rsRaw, SHUNT_SERIES_MOHM);
+    applyNum('Rsense_mOhm', 'Rsense', rsOpt, 'mΩ', 'Standard shunt value scaled for 3.3V ADC range');
   }
   if (isCanEdit('fs_digital_kHz')) {
     const fsDigOpt = clamp(roundTo(Math.min(400, next.fsw_kHz * 2), 10), 50, 500);
