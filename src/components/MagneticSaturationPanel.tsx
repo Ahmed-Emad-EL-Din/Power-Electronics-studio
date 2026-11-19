@@ -439,9 +439,9 @@ export const MagneticSaturationPanel: React.FC<MagneticSaturationPanelProps> = (
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
         <div>
           <div className="flex items-center gap-2">
-            <Layers className="w-4 h-4 text-purple-400" />
-            <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-purple-400">
-              Real-Time Magnetic Core Saturation Headroom &amp; Instantaneous B-Field vs. Material B-H Analyzer
+            <Layers className="w-4 h-4 text-cyan-500" />
+            <h3 className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
+              Magnetic Core Saturation Headroom &amp; Instantaneous B-Field vs. Material B-H Analyzer
             </h3>
             <span
               className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded inline-flex items-center gap-1 ${
@@ -600,7 +600,7 @@ export const MagneticSaturationPanel: React.FC<MagneticSaturationPanelProps> = (
           </div>
           <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden mt-1">
             <div
-              className={`h-full transition-all ${
+              className={`h-full transition-[width] duration-150 ${
                 cycleStats.utilization_pct >= 90
                   ? 'bg-rose-500'
                   : cycleStats.utilization_pct >= 75
@@ -1267,7 +1267,7 @@ export const MagneticSaturationPanel: React.FC<MagneticSaturationPanelProps> = (
       {/* MULTI-MATERIAL SATURATION HEADROOM BENCHMARK MATRIX & GOVERNING EQUATIONS */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
         <div className="xl:col-span-8 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg p-3">
-          <div className="text-xs font-mono font-bold uppercase tracking-wider text-purple-400 mb-2">
+          <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5] mb-2">
             Multi-Ferrite Saturation Headroom &amp; Permeability Retention Comparison (@ T_core = {activeTemp_C.toFixed(0)}°C, |B_max| = {cycleStats.absBmax_mT.toFixed(1)} mT)
           </div>
           <div className="overflow-x-auto">
@@ -1359,7 +1359,7 @@ export const MagneticSaturationPanel: React.FC<MagneticSaturationPanelProps> = (
 
         {/* Governing Nonlinear Magnetics Equations */}
         <div className="xl:col-span-4 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg p-3 flex flex-col justify-between space-y-2">
-          <div className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-400">
+          <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
             Instantaneous Field &amp; Headroom Equations
           </div>
           <div className="space-y-2 text-xs">

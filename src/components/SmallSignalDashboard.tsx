@@ -998,8 +998,8 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
           {/* 2. Power Stage LC Filter & Magnetic Elements */}
           <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-3">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-cyan-400 font-mono flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5" />
+              <h3 className="text-[13px] font-medium text-slate-100 flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-cyan-400" />
                 2. Power Stage Filter &amp; Plant Values
               </h3>
               {activeLoop === 'dcdc-loop' && (
@@ -1274,8 +1274,8 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
           {/* 3. Compensator Synthesis & Manual Pole/Zero Override Sandbox */}
           <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-3">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-violet-400 font-mono flex items-center gap-1.5">
-                <Sliders className="w-3.5 h-3.5" />
+              <h3 className="text-[13px] font-medium text-slate-100 flex items-center gap-1.5">
+                <Sliders className="w-3.5 h-3.5 text-cyan-400" />
                 3. Compensator Synthesis &amp; Pole/Zero Tuning
               </h3>
               <button
@@ -1304,7 +1304,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                   >
                     <option value="2p2z">Voltage-Mode Digital 2P2Z / 3P3Z</option>
                     <option value="type-iii">Analog Op-Amp Type-III Network</option>
-                    <option value="pcmc">Peak Current Mode Control (PCMC + m_c)</option>
+                    <option value="pcmc">PCMC + Type-II (Ridley Plant + Slope m_c)</option>
                     <option value="acmc">Average Current Mode Control (ACMC)</option>
                     <option value="cascaded-pi">Cascaded Dual-Loop PI</option>
                     <option value="charge-control">Resonant Charge / Trajectory Control</option>
@@ -1362,6 +1362,84 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                     />
                   </div>
                 </div>
+
+                {/* PCMC + Type-II Unified Co-Design Strip */}
+                {(dcdcState.controlType === 'pcmc' || dcdcState.controlType === '2p2z') && (
+                  <div className="bg-slate-950/90 border border-cyan-500/30 rounded-lg p-2.5 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-mono text-cyan-300 font-semibold">
+                        Type-II Network &amp; PCMC Slope
+                      </span>
+                      <div className="inline-flex rounded border border-slate-700 bg-slate-900 p-0.5 text-[10px] font-mono">
+                        <button
+                          type="button"
+                          onClick={() => updateDcdc('type2Architecture', 'opamp')}
+                          className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                            dcdcRes.type2Architecture === 'opamp'
+                              ? 'bg-cyan-500/20 text-cyan-200 font-semibold'
+                              : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          Op-Amp
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateDcdc('type2Architecture', 'ota')}
+                          className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                            dcdcRes.type2Architecture === 'ota'
+                              ? 'bg-cyan-500/20 text-cyan-200 font-semibold'
+                              : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          OTA (g_m)
+                        </button>
+                      </div>
+                    </div>
+
+                    {dcdcRes.type2Architecture === 'ota' && (
+                      <div>
+                        <div className="flex justify-between text-[11px] text-slate-300 mb-0.5">
+                          <span>OTA Transconductance g_m</span>
+                          <span className="font-mono text-cyan-300">
+                            {dcdcRes.ota_gm_mS.toFixed(2)} mS
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0.3}
+                          max={4.0}
+                          step={0.05}
+                          value={dcdcRes.ota_gm_mS}
+                          onChange={(e) => updateDcdc('ota_gm_mS', Number(e.target.value))}
+                          className="w-full accent-cyan-500"
+                        />
+                      </div>
+                    )}
+
+                    {dcdcState.controlType === 'pcmc' && (
+                      <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-800/80 text-[10px] font-mono">
+                        <span className="text-slate-400">
+                          H_dc={dcdcRes.plant_Hdc_dB.toFixed(1)}dB · f_p1={dcdcRes.plant_fp1_Hz.toFixed(0)}Hz · Q_p(wc)={dcdcRes.Qp_subharmonic_wc.toFixed(2)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const safeMc = Number(Math.max(dcdcRes.mc_min_recommended, 1.35).toFixed(2));
+                            const safeFc = Number(
+                              Math.min(dcdcState.fsw_kHz * 0.16, Math.max(2.5, dcdcRes.plant_fn_sh_kHz * 0.18)).toFixed(1)
+                            );
+                            updateDcdc('slopeFactor_mc', safeMc);
+                            updateDcdc('fc_target_kHz', safeFc);
+                            updateDcdc('pm_target_deg', 60);
+                          }}
+                          className="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/25 transition-colors cursor-pointer shrink-0"
+                        >
+                          Auto-Tune PCMC + II
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="space-y-3 text-xs">
@@ -1599,50 +1677,80 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
 
             {/* Synthesized Compensator Hardware / Digital Summary Card */}
             <div className="bg-slate-950/90 border border-slate-800 rounded-lg p-3 space-y-2">
-              <div className="text-[10px] font-mono uppercase text-slate-400 flex items-center justify-between">
+              <div className="text-[11px] font-mono text-slate-400 flex items-center justify-between">
                 <span>Synthesized Compensator Network</span>
-                <span className={isLoopStable ? 'text-emerald-400' : 'text-rose-400'}>
-                  {isLoopStable ? '● LOOP STABLE' : '▲ CHECK MARGINS'}
+                <span className={`inline-flex items-center gap-1.5 ${isLoopStable ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${isLoopStable ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+                  {isLoopStable ? 'Loop stable' : 'Check margins'}
                 </span>
               </div>
               {activeLoop === 'dcdc-loop' ? (
                 <>
-                  <div className="grid grid-cols-3 gap-1.5 text-[11px] font-mono">
-                    <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
-                      <span className="text-slate-500">R1:</span>{' '}
-                      <span className="text-slate-200">{dcdcRes.R1_kOhm.toFixed(1)}kΩ</span>
+                  {!dcdcRes.isTwoZeroComp && dcdcRes.type2Architecture === 'ota' ? (
+                    <div className="grid grid-cols-3 gap-1.5 text-[11px] font-mono">
+                      <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
+                        <span className="text-slate-500">R1(top):</span>{' '}
+                        <span className="text-slate-200">{dcdcRes.R1_ota_kOhm.toFixed(1)}kΩ</span>
+                      </div>
+                      <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
+                        <span className="text-slate-500">R4(bot):</span>{' '}
+                        <span className="text-slate-200">{dcdcRes.R4_ota_kOhm.toFixed(1)}kΩ</span>
+                      </div>
+                      <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
+                        <span className="text-slate-500">R2(cmp):</span>{' '}
+                        <span className="text-emerald-300">{dcdcRes.R2_ota_kOhm.toFixed(1)}kΩ</span>
+                      </div>
+                      <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
+                        <span className="text-slate-500">C1(E24):</span>{' '}
+                        <span className="text-cyan-300">{dcdcRes.C1_ota_e24_nF}nF</span>
+                      </div>
+                      <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
+                        <span className="text-slate-500">C2(E24):</span>{' '}
+                        <span className="text-cyan-300">{dcdcRes.C2_ota_e24_pF}pF</span>
+                      </div>
+                      <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
+                        <span className="text-slate-500">OTA g_m:</span>{' '}
+                        <span className="text-amber-300">{dcdcRes.ota_gm_mS.toFixed(2)}mS</span>
+                      </div>
                     </div>
-                    <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
-                      <span className="text-slate-500">R2:</span>{' '}
-                      <span className="text-emerald-300">{dcdcRes.R2_kOhm.toFixed(1)}kΩ</span>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-1.5 text-[11px] font-mono">
+                      <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
+                        <span className="text-slate-500">R1:</span>{' '}
+                        <span className="text-slate-200">{dcdcRes.R1_kOhm.toFixed(1)}kΩ</span>
+                      </div>
+                      <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
+                        <span className="text-slate-500">R2:</span>{' '}
+                        <span className="text-emerald-300">{dcdcRes.R2_kOhm.toFixed(1)}kΩ</span>
+                      </div>
+                      <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
+                        <span className="text-slate-500">R3:</span>{' '}
+                        <span className={dcdcRes.isTwoZeroComp ? 'text-emerald-300' : 'text-slate-500'}>
+                          {dcdcRes.isTwoZeroComp ? `${dcdcRes.R3_kOhm.toFixed(1)}kΩ` : 'N/A (Type-II)'}
+                        </span>
+                      </div>
+                      <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
+                        <span className="text-slate-500">C1:</span>{' '}
+                        <span className="text-cyan-300">{dcdcRes.C1_nF.toFixed(2)}nF</span>
+                      </div>
+                      <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
+                        <span className="text-slate-500">C2:</span>{' '}
+                        <span className="text-cyan-300">{dcdcRes.C2_pF.toFixed(0)}pF</span>
+                      </div>
+                      <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
+                        <span className="text-slate-500">C3:</span>{' '}
+                        <span className={dcdcRes.isTwoZeroComp ? 'text-cyan-300' : 'text-slate-500'}>
+                          {dcdcRes.isTwoZeroComp ? `${dcdcRes.C3_nF.toFixed(2)}nF` : 'N/A (Type-II)'}
+                        </span>
+                      </div>
                     </div>
-                    <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
-                      <span className="text-slate-500">R3:</span>{' '}
-                      <span className={dcdcRes.isTwoZeroComp ? 'text-emerald-300' : 'text-slate-500'}>
-                        {dcdcRes.isTwoZeroComp ? `${dcdcRes.R3_kOhm.toFixed(1)}kΩ` : 'N/A (2P2Z)'}
-                      </span>
-                    </div>
-                    <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
-                      <span className="text-slate-500">C1:</span>{' '}
-                      <span className="text-cyan-300">{dcdcRes.C1_nF.toFixed(2)}nF</span>
-                    </div>
-                    <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
-                      <span className="text-slate-500">C2:</span>{' '}
-                      <span className="text-cyan-300">{dcdcRes.C2_pF.toFixed(0)}pF</span>
-                    </div>
-                    <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
-                      <span className="text-slate-500">C3:</span>{' '}
-                      <span className={dcdcRes.isTwoZeroComp ? 'text-cyan-300' : 'text-slate-500'}>
-                        {dcdcRes.isTwoZeroComp ? `${dcdcRes.C3_nF.toFixed(2)}nF` : 'N/A (2P2Z)'}
-                      </span>
-                    </div>
-                  </div>
+                  )}
                   <div className="text-[10px] font-mono text-slate-400 pt-1 border-t border-slate-800/80 flex flex-wrap justify-between gap-2">
                     <span>
                       f_z1={manualOverride ? manualFz1_kHz.toFixed(2) : dcdcRes.fz1_kHz.toFixed(2)}kHz
                       {dcdcRes.isTwoZeroComp
                         ? ` · f_z2=${manualOverride ? manualFz2_kHz.toFixed(2) : dcdcRes.fz2_kHz.toFixed(2)}kHz`
-                        : ' · (Type-II 2P2Z)'}
+                        : ` · k=${dcdcRes.type2_k_factor.toFixed(2)} (${dcdcRes.type2_boost_deg.toFixed(0)}°)`}
                     </span>
                     <span>
                       f_p1={manualOverride ? manualFp1_kHz.toFixed(1) : dcdcRes.fp1_kHz.toFixed(1)}kHz
@@ -2095,7 +2203,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
           {/* Symbolic Transfer Function & Exact Stability Equations Block */}
           <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-5 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400 font-mono">
+              <h3 className="text-[13px] font-medium text-slate-100">
                 Small-Signal Transfer Function Formulation &amp; Stability Margins
               </h3>
               <span className="text-[11px] font-mono text-slate-400">

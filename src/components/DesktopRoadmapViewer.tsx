@@ -323,7 +323,7 @@ export const DesktopRoadmapViewer: React.FC = () => {
                     key={item.id}
                     type="button"
                     onClick={() => setSelectedId(item.id)}
-                    className={`w-full text-left p-2.5 rounded-lg border transition-all cursor-pointer ${
+                    className={`w-full text-left p-2.5 rounded-lg border transition-colors cursor-pointer ${
                       isSelected
                         ? 'bg-cyan-500/10 dark:bg-cyan-500/15 border-cyan-500/60 shadow-xs'
                         : 'bg-slate-50/70 dark:bg-slate-900/50 border-slate-200/80 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700'

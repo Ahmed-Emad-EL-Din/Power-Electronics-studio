@@ -505,8 +505,8 @@ export const GateDriveAnalysisPanel: React.FC<GateDriveAnalysisPanelProps> = ({
         {/* Left Control Column (5 cols) */}
         <div className="lg:col-span-5 bg-slate-50 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-lg p-3.5 space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-400 inline-flex items-center gap-1.5">
-              <Sliders className="w-3.5 h-3.5" /> Gate Drive Network &amp; IC Configuration
+            <span className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5] inline-flex items-center gap-1.5">
+              <Sliders className="w-3.5 h-3.5 text-cyan-500" /> Gate Drive Network &amp; IC Configuration
             </span>
             <span className="text-[11px] font-mono text-slate-400">
               R_g,int = {gateAnalysis.Rg_int_eff_Ohm.toFixed(2)} Ω
@@ -722,7 +722,7 @@ export const GateDriveAnalysisPanel: React.FC<GateDriveAnalysisPanelProps> = ({
           <div className="bg-slate-50 dark:bg-slate-900/70 border border-cyan-500/30 rounded-lg p-3.5 flex flex-col justify-between space-y-2">
             <div>
               <div className="flex items-center justify-between">
-                <span className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-400">
+                <span className="text-xs font-medium text-slate-900 dark:text-[#eef0f5]">
                   1. Required Gate Drive Current (I_g)
                 </span>
                 <span className="px-2 py-0.5 text-[10px] font-mono rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
@@ -778,7 +778,7 @@ export const GateDriveAnalysisPanel: React.FC<GateDriveAnalysisPanelProps> = ({
           <div className="bg-slate-50 dark:bg-slate-900/70 border border-amber-500/30 rounded-lg p-3.5 flex flex-col justify-between space-y-2">
             <div>
               <div className="flex items-center justify-between">
-                <span className="text-xs font-mono font-bold uppercase tracking-wider text-amber-400">
+                <span className="text-xs font-medium text-slate-900 dark:text-[#eef0f5]">
                   2. Gate Drive Power Dissipation (P_g)
                 </span>
                 <span className="px-2 py-0.5 text-[10px] font-mono rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
@@ -1018,8 +1018,8 @@ export const GateDriveAnalysisPanel: React.FC<GateDriveAnalysisPanelProps> = ({
       {/* ROW 3: GOVERNING GATE DRIVE EQUATIONS & COMMERCIAL DRIVER IC COMPATIBILITY TABLE */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
         <div className="xl:col-span-5 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg p-3.5 space-y-2">
-          <div className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
-            <Flame className="w-3.5 h-3.5" /> Governing Gate Current &amp; Power Equations
+          <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5] flex items-center gap-1.5">
+            <Flame className="w-3.5 h-3.5 text-cyan-500" /> Governing Gate Current &amp; Power Equations
           </div>
           <div className="p-2 rounded bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
             <MathFormula tex="I_{g,\text{avg}} = N_{\text{sw}} Q_g f_{\text{sw}}, \quad I_{g,\text{pk,on/off}} = \frac{V_{\text{gs,on}} - V_{\text{gs,off}}}{R_{\text{drv}} + R_{g,\text{ext}} + R_{g,\text{int}}}" />
@@ -1033,7 +1033,7 @@ export const GateDriveAnalysisPanel: React.FC<GateDriveAnalysisPanelProps> = ({
         </div>
 
         <div className="xl:col-span-7 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
-          <div className="text-xs font-mono font-bold uppercase tracking-wider text-emerald-400 mb-2">
+          <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5] mb-2">
             Isolated Gate Driver IC Sizing &amp; Thermal Verification Benchmark ({state.fsw_kHz} kHz)
           </div>
           <div className="overflow-x-auto">

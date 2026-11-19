@@ -1,6 +1,7 @@
 import { AcDcDesignState, DcDcDesignState } from '../data/databases';
 import { AcDcResults } from './acdcEngine';
 import { DcDcResults } from './dcdcEngine';
+export { generateAcDcLtspiceAsc, generateDcDcLtspiceAsc } from './ltspiceAscExporter';
 
 /**
  * Generates an LTspice / ngspice compatible .cir behavioral switching SPICE netlist
@@ -132,6 +133,28 @@ export function generateDcDcSpiceNetlist(state: DcDcDesignState, res: DcDcResult
     `* Output Capacitor Bank & Load`,
     `C_OUT v_out 0 ${state.Co_uF.toFixed(1)}u Rser=${state.ESR_Co_mOhm.toFixed(2)}m`,
     `R_LOAD v_out 0 ${Rload_Ohm.toFixed(3)}`,
+    ``,
+    `* Error Amplifier & Type-II / Type-III Compensator Subcircuit (${state.controlType.toUpperCase()} — ${res.type2Architecture === 'ota' ? `OTA gm=${res.ota_gm_mS.toFixed(2)}mS` : 'Op-Amp'})`,
+    ...( !res.isTwoZeroComp && res.type2Architecture === 'ota'
+      ? [
+          `R_FB_TOP v_out fb_node ${res.R1_ota_kOhm.toFixed(2)}k`,
+          `R_FB_BOT fb_node 0 ${res.R4_ota_kOhm.toFixed(2)}k`,
+          `V_REF ref_node 0 DC 1.25`,
+          `G_OTA 0 comp_node ref_node fb_node ${(res.ota_gm_mS * 1e-3).toFixed(5)}`,
+          `R_OTA_Z comp_node comp_z ${res.R2_ota_kOhm.toFixed(2)}k`,
+          `C_OTA_1 comp_z 0 ${res.C1_ota_e24_nF.toFixed(2)}n`,
+          `C_OTA_2 comp_node 0 ${res.C2_ota_e24_pF.toFixed(0)}p`,
+        ]
+      : [
+          `R_COMP_1 v_out fb_node ${res.R1_kOhm.toFixed(2)}k`,
+          `R_COMP_2 fb_node comp_z ${res.R2_kOhm.toFixed(2)}k`,
+          `C_COMP_1 comp_z comp_node ${res.C1_e24_nF.toFixed(2)}n`,
+          `C_COMP_2 fb_node comp_node ${res.C2_e24_pF.toFixed(0)}p`,
+          `E_ERR comp_node 0 ref_node fb_node 100k`,
+          `V_REF ref_node 0 DC ${state.Vout_V.toFixed(3)}`,
+        ]
+    ),
+    `* PCMC Artificial Slope Ramp: Se=${res.Se_ramp_V_us.toFixed(3)} V/us, mc=${res.mc_slope.toFixed(2)}, Qp=${res.Qp_subharmonic.toFixed(2)}`,
     ``,
     `* Transient Simulation & Measurements`,
     `.tran 0 ${tStop_us}u ${(tStop_us * 0.6).toFixed(0)}u 20n`,
@@ -266,6 +289,12 @@ extern "C" {
 /* PCMC Slope Compensation & Charge Threshold */
 #define DCDC_PCMC_SLOPE_V_US        (${dcdcRes.Se_ramp_V_us.toFixed(4)}f)
 #define DCDC_PCMC_MC                (${dcdcState.slopeFactor_mc.toFixed(3)}f)
+#define DCDC_PCMC_QP_WC             (${dcdcRes.Qp_subharmonic_wc.toFixed(3)}f)
+#define DCDC_TYPE2_IS_OTA           (${dcdcRes.type2Architecture === 'ota' ? 1 : 0})
+#define DCDC_TYPE2_R1_KOHM          (${(dcdcRes.type2Architecture === 'ota' ? dcdcRes.R1_ota_kOhm : dcdcRes.R1_kOhm).toFixed(2)}f)
+#define DCDC_TYPE2_R2_KOHM          (${(dcdcRes.type2Architecture === 'ota' ? dcdcRes.R2_ota_kOhm : dcdcRes.R2_kOhm).toFixed(2)}f)
+#define DCDC_TYPE2_C1_NF            (${(dcdcRes.type2Architecture === 'ota' ? dcdcRes.C1_ota_e24_nF : dcdcRes.C1_e24_nF).toFixed(2)}f)
+#define DCDC_TYPE2_C2_PF            (${(dcdcRes.type2Architecture === 'ota' ? dcdcRes.C2_ota_e24_pF : dcdcRes.C2_e24_pF).toFixed(0)}f)
 #define DCDC_CHARGE_VTH_V           (${dcdcRes.Vth_charge_V.toFixed(3)}f)
 
 /* ==================== AC-DC PFC STAGE (${acdcState.topology.toUpperCase()}) ==================== */

@@ -899,8 +899,8 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
               </div>
 
               <div className="space-y-2">
-                <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Live Search by LCSC Part Number (Cxxxxxx), MPN, or Converter Spec
+                <label className="block text-xs font-medium text-slate-600 dark:text-[#a3a9b8]">
+                  Live search by LCSC part number (Cxxxxxx), MPN, or converter spec
                 </label>
                 <form
                   onSubmit={(e) => {
@@ -913,8 +913,8 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
                     type="text"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="e.g. C2904521, C5129840, IMZA65R020M2H, IPT007N06N, or 650V 20mOhm SiC LCSC..."
-                    className="flex-1 px-3 py-2 text-xs font-mono bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-slate-100"
+                    placeholder="e.g. C2904521, C5129840, IMZA65R020M2H, IPT007N06N, or 650V 20mOhm SiC LCSC…"
+                    className="flex-1 px-3 py-2 text-xs font-mono bg-[#f5f7fa] dark:bg-[#0b0d14] border border-slate-300 dark:border-white/[0.1] rounded-lg text-slate-900 dark:text-[#eef0f5]"
                   />
                   <button
                     type="submit"
@@ -1249,9 +1249,9 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
 
                   {/* Google Search Grounding Sources / Citations */}
                   {sources.length > 0 && (
-                    <div className="p-3 rounded bg-slate-50 dark:bg-[#111827] border border-slate-200 dark:border-slate-800 space-y-1.5">
-                      <div className="text-[10px] font-mono uppercase tracking-wider text-slate-400">
-                        Verified LCSC &amp; Datasheet Grounding Citations ({sources.length})
+                    <div className="p-3 rounded-lg bg-[#f5f7fa] dark:bg-[#11141c] border border-slate-200 dark:border-white/[0.08] space-y-1.5">
+                      <div className="text-[11px] font-medium text-slate-500 dark:text-[#7a8296]">
+                        Verified LCSC &amp; datasheet grounding citations ({sources.length})
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {sources.map((src, i) => (
@@ -1282,10 +1282,10 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
               <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-[#111827] border border-slate-200 dark:border-slate-800 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <div className="text-xs font-bold uppercase tracking-wider text-cyan-400">
+                    <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
                       JLCPCB / LCSC SMT Assembly Bill of Materials ({operatingContext.topology.toUpperCase()})
                     </div>
-                    <div className="text-[11px] text-slate-400">
+                    <div className="text-[11px] text-slate-500 dark:text-[#7a8296]">
                       Select Gate Driver &amp; Digital MCU/DSP C-numbers below and export a ready-to-upload JLCPCB BOM CSV
                     </div>
                   </div>
@@ -1342,8 +1342,8 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
 
               {/* Auxiliary Gate Driver, Controller, Sensing & Capacitor Catalog */}
               <div className="space-y-2">
-                <div className="text-[11px] uppercase tracking-wider text-slate-400">
-                  LCSC Auxiliary Gate Drivers, Controllers, Current Sensors &amp; Film Capacitors
+                <div className="text-xs font-medium text-slate-500 dark:text-[#7a8296]">
+                  LCSC auxiliary gate drivers, controllers, current sensors &amp; film capacitors
                 </div>
                 {LCSC_AUXILIARY_BOM_DATABASE.map((aux) => (
                   <div

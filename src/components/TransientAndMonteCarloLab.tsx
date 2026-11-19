@@ -5,8 +5,10 @@ import { DcDcResults } from '../engine/dcdcEngine';
 import { runTransientLoadStep } from '../engine/transientOdeSolver';
 import { runMonteCarloAnalysis } from '../engine/monteCarloEngine';
 import {
+  generateAcDcLtspiceAsc,
   generateAcDcSpiceNetlist,
   generateControlFirmwareHeader,
+  generateDcDcLtspiceAsc,
   generateDcDcSpiceNetlist,
 } from '../engine/spiceNetlistExporter';
 import { OscilloscopeViewer } from './OscilloscopeViewer';
@@ -55,8 +57,8 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
     'efficiency_pct' | 'Tj_max_C' | 'pm_deg' | 'satUtil_pct'
   >('Tj_max_C');
 
-  // Netlist / Firmware Viewer Tab
-  const [exportTab, setExportTab] = useState<'dcdc-cir' | 'acdc-cir' | 'firmware-h'>('dcdc-cir');
+  // Netlist / Schematic / Firmware Viewer Tab
+  const [exportTab, setExportTab] = useState<'dcdc-asc' | 'acdc-asc' | 'dcdc-cir' | 'acdc-cir' | 'firmware-h'>('dcdc-asc');
   const [copiedFlag, setCopiedFlag] = useState<boolean>(false);
 
   const transientRes = useMemo(
@@ -99,15 +101,21 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
   );
 
   const codePreview = useMemo(() => {
+    if (exportTab === 'dcdc-asc') return generateDcDcLtspiceAsc(dcdcState, dcdcRes);
+    if (exportTab === 'acdc-asc') return generateAcDcLtspiceAsc(acdcState, acdcRes);
     if (exportTab === 'dcdc-cir') return generateDcDcSpiceNetlist(dcdcState, dcdcRes);
     if (exportTab === 'acdc-cir') return generateAcDcSpiceNetlist(acdcState, acdcRes);
     return generateControlFirmwareHeader(dcdcState, dcdcRes, acdcState, acdcRes);
   }, [exportTab, dcdcState, dcdcRes, acdcState, acdcRes]);
 
   const downloadCodeFile = () => {
-    const ext = exportTab === 'firmware-h' ? 'h' : 'cir';
+    const ext = exportTab === 'firmware-h' ? 'h' : exportTab.endsWith('-asc') ? 'asc' : 'cir';
     const filename =
-      exportTab === 'dcdc-cir'
+      exportTab === 'dcdc-asc'
+        ? `voltcraft_${dcdcState.topology}.asc`
+        : exportTab === 'acdc-asc'
+        ? `voltcraft_${acdcState.topology}.asc`
+        : exportTab === 'dcdc-cir'
         ? `voltcraft_${dcdcState.topology}.cir`
         : exportTab === 'acdc-cir'
         ? `voltcraft_${acdcState.topology}.cir`
@@ -455,19 +463,21 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
             <div className="flex items-center gap-2">
               <Code2 className="w-4 h-4 text-cyan-500" />
               <h3 className="text-xs font-bold font-mono text-slate-900 dark:text-slate-100">
-                SPICE Netlist (.cir) &amp; Embedded DSP Control Header (.h) Exporter
+                LTspice Schematic (.asc), SPICE Netlist (.cir) &amp; DSP Header (.h) Exporter
               </h3>
             </div>
             <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-              Download LTspice / ngspice behavioral switching netlists or drop-in TI C2000 / STM32G4 firmware configuration headers.
+              Download grid-aligned LTspice .asc circuit diagrams, .cir netlists, or TI C2000 / STM32G4 firmware configuration headers.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">
             {(
               [
+                { id: 'dcdc-asc', label: 'DC-DC LTspice (.asc)' },
+                { id: 'acdc-asc', label: 'AC-DC LTspice (.asc)' },
                 { id: 'dcdc-cir', label: 'DC-DC SPICE (.cir)' },
-                { id: 'acdc-cir', label: 'AC-DC PFC SPICE (.cir)' },
+                { id: 'acdc-cir', label: 'AC-DC SPICE (.cir)' },
                 { id: 'firmware-h', label: 'Firmware Config (.h)' },
               ] as const
             ).map((t) => (

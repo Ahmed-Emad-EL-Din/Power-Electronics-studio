@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { CoreSpec, DcDcDesignState, CORE_DATABASE } from '../data/databases';
 import { DcDcResults } from '../engine/dcdcEngine';
+import { rankTransformerCoresForDcDc } from '../engine/passiveDesignEngine';
 import { useDesignSolver, useLockableValue } from './DesignSolverContext';
 import { LockToggleButton } from './AutoSolverControls';
 import { InteractiveChart } from './InteractiveChart';
@@ -643,6 +644,11 @@ export const WindingWindowVisualizer: React.FC<WindingWindowVisualizerProps> = (
     []
   );
 
+  const rankedTransformerCores = useMemo(
+    () => rankTransformerCoresForDcDc(state).slice(0, 4),
+    [state]
+  );
+
   // Evaluate ranked 1-click Build-Out Solver candidates
   const solverActions = useMemo<WindowSolverAction[]>(() => {
     const actions: WindowSolverAction[] = [];
@@ -840,9 +846,9 @@ export const WindingWindowVisualizer: React.FC<WindingWindowVisualizerProps> = (
             >
               {windowAnalysis.fitsInWindow
                 ? windowAnalysis.isTightMargin
-                  ? `▲ Tight Fit (${windowAnalysis.radialFill_pct}% · +${windowAnalysis.radialMargin_mm} mm)`
-                  : `● Window Fit OK (${windowAnalysis.radialFill_pct}% · +${windowAnalysis.radialMargin_mm} mm)`
-                : `✖ Window Overflow (${windowAnalysis.totalRadialBuild_mm} > ${windowAnalysis.budget.safeLimit_mm} mm safe)`}
+                  ? `Tight fit (${windowAnalysis.radialFill_pct}% · +${windowAnalysis.radialMargin_mm} mm)`
+                  : `Window fit OK (${windowAnalysis.radialFill_pct}% · +${windowAnalysis.radialMargin_mm} mm)`
+                : `Window overflow (${windowAnalysis.totalRadialBuild_mm} > ${windowAnalysis.budget.safeLimit_mm} mm safe)`}
             </span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -873,6 +879,16 @@ export const WindingWindowVisualizer: React.FC<WindingWindowVisualizerProps> = (
               {bestFittingCoreAction.title} <ArrowUpRight className="w-3 h-3" />
             </button>
           )}
+          {rankedTransformerCores[0] && rankedTransformerCores[0].core.id !== state.coreId && (
+            <button
+              type="button"
+              onClick={() => setDcdcField('coreId', rankedTransformerCores[0].core.id)}
+              className="px-2.5 py-1 text-[11px] font-mono bg-cyan-600/15 hover:bg-cyan-600/25 border border-cyan-500/40 text-cyan-700 dark:text-cyan-300 rounded inline-flex items-center gap-1 font-semibold cursor-pointer"
+              title="Equip top-ranked core by combined core+copper loss, window fill, and volume"
+            >
+              Auto-Pick {rankedTransformerCores[0].core.name.split(' (')[0]}
+            </button>
+          )}
         </div>
       </div>
 
@@ -880,8 +896,8 @@ export const WindingWindowVisualizer: React.FC<WindingWindowVisualizerProps> = (
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5">
         {/* Left Controls (5 cols) */}
         <div className="lg:col-span-5 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg p-3.5 space-y-3">
-          <div className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-700 dark:text-cyan-400 flex items-center gap-1.5">
-            <Sliders className="w-3.5 h-3.5" /> Winding Form, Gap Strategy &amp; Bobbin Controls
+          <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5] flex items-center gap-1.5">
+            <Sliders className="w-3.5 h-3.5 text-cyan-500" /> Winding Form, Gap Strategy &amp; Bobbin Controls
           </div>
 
           <div className="grid grid-cols-2 gap-2.5">
@@ -1164,7 +1180,7 @@ export const WindingWindowVisualizer: React.FC<WindingWindowVisualizerProps> = (
       {/* WINDOW FIT BUDGET & BUILD-OUT SOLVER ASSISTANT */}
       <div className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-lg p-3.5 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+          <div className="flex items-center gap-2 text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
             <Wrench className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
             <span>Window Fit Budget &amp; Build-Out Solver Assistant</span>
           </div>
@@ -1328,6 +1344,42 @@ export const WindingWindowVisualizer: React.FC<WindingWindowVisualizerProps> = (
             </div>
           </div>
         )}
+
+        {/* Top-4 Ranked Transformer Core & Turns Recommender */}
+        <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-1.5">
+          <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            Top-Ranked Transformer Cores ({state.Pout_W} W @ {state.fsw_kHz} kHz)
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            {rankedTransformerCores.map((row, idx) => {
+              const isActive = row.core.id === state.coreId;
+              return (
+                <button
+                  key={row.core.id}
+                  type="button"
+                  onClick={() => setDcdcField('coreId', row.core.id)}
+                  className={`text-left p-2 rounded border transition-colors cursor-pointer ${
+                    isActive
+                      ? 'bg-cyan-500/10 border-cyan-500/60'
+                      : 'bg-white dark:bg-[#0E131D] border-slate-200 dark:border-slate-700 hover:border-cyan-500/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-1 text-[11px] font-mono font-semibold text-slate-900 dark:text-slate-100">
+                    <span className="truncate">
+                      {idx === 0 ? '★ ' : ''}{row.core.name.split(' (')[0]}
+                    </span>
+                    <span className={row.passesAll ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}>
+                      {row.res.windowFill_pct.toFixed(0)}%
+                    </span>
+                  </div>
+                  <div className="text-[10px] font-mono text-slate-500 tabular-nums mt-0.5">
+                    {row.res.Np_actual}:{row.res.Ns_actual}T · Bpk {row.res.Bpk_mT.toFixed(0)}mT · {(row.res.Pcore_W + row.res.Pcu_W).toFixed(1)}W · {row.res.Tcore_C.toFixed(0)}°C
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* ROW 2: 2D CORE WINDOW CROSS-SECTION + SPATIAL MMF PROFILE F(x) */}

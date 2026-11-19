@@ -80,6 +80,13 @@ export interface AiProposedFixRaw {
   patch: AiPatchPayload;
 }
 
+export interface AiCommittedPatch {
+  dcdcPatch?: Partial<DcDcDesignState>;
+  acdcPatch?: Partial<AcDcDesignState>;
+  inductorConfigsPatch?: Record<string, PerInductorConfig>;
+  capacitorConfigsPatch?: Record<string, PerCapConfig>;
+}
+
 export interface AiAgentServerResponse {
   mode: 'audit' | 'chat';
   overallVerdict: 'critical' | 'warning' | 'verified-safe';
@@ -87,6 +94,14 @@ export interface AiAgentServerResponse {
   executiveSummary: string;
   replyMarkdown?: string;
   proposedFixes: AiProposedFixRaw[];
+  toolTrace?: {
+    step: number;
+    tool: string;
+    argsSummary: string;
+    resultSummary: string;
+    committed: boolean;
+  }[];
+  committedPatch?: AiCommittedPatch | null;
 }
 
 export interface AiDryRunValidation {
@@ -253,6 +268,8 @@ export function buildAiDesignSnapshot(
         fc_target_kHz: dcdcState.fc_target_kHz,
         pm_target_deg: dcdcState.pm_target_deg,
         slopeFactor_mc: dcdcState.slopeFactor_mc,
+        type2Architecture: dcdcRes.type2Architecture,
+        ota_gm_mS: dcdcRes.ota_gm_mS,
       },
       results: {
         Iout_total_A: Number(dcdcRes.Iout_total_A.toFixed(2)),
@@ -289,7 +306,10 @@ export function buildAiDesignSnapshot(
         pm_wc_min_deg: Number(dcdcRes.pm_wc_min_deg.toFixed(1)),
         gm_actual_dB: Number(dcdcRes.gm_actual_dB.toFixed(1)),
         Qp_subharmonic: Number(dcdcRes.Qp_subharmonic.toFixed(2)),
+        Qp_subharmonic_wc: Number(dcdcRes.Qp_subharmonic_wc.toFixed(2)),
         slopeStable: dcdcRes.slopeStable,
+        type2_k_factor: dcdcRes.type2_k_factor,
+        type2_boost_deg: dcdcRes.type2_boost_deg,
       },
     },
     acdc: {

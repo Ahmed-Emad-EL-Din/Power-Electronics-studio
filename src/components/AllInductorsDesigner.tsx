@@ -13,9 +13,12 @@ import {
   CustomInductorOverrides,
   CustomInductorSolution,
   InductorConductorForm,
+  InductorOptGoal,
+  InductorShapeFilter,
   PerInductorConfig,
   ReadyCotsInductorCandidate,
   extractCircuitInductors,
+  rankInductorCoreMaterials,
   rankReadyCotsInductors,
   solveCustomInductorDesign,
 } from '../engine/passiveDesignEngine';
@@ -298,6 +301,8 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
   const [cotsFilterMount, setCotsFilterMount] = useState<'ALL' | 'SMD' | 'THT'>('ALL');
   const [cotsSearch, setCotsSearch] = useState('');
   const [syncedNotice, setSyncedNotice] = useState<string | null>(null);
+  const [optGoal, setOptGoal] = useState<InductorOptGoal>('balanced');
+  const [shapeFilter, setShapeFilter] = useState<InductorShapeFilter>('all');
 
   const updateActiveCfg = (updater: (prev: PerInductorConfig) => PerInductorConfig) => {
     if (!activeReq) return;
@@ -324,6 +329,16 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
   const activeEntry = allSolved.find((e) => e.req.id === activeReq?.id) || allSolved[0];
   const activeCfg = activeEntry.cfg;
   const sol = activeEntry.customSol;
+  const rankedCoreMats = useMemo(
+    () =>
+      rankInductorCoreMaterials(
+        activeReq,
+        optGoal,
+        shapeFilter,
+        activeCfg.locks.targetL_uH ? activeCfg.overrides.targetL_uH : undefined
+      ),
+    [activeReq, optGoal, shapeFilter, activeCfg.locks.targetL_uH, activeCfg.overrides.targetL_uH]
+  );
   const cotsCandidates = useMemo(() => {
     return activeEntry.cotsRanked.filter((c) => {
       if (cotsFilterMount !== 'ALL' && c.part.mounting !== cotsFilterMount) return false;
@@ -420,7 +435,7 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
       <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
         <div className="px-4 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 flex flex-wrap items-center justify-between gap-2">
           <div>
-            <div className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
+            <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
               All Circuit Inductors — Magnetic &amp; COTS Design Matrix ({mode === 'dcdc' ? 'DC-DC Stage' : 'AC-DC PFC Stage'})
             </div>
             <div className="text-[11px] text-slate-500 dark:text-slate-400">
@@ -528,11 +543,20 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
                     </td>
                     <td className="py-2.5 px-3 font-sans font-medium">
                       {statusBad ? (
-                        <span className="text-rose-600 dark:text-rose-400">✖ Redesign</span>
+                        <span className="inline-flex items-center gap-1.5 text-rose-600 dark:text-rose-400">
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                          Redesign
+                        </span>
                       ) : statusWarn ? (
-                        <span className="text-amber-600 dark:text-amber-400">▲ Tight</span>
+                        <span className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                          Tight
+                        </span>
                       ) : (
-                        <span className="text-emerald-600 dark:text-emerald-400">● Nominal</span>
+                        <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          Nominal
+                        </span>
                       )}
                     </td>
                   </tr>
@@ -826,21 +850,48 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
                   </div>
                   {sol.material.category === 'ferrite' ? (
                     <>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          step={0.05}
+                          min={0.05}
+                          max={8}
+                          value={sol.airGap_mm}
+                          onChange={(e) => setOverride('airGap_mm', Math.max(0.05, Number(e.target.value)), 'airGap_mm')}
+                          className={`w-full px-2 py-1 text-xs font-mono tabular-nums bg-slate-50 dark:bg-slate-900 border rounded ${
+                            activeCfg.locks.airGap_mm
+                              ? 'border-amber-500/60'
+                              : 'border-emerald-500/60'
+                          }`}
+                        />
+                        {activeCfg.locks.airGap_mm && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateActiveCfg((prev) => ({
+                                ...prev,
+                                locks: { ...prev.locks, airGap_mm: false },
+                                overrides: { ...prev.overrides, airGap_mm: undefined },
+                              }))
+                            }
+                            className="px-1.5 py-1 text-[10px] font-mono bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-cyan-700 dark:text-cyan-300 whitespace-nowrap cursor-pointer"
+                            title="Recompute optimal air gap for target inductance"
+                          >
+                            Auto
+                          </button>
+                        )}
+                      </div>
                       <input
-                        type="number"
+                        type="range"
                         step={0.05}
                         min={0.05}
-                        max={8}
-                        value={sol.airGap_mm}
+                        max={4.5}
+                        value={Math.min(4.5, sol.airGap_mm)}
                         onChange={(e) => setOverride('airGap_mm', Math.max(0.05, Number(e.target.value)), 'airGap_mm')}
-                        className={`w-full px-2 py-1 text-xs font-mono tabular-nums bg-slate-50 dark:bg-slate-900 border rounded ${
-                          activeCfg.locks.airGap_mm
-                            ? 'border-amber-500/60'
-                            : 'border-emerald-500/60'
-                        }`}
+                        className="w-full mt-1 h-1.5 accent-cyan-500 cursor-pointer"
                       />
-                      <div className="text-[10px] font-mono text-slate-500 mt-1 tabular-nums">
-                        Fringing Factor F = {sol.fringingFactor.toFixed(2)}×
+                      <div className="text-[10px] font-mono text-slate-500 mt-0.5 tabular-nums">
+                        Fringing F = {sol.fringingFactor.toFixed(2)}× · P_gap = {sol.P_gap_fringing_W.toFixed(2)}W
                       </div>
                     </>
                   ) : (
@@ -981,10 +1032,10 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
                   }`}
                 >
                   {sol.windowFitStatus === 'overflow'
-                    ? `✖ Fill ${sol.windowFill_pct.toFixed(1)}% (OVERFLOW)`
+                    ? `Fill ${sol.windowFill_pct.toFixed(1)}% (Overflow)`
                     : sol.windowFitStatus === 'tight'
-                    ? `▲ Fill ${sol.windowFill_pct.toFixed(1)}% (TIGHT)`
-                    : `● Fill ${sol.windowFill_pct.toFixed(1)}% (OK)`}
+                    ? `Fill ${sol.windowFill_pct.toFixed(1)}% (Tight)`
+                    : `Fill ${sol.windowFill_pct.toFixed(1)}% (OK)`}
                 </span>
               </div>
 
@@ -1105,15 +1156,35 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
                   </span>
                 </div>
                 <div className="flex justify-between border-t border-slate-200 dark:border-slate-800 pt-1.5">
-                  <span className="text-slate-500">P_cu (DC + AC):</span>
+                  <span className="text-slate-500">P_cu (DC + AC{sol.P_gap_fringing_W > 0.01 ? ' + Gap' : ''}):</span>
                   <span className="tabular-nums text-slate-900 dark:text-slate-100">
-                    {sol.P_cu_dc_W.toFixed(2)} + {sol.P_cu_ac_W.toFixed(2)} W
+                    {sol.P_cu_dc_W.toFixed(2)} + {(sol.P_cu_ac_W + sol.P_gap_fringing_W).toFixed(2)} W
                   </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">P_core (Steinmetz):</span>
                   <span className="tabular-nums text-slate-900 dark:text-slate-100">{sol.P_core_W.toFixed(2)} W</span>
                 </div>
+                {/* Loss Split Bar (Copper DC / Copper AC+Fringing / Core) */}
+                {sol.P_total_W > 0.01 && (() => {
+                  const tot = Math.max(0.01, sol.P_total_W);
+                  const dcPct = (sol.P_cu_dc_W / tot) * 100;
+                  const acPct = ((sol.P_cu_ac_W + sol.P_gap_fringing_W) / tot) * 100;
+                  const corePct = (sol.P_core_W / tot) * 100;
+                  return (
+                    <div className="space-y-1 pt-0.5">
+                      <div className="h-2 w-full rounded overflow-hidden flex bg-slate-200 dark:bg-slate-800">
+                        <div style={{ width: `${dcPct}%` }} className="bg-amber-500" title={`Cu DC: ${dcPct.toFixed(0)}%`} />
+                        <div style={{ width: `${acPct}%` }} className="bg-orange-500" title={`Cu AC+Gap: ${acPct.toFixed(0)}%`} />
+                        <div style={{ width: `${corePct}%` }} className="bg-cyan-500" title={`Core: ${corePct.toFixed(0)}%`} />
+                      </div>
+                      <div className="flex justify-between text-[10px] text-slate-500">
+                        <span>Cu {((sol.P_cu_total_W / tot) * 100).toFixed(0)}%</span>
+                        <span>Core {corePct.toFixed(0)}%</span>
+                      </div>
+                    </div>
+                  );
+                })()}
                 <div className="flex justify-between font-bold border-t border-slate-200 dark:border-slate-800 pt-1.5">
                   <span className="text-slate-700 dark:text-slate-200">Total Loss / T_hot:</span>
                   <span
@@ -1127,6 +1198,181 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
                   </span>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* MULTI-CORE × MATERIAL PARETO AUTO-RANKER */}
+          <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-2.5">
+              <div>
+                <div className="text-xs font-mono font-bold uppercase text-cyan-700 dark:text-cyan-400">
+                  Pareto Core × Material Auto-Ranker ({activeReq.designator})
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Evaluates every compatible core shape and magnetic alloy for {activeReq.targetL_uH} µH @ {activeReq.I_pk_A.toFixed(1)} A_pk, {activeReq.f_ripple_kHz.toFixed(0)} kHz.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex rounded border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-0.5 text-[10px] font-mono">
+                  {(
+                    [
+                      { id: 'balanced', label: 'Balanced' },
+                      { id: 'min-loss', label: 'Min Loss' },
+                      { id: 'compact', label: 'Compact' },
+                      { id: 'low-temp', label: 'Coolest' },
+                    ] as { id: InductorOptGoal; label: string }[]
+                  ).map((g) => (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() => setOptGoal(g.id)}
+                      className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                        optGoal === g.id
+                          ? 'bg-cyan-600/20 text-cyan-700 dark:text-cyan-300 font-semibold'
+                          : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      {g.label}
+                    </button>
+                  ))}
+                </div>
+                <select
+                  value={shapeFilter}
+                  onChange={(e) => setShapeFilter(e.target.value as InductorShapeFilter)}
+                  className="px-2 py-1 text-[11px] font-mono bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-700 dark:text-slate-200"
+                >
+                  <option value="all">All Shapes</option>
+                  <option value="toroid">Toroid</option>
+                  <option value="pq">PQ Ferrite</option>
+                  <option value="etd">ETD Ferrite</option>
+                  <option value="ee">EE Ferrite</option>
+                  <option value="rm">RM Ferrite</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs font-mono">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase text-slate-500">
+                    <th className="py-1.5 px-2">Core &amp; Material</th>
+                    <th className="py-1.5 px-2">Winding / Gap</th>
+                    <th className="py-1.5 px-2">B_pk / Sat</th>
+                    <th className="py-1.5 px-2">Fill %</th>
+                    <th className="py-1.5 px-2">Cu / Core / Total</th>
+                    <th className="py-1.5 px-2">T_hot</th>
+                    <th className="py-1.5 px-2 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800/70">
+                  {rankedCoreMats.map((row, idx) => {
+                    const isEquipped =
+                      row.core.id === sol.core.id && row.material.id === sol.material.id;
+                    return (
+                      <tr
+                        key={`${row.core.id}-${row.material.id}`}
+                        className={
+                          isEquipped
+                            ? 'bg-cyan-500/10'
+                            : 'hover:bg-slate-50 dark:hover:bg-slate-900/50'
+                        }
+                      >
+                        <td className="py-1.5 px-2">
+                          <div className="font-semibold text-slate-900 dark:text-slate-100">
+                            {idx === 0 ? '★ ' : ''}
+                            {row.core.name.split(' (')[0]} · {row.material.name}
+                          </div>
+                          <div className="text-[10px] text-slate-500">
+                            Ve={(row.core.Ve_mm3 / 1000).toFixed(1)}cm³ · ~${row.core.approxCost_USD.toFixed(1)}
+                          </div>
+                        </td>
+                        <td className="py-1.5 px-2 tabular-nums text-slate-700 dark:text-slate-300">
+                          {row.sol.turnsN}T × {row.sol.parallelStrands}×AWG{row.sol.wire.awg}
+                          {row.material.category === 'ferrite' ? ` (${row.sol.airGap_mm}mm gap)` : ''}
+                        </td>
+                        <td className="py-1.5 px-2 tabular-nums">
+                          <span
+                            className={
+                              row.sol.satStatus === 'critical'
+                                ? 'text-rose-600 dark:text-rose-400'
+                                : row.sol.satStatus === 'warning'
+                                ? 'text-amber-600 dark:text-amber-400'
+                                : 'text-emerald-600 dark:text-emerald-400'
+                            }
+                          >
+                            {(row.sol.B_pk_T * 1000).toFixed(0)}mT ({row.sol.satUtilization_pct.toFixed(0)}%)
+                          </span>
+                        </td>
+                        <td className="py-1.5 px-2 tabular-nums">
+                          <span
+                            className={
+                              row.sol.windowFitStatus === 'overflow'
+                                ? 'text-rose-600 dark:text-rose-400'
+                                : row.sol.windowFitStatus === 'tight'
+                                ? 'text-amber-600 dark:text-amber-400'
+                                : 'text-emerald-600 dark:text-emerald-400'
+                            }
+                          >
+                            {row.sol.windowFill_pct.toFixed(1)}%
+                          </span>
+                        </td>
+                        <td className="py-1.5 px-2 tabular-nums text-slate-700 dark:text-slate-300">
+                          {row.sol.P_cu_total_W.toFixed(1)} / {row.sol.P_core_W.toFixed(1)} /{' '}
+                          <strong className="text-slate-900 dark:text-slate-100">
+                            {row.sol.P_total_W.toFixed(2)}W
+                          </strong>
+                        </td>
+                        <td className="py-1.5 px-2 tabular-nums">
+                          <span
+                            className={
+                              row.sol.T_hotspot_C > 110
+                                ? 'text-rose-600 dark:text-rose-400'
+                                : 'text-slate-700 dark:text-slate-200'
+                            }
+                          >
+                            {row.sol.T_hotspot_C.toFixed(0)}°C
+                          </span>
+                        </td>
+                        <td className="py-1.5 px-2 text-right">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateActiveCfg((prev) => ({
+                                ...prev,
+                                overrides: {
+                                  ...prev.overrides,
+                                  coreId: row.core.id,
+                                  materialId: row.material.id,
+                                  turnsN: undefined,
+                                  airGap_mm: undefined,
+                                  wireAwg: undefined,
+                                  parallelStrands: undefined,
+                                },
+                                locks: {
+                                  ...prev.locks,
+                                  coreId: true,
+                                  materialId: true,
+                                  turnsN: false,
+                                  airGap_mm: false,
+                                  wireAwg: false,
+                                  parallelStrands: false,
+                                },
+                              }))
+                            }
+                            className={`px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer ${
+                              isEquipped
+                                ? 'bg-cyan-600 text-white'
+                                : 'bg-slate-100 dark:bg-slate-800 hover:bg-emerald-600 hover:text-white text-slate-700 dark:text-slate-200'
+                            }`}
+                          >
+                            {isEquipped ? 'Active' : 'Equip'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
 
@@ -1396,11 +1642,20 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
                         </td>
                         <td className="py-2.5 px-3 font-sans font-medium">
                           {cand.fitStatus === 'optimal' ? (
-                            <span className="text-emerald-600 dark:text-emerald-400">● Optimal</span>
+                            <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              Optimal
+                            </span>
                           ) : cand.fitStatus === 'acceptable' ? (
-                            <span className="text-amber-600 dark:text-amber-400">▲ Tight</span>
+                            <span className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                              Tight
+                            </span>
                           ) : (
-                            <span className="text-rose-600 dark:text-rose-400">✖ Undersized</span>
+                            <span className="inline-flex items-center gap-1.5 text-rose-600 dark:text-rose-400">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                              Undersized
+                            </span>
                           )}
                         </td>
                         <td className="py-2.5 px-3 text-right">

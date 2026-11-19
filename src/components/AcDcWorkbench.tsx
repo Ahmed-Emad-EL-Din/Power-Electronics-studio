@@ -963,7 +963,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
         {/* Sub-Tab Navigation */}
         <div
           ref={subTabNavRef}
-          className="scroll-mt-20 flex flex-wrap items-center gap-1.5 border-b border-slate-200 dark:border-slate-800 pb-2.5"
+          className="scroll-mt-20 flex flex-wrap items-center gap-1.5 border-b border-slate-200 dark:border-white/[0.08] pb-2.5"
         >
           {(
             [
@@ -983,12 +983,12 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
               key={tab.id}
               type="button"
               onClick={() => setActiveSubTab(tab.id)}
-              className={`px-3 py-1.5 rounded-md border text-xs font-medium inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg border text-xs font-medium inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
                 activeSubTab === tab.id
-                  ? 'bg-cyan-600 border-cyan-600 text-white font-semibold'
+                  ? 'bg-[#eceff4] dark:bg-[#1a1e28] border-cyan-500/50 text-cyan-700 dark:text-cyan-300 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
                   : tab.alert
-                  ? 'bg-rose-500/10 border-rose-500/50 text-rose-600 dark:text-rose-400 font-semibold'
-                  : 'bg-white dark:bg-[#0E131D] border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700 hover:text-slate-900 dark:hover:text-slate-100'
+                  ? 'bg-rose-500/10 border-rose-500/40 text-rose-600 dark:text-rose-400'
+                  : 'bg-white dark:bg-[#11141c] border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-[#a3a9b8] hover:border-slate-300 dark:hover:border-white/[0.16] hover:text-slate-900 dark:hover:text-[#eef0f5]'
               }`}
             >
               {tab.icon}
@@ -1006,12 +1006,12 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
             <AcDcSchematicView res={res} onTopologyChange={(topo) => update('topology', topo)} />
 
             {/* Topological Variant Comparison Matrix */}
-            <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
-              <div className="px-4 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 flex items-center justify-between">
-                <span className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
-                  AC-DC PFC TOPOLOGY ARCHITECTURE COMPARISON (CLICK ANY ROW TO SWITCH SCHEMATIC)
+            <div className="bg-white dark:bg-[#11141c] border border-slate-200 dark:border-white/[0.08] rounded-xl overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-slate-200 dark:border-white/[0.08] bg-[#f5f7fa] dark:bg-[#0b0d14] flex items-center justify-between">
+                <span className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
+                  AC-DC PFC topology architecture comparison (click any row to switch schematic)
                 </span>
-                <span className="text-[11px] font-mono text-slate-500">
+                <span className="text-[11px] font-mono text-slate-500 dark:text-[#7a8296]">
                   Active: {state.topology}
                 </span>
               </div>
@@ -1090,13 +1090,13 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
             </div>
 
             {/* Governing Design Equations */}
-            <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
-              <div className="px-4 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 flex items-center justify-between">
-                <span className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
-                  GOVERNING AC-DC PFC DESIGN EQUATIONS (KaTeX) &amp; VERIFICATION
+            <div className="bg-white dark:bg-[#11141c] border border-slate-200 dark:border-white/[0.08] rounded-xl overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-slate-200 dark:border-white/[0.08] bg-[#f5f7fa] dark:bg-[#0b0d14] flex items-center justify-between">
+                <span className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
+                  Governing AC-DC PFC design equations (KaTeX) &amp; verification
                 </span>
-                <span className="text-[11px] font-mono text-slate-500">
-                  Exact Analytical Typesetting
+                <span className="text-[11px] font-mono text-slate-500 dark:text-[#7a8296]">
+                  Analytical typesetting
                 </span>
               </div>
               <div className="overflow-x-auto">
@@ -1284,9 +1284,9 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
         {/* =================================================================== */}
         {activeSubTab === 'control' && (
           <div className="space-y-4">
-            <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-3">
-              <div className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
-                EXACT MATHEMATICAL DERIVATION: CASCADED INNER CURRENT & OUTER VOLTAGE LOOP
+            <div className="bg-white dark:bg-[#11141c] border border-slate-200 dark:border-white/[0.08] rounded-xl p-4 space-y-3">
+              <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
+                Cascaded inner current &amp; outer voltage loop derivation
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 <div className="p-3 rounded bg-slate-50 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800">
@@ -1312,9 +1312,9 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* Synthesized Compensator Coefficients */}
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-3">
-                <div className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
-                  SYNTHESIZED COMPENSATOR GAINS ({state.controlType.toUpperCase()})
+              <div className="bg-white dark:bg-[#11141c] border border-slate-200 dark:border-white/[0.08] rounded-xl p-4 space-y-3">
+                <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
+                  Synthesized compensator gains ({state.controlType.toUpperCase()})
                 </div>
                 <div className="grid grid-cols-2 gap-2.5 text-xs font-mono">
                   <div className="p-2.5 bg-slate-50 dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-800">
@@ -1358,10 +1358,10 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
               </div>
 
               {/* Embedded C2000 / STM32G4 Interrupt Code */}
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-4 flex flex-col justify-between">
+              <div className="bg-white dark:bg-[#11141c] border border-slate-200 dark:border-white/[0.08] rounded-xl p-4 flex flex-col justify-between">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
-                    AUTO-GENERATED C2000 / STM32G4 ISR CODE
+                  <span className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
+                    Auto-generated C2000 / STM32G4 ISR code
                   </span>
                   <button
                     type="button"
@@ -1559,7 +1559,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                   />
                 )}
                 <div>
-                  <div className="font-bold uppercase tracking-wide">
+                  <div className="font-medium">
                     {res.saturationCheck.headline}
                   </div>
                   <div className="text-[11px] text-slate-700 dark:text-slate-300 mt-0.5">

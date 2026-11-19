@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { DcDcResults } from '../engine/dcdcEngine';
 import { AcDcResults } from '../engine/acdcEngine';
 import { AcDcTopologyType } from '../data/databases';
+import { generateAcDcLtspiceAsc, generateDcDcLtspiceAsc } from '../engine/spiceNetlistExporter';
 import { Download, Image as ImageIcon, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 
 // ============================================================================
@@ -338,8 +339,8 @@ export const DcDcSchematicView: React.FC<{ res: DcDcResults }> = ({ res }) => {
       {/* Compact Header Bar */}
       <div className="px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 bg-slate-50/70 dark:bg-slate-900/50">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
-            LIVE CAD CIRCUIT DIAGRAM
+          <span className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
+            Live CAD Circuit Diagram
           </span>
           <span className="text-xs font-mono text-slate-600 dark:text-slate-300">
             {state.topology.toUpperCase()} · {state.txType.toUpperCase()} ·{' '}
@@ -387,12 +388,29 @@ export const DcDcSchematicView: React.FC<{ res: DcDcResults }> = ({ res }) => {
           >
             <ImageIcon className="w-3 h-3" /> PNG 2x
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              const asc = generateDcDcLtspiceAsc(state, res);
+              const blob = new Blob([asc], { type: 'text/plain;charset=utf-8' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `voltcraft_${state.topology}.asc`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="px-2 py-1 text-[11px] font-mono bg-emerald-600 text-white rounded hover:bg-emerald-500 inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
+            title="Download grid-aligned LTspice .asc schematic diagram"
+          >
+            <Download className="w-3 h-3" /> LTspice .asc
+          </button>
         </div>
       </div>
 
       {/* Interactive SVG Canvas */}
       <div className="p-3 bg-slate-950 text-slate-200 overflow-x-auto">
-        <div style={{ width: `${zoom}%`, minWidth: '860px' }} className="mx-auto transition-all duration-150">
+        <div style={{ width: `${zoom}%`, minWidth: '860px' }} className="mx-auto transition-[width] duration-150">
           <svg
             ref={svgRef}
             viewBox="0 0 1120 510"
@@ -1022,14 +1040,15 @@ export const DcDcSchematicView: React.FC<{ res: DcDcResults }> = ({ res }) => {
             </text>
             <text x="607" y="435" textAnchor="middle" fill="#38bdf8" fontSize="9">
               {state.controlType === 'pcmc'
-                ? `Slope Ramp Se=${res.Se_ramp_V_us.toFixed(2)} V/µs | Sf=${res.Sf_downslope_V_us.toFixed(2)} V/µs | mc=${res.mc_slope.toFixed(2)} | Qp=${res.Qp_subharmonic.toFixed(2)}`
+                ? `PCMC+Type-II (${res.type2Architecture === 'ota' ? `OTA gm=${res.ota_gm_mS.toFixed(1)}mS` : 'Op-Amp'}): Se=${res.Se_ramp_V_us.toFixed(2)}V/µs · mc=${res.mc_slope.toFixed(2)} · Qp=${res.Qp_subharmonic.toFixed(2)}`
                 : state.controlType === 'charge-control'
                 ? `Resonant Charge Q_Cr=${res.Q_charge_nC.toFixed(0)} nC | Vth=${res.Vth_charge_V.toFixed(2)} V | fz1=${res.fz1_kHz.toFixed(2)} kHz`
                 : `Kp=${res.Kp_ctrl.toFixed(3)} · Ki=${res.Ki_ctrl.toFixed(0)} rad/s · fz1=${res.fz1_kHz.toFixed(2)} kHz · fp1=${res.fp1_kHz.toFixed(1)} kHz`}
             </text>
             <text x="607" y="452" textAnchor="middle" fill="#10b981" fontSize="8.5">
-              2P2Z: b0={res.b0.toFixed(4)}, b1={res.b1.toFixed(4)}, b2={res.b2.toFixed(4)} | a1=
-              {res.a1.toFixed(4)}, a2={res.a2.toFixed(4)}
+              {!res.isTwoZeroComp && res.type2Architecture === 'ota'
+                ? `OTA Type-II: R1=${res.R1_ota_kOhm.toFixed(1)}k R2=${res.R2_ota_kOhm.toFixed(1)}k C1=${res.C1_ota_e24_nF}nF C2=${res.C2_ota_e24_pF}pF | b0=${res.b0.toFixed(3)}`
+                : `2P2Z: b0=${res.b0.toFixed(4)}, b1=${res.b1.toFixed(4)}, b2=${res.b2.toFixed(4)} | a1=${res.a1.toFixed(4)}, a2=${res.a2.toFixed(4)}`}
             </text>
             <text x="607" y="468" textAnchor="middle" fill="#f59e0b" fontSize="8.5">
               η = {res.efficiency_pct.toFixed(2)}% | Ploss = {res.Ptotal_loss_W.toFixed(1)} W | ΔVout ={' '}
@@ -1315,8 +1334,8 @@ export const AcDcSchematicView: React.FC<{
       {/* Top Toolbar: Live Topology Switcher, Conduction Path & Export */}
       <div className="px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 bg-slate-50/70 dark:bg-slate-900/50">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
-            DYNAMIC PFC CAD SCHEMATIC & NODE VISUALIZER
+          <span className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
+            Dynamic PFC CAD Schematic &amp; Node Visualizer
           </span>
           <span className="text-xs font-mono text-slate-600 dark:text-slate-300">
             {state.Vac_rms_V}Vac → {state.Vdc_bus_V}Vdc ({(state.Pout_W / 1e3).toFixed(1)} kW)
@@ -1401,6 +1420,23 @@ export const AcDcSchematicView: React.FC<{
             className="px-2 py-1 text-[11px] font-mono bg-cyan-600 text-white rounded hover:bg-cyan-500 inline-flex items-center gap-1"
           >
             <Download className="w-3 h-3" /> SVG
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const asc = generateAcDcLtspiceAsc(state, res);
+              const blob = new Blob([asc], { type: 'text/plain;charset=utf-8' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `voltcraft_${state.topology}.asc`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="px-2 py-1 text-[11px] font-mono bg-emerald-600 text-white rounded hover:bg-emerald-500 inline-flex items-center gap-1 cursor-pointer"
+            title="Download grid-aligned LTspice .asc schematic diagram"
+          >
+            <Download className="w-3 h-3" /> LTspice .asc
           </button>
           <button
             type="button"
@@ -2194,8 +2230,8 @@ export const AcDcSchematicView: React.FC<{
       <div className="p-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
-              COMPONENT CONNECTION POINT & PIN NETLIST INSPECTOR
+            <span className="text-xs font-medium text-slate-900 dark:text-[#eef0f5]">
+              Component Connection Point &amp; Pin Netlist Inspector
             </span>
             <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30">
               Selected: {activeNode.code}

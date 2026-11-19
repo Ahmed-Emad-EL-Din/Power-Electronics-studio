@@ -83,7 +83,7 @@ const CalcStep: React.FC<ReportStep> = ({
               : 'text-emerald-700'
           }`}
         >
-          {verdict.status === 'fail' ? '✖ ' : verdict.status === 'warn' ? '▲ ' : '● '}
+          <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 align-middle ${verdict.status === 'fail' ? 'bg-rose-600' : verdict.status === 'warn' ? 'bg-amber-600' : 'bg-emerald-600'}`} />
           {verdict.label}
         </span>
       )}
@@ -330,7 +330,7 @@ export const DesignReportModal: React.FC<DesignReportModalProps> = ({
 
         {/* Engineering Selection Rationale Box ("Why Chosen") */}
         <div className="report-avoid-break border border-sky-200 bg-sky-50/70 rounded-md p-3.5 space-y-2">
-          <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold uppercase tracking-wider text-sky-900">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-sky-900">
             <Lightbulb className="w-3.5 h-3.5 text-sky-700 shrink-0" />
             <span>Why Selected — {ch.rationale.heading}</span>
           </div>
@@ -433,13 +433,13 @@ export const DesignReportModal: React.FC<DesignReportModalProps> = ({
                       <td className="py-1.5 px-2.5">
                         {sol.P_total_W.toFixed(1)}W / {sol.T_hotspot_C.toFixed(0)}°C
                       </td>
-                      <td className="py-1.5 px-2.5 font-bold">
+                      <td className="py-1.5 px-2.5 font-medium">
                         {sol.satStatus === 'critical' || sol.windowFitStatus === 'overflow' ? (
-                          <span className="text-rose-700">✖ FAIL</span>
+                          <span className="text-rose-700">Fail</span>
                         ) : sol.satStatus === 'warning' || sol.windowFitStatus === 'tight' ? (
-                          <span className="text-amber-700">▲ TIGHT</span>
+                          <span className="text-amber-700">Tight</span>
                         ) : (
-                          <span className="text-emerald-700">● PASS</span>
+                          <span className="text-emerald-700">Pass</span>
                         )}
                       </td>
                     </tr>
@@ -491,13 +491,13 @@ export const DesignReportModal: React.FC<DesignReportModalProps> = ({
                       <td className="py-1.5 px-2.5">
                         {(sol.L10_life_hrs / 1000).toFixed(0)}k h / {sol.T_hotspot_C.toFixed(0)}°C
                       </td>
-                      <td className="py-1.5 px-2.5 font-bold">
+                      <td className="py-1.5 px-2.5 font-medium">
                         {sol.status === 'critical' ? (
-                          <span className="text-rose-700">✖ FAIL</span>
+                          <span className="text-rose-700">Fail</span>
                         ) : sol.status === 'warning' ? (
-                          <span className="text-amber-700">▲ TIGHT</span>
+                          <span className="text-amber-700">Tight</span>
                         ) : (
-                          <span className="text-emerald-700">● PASS</span>
+                          <span className="text-emerald-700">Pass</span>
                         )}
                       </td>
                     </tr>
@@ -569,9 +569,9 @@ export const DesignReportModal: React.FC<DesignReportModalProps> = ({
                       <tbody className="divide-y divide-slate-200">
                         {scopedAlerts.all.map((a) => (
                           <tr key={a.id}>
-                            <td className="py-1.5 px-2.5 font-bold">
+                            <td className="py-1.5 px-2.5 font-medium">
                               <span className={a.severity === 'danger' ? 'text-rose-700' : 'text-amber-700'}>
-                                {a.severity === 'danger' ? '✖ DANGER' : '▲ WARN'}
+                                {a.severity === 'danger' ? 'Danger' : 'Warning'}
                               </span>
                             </td>
                             <td className="py-1.5 px-2.5">{a.domainLabel}</td>
@@ -740,7 +740,7 @@ export const DesignReportModal: React.FC<DesignReportModalProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
               {includeAcDc && (
                 <div className="border border-slate-200 rounded p-3 bg-slate-50/70">
-                  <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-indigo-800 mb-1.5">
+                  <div className="text-[11px] font-medium text-indigo-800 mb-1.5">
                     Stage A · AC-DC PFC Summary ({acdcState.topology})
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-xs font-mono tabular-nums">
@@ -766,7 +766,7 @@ export const DesignReportModal: React.FC<DesignReportModalProps> = ({
 
               {includeDcDc && (
                 <div className="border border-slate-200 rounded p-3 bg-slate-50/70">
-                  <div className="text-[10px] font-mono font-bold uppercase tracking-wider text-cyan-800 mb-1.5">
+                  <div className="text-[11px] font-medium text-cyan-800 mb-1.5">
                     Stage B · DC-DC Converter Summary ({dcdcState.topology.toUpperCase()})
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-xs font-mono tabular-nums">
@@ -804,7 +804,7 @@ export const DesignReportModal: React.FC<DesignReportModalProps> = ({
           {/* TABLE OF CONTENTS */}
           <section id="toc" className="border border-slate-300 rounded-md p-5 bg-slate-50/60 space-y-3">
             <div className="flex items-center justify-between border-b border-slate-300 pb-2">
-              <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-900">
+              <div className="flex items-center gap-2 text-sm font-medium text-slate-900">
                 <ListTree className="w-4 h-4 text-cyan-700" />
                 <span>Table of Contents</span>
               </div>
@@ -838,7 +838,7 @@ export const DesignReportModal: React.FC<DesignReportModalProps> = ({
                       </span>
                     </div>
                     <span
-                      className={`text-[10px] font-mono font-bold shrink-0 ${
+                      className={`text-[10px] font-mono font-medium shrink-0 ${
                         ch.status === 'fail'
                           ? 'text-rose-700'
                           : ch.status === 'warn'
@@ -846,7 +846,7 @@ export const DesignReportModal: React.FC<DesignReportModalProps> = ({
                           : 'text-emerald-700'
                       }`}
                     >
-                      {ch.status === 'fail' ? '✖ FAIL' : ch.status === 'warn' ? '▲ WARN' : '● PASS'}
+                      {ch.status === 'fail' ? 'Fail' : ch.status === 'warn' ? 'Warn' : 'Pass'}
                     </span>
                   </a>
                 </li>

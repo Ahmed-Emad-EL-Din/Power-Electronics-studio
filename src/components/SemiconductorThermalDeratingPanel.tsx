@@ -215,9 +215,9 @@ export const SemiconductorThermalDeratingPanel: React.FC<
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
         <div>
           <div className="flex items-center gap-2">
-            <Flame className="w-4 h-4 text-amber-400" />
-            <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-amber-400">
-              Real-Time Semiconductor Thermal Derating &amp; Heatsink Impedance Calculator (Rth,hs &amp; Tamb)
+            <Flame className="w-4 h-4 text-amber-500" />
+            <h3 className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
+              Semiconductor Thermal Derating &amp; Heatsink Impedance Calculator (Rth,hs &amp; Tamb)
             </h3>
             <span
               className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded inline-flex items-center gap-1 ${
@@ -588,7 +588,7 @@ export const SemiconductorThermalDeratingPanel: React.FC<
       {/* 1D CAUER THERMAL RESISTANCE NETWORK LADDER VISUALIZER */}
       <div className="bg-slate-950 border border-slate-800 rounded-lg p-3">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-          <div className="text-[11px] font-mono font-bold uppercase tracking-wider text-cyan-400">
+          <div className="text-xs font-medium text-slate-100">
             1D Steady-State Cauer Thermal Resistance Network (Per Primary Switch Position · P_diss ={' '}
             {(totPriHot_W / totalPriPositions).toFixed(2)} W/pos)
           </div>
