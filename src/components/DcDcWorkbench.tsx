@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   DcDcDesignState,
   DCDC_PRESETS,
+  ACDC_PRESETS,
+  AcDcDesignState,
   CORE_DATABASE,
   MATERIAL_DATABASE,
   SEMICONDUCTOR_DATABASE,
@@ -11,7 +13,9 @@ import {
   ClampVariantType,
   DcDcControlType,
 } from '../data/databases';
+import { AcDcResults, solveAcDcDesign } from '../engine/acdcEngine';
 import { DcDcResults } from '../engine/dcdcEngine';
+import { TransientAndMonteCarloLab } from './TransientAndMonteCarloLab';
 import { DcDcSchematicView } from './CircuitSchematics';
 import { InteractiveChart } from './InteractiveChart';
 import { BodeStabilityGraph } from './BodeStabilityGraph';
@@ -37,6 +41,7 @@ import { Copy, Check, CheckCircle2, Zap, Activity, Cpu, Layers, Flame, ShieldChe
 
 export type DcDcSubTab =
   | 'schematic'
+  | 'scope-sim'
   | 'graphs'
   | 'thermal'
   | 'control'
@@ -54,6 +59,8 @@ interface DcDcWorkbenchProps {
   onChange: (next: DcDcDesignState) => void;
   res: DcDcResults;
   pinnedRes: DcDcResults | null;
+  acdcState?: AcDcDesignState;
+  acdcRes?: AcDcResults;
   onOpenPartDrawer?: () => void;
   onOpenSmallSignalLab?: () => void;
   activeSubTab?: DcDcSubTab;
@@ -67,6 +74,8 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
   onChange,
   res,
   pinnedRes,
+  acdcState,
+  acdcRes,
   onOpenPartDrawer,
   onOpenSmallSignalLab,
   activeSubTab,
@@ -1485,6 +1494,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
           {(
             [
               { id: 'schematic', label: 'Schematic & Equations', icon: <Zap className="w-3.5 h-3.5" /> },
+              { id: 'scope-sim', label: 'Scope & Sim (ODE/MC/SPICE)', icon: <Activity className="w-3.5 h-3.5" /> },
               { id: 'graphs', label: 'ZVS & Tank Graphs', icon: <Activity className="w-3.5 h-3.5" /> },
               { id: 'thermal', label: 'Electro-Thermal', icon: <Flame className="w-3.5 h-3.5" /> },
               { id: 'control', label: 'Control & DSP', icon: <Cpu className="w-3.5 h-3.5" /> },
@@ -1642,6 +1652,17 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
               onChange={onChange}
             />
           </div>
+        )}
+
+        {/* SUB-TAB 1B: 4-CHANNEL OSCILLOSCOPE, RK4 TRANSIENT ODE, MONTE CARLO & SPICE EXPORTER */}
+        {subTab === 'scope-sim' && (
+          <TransientAndMonteCarloLab
+            dcdcState={state}
+            dcdcRes={res}
+            pinnedDcdcRes={pinnedRes}
+            acdcState={acdcState ?? ACDC_PRESETS[0].state}
+            acdcRes={acdcRes ?? solveAcDcDesign(ACDC_PRESETS[0].state)}
+          />
         )}
 
         {/* SUB-TAB 2: INTERACTIVE DESIGN GRAPHS WITH DYNAMIC ZOOM-OUT EVALUATORS & ZVS TRICKS */}

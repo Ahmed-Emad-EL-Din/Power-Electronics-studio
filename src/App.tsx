@@ -49,6 +49,30 @@ import {
   useDesignSolver,
 } from './components/DesignSolverContext';
 import {
+  SystemLinkConfig,
+  computeCoupledStagePatches,
+  solveSystemCascade,
+} from './engine/systemCascadeEngine';
+import {
+  SavedProjectEntry,
+  StudioWorkspaceSnapshot,
+  buildProjectFile,
+  createHistory,
+  deleteSavedProject,
+  loadSavedProjects,
+  parseImportedProjectJson,
+  pushHistoryState,
+  redoHistory,
+  saveAutosaveProject,
+  saveNamedProject,
+  undoHistory,
+} from './engine/projectStorage';
+import {
+  generateAcDcSpiceNetlist,
+  generateControlFirmwareHeader,
+  generateDcDcSpiceNetlist,
+} from './engine/spiceNetlistExporter';
+import {
   Pin,
   RotateCcw,
   Sun,
@@ -66,6 +90,13 @@ import {
   X,
   Bot,
   KeyRound,
+  Undo2,
+  Redo2,
+  FolderOpen,
+  Link2,
+  Upload,
+  Save,
+  Trash2,
 } from 'lucide-react';
 
 export default function App() {
@@ -176,6 +207,28 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
   const [pinnedAcdc, setPinnedAcdc] = useState<AcDcDesignState | null>(null);
   const [pinnedDcdc, setPinnedDcdc] = useState<DcDcDesignState | null>(null);
 
+  // 2-Stage System Cascade Coupling & Project Persistence / Undo-Redo
+  const [systemLink, setSystemLink] = useState<SystemLinkConfig>({
+    linkBusVoltage: false,
+    linkLoadPower: false,
+  });
+  const [projectsModalOpen, setProjectsModalOpen] = useState<boolean>(false);
+  const [savedProjects, setSavedProjects] = useState<SavedProjectEntry[]>(() => loadSavedProjects());
+  const [projectNameInput, setProjectNameInput] = useState<string>('');
+  const [projectImportStatus, setProjectImportStatus] = useState<string | null>(null);
+  const jsonFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const [historyStack, setHistoryStack] = useState(() =>
+    createHistory<StudioWorkspaceSnapshot>({
+      dcdcState,
+      acdcState,
+      inductorConfigs,
+      capacitorConfigs,
+      systemLink: { linkBusVoltage: false, linkLoadPower: false },
+    })
+  );
+  const isApplyingHistoryRef = useRef<boolean>(false);
+
   useEffect(() => {
     hydrateCustomSemiconductors();
     setDbVersion((v) => v + 1);
@@ -198,6 +251,101 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
 
   const acdcRes = useMemo(() => solveAcDcDesign(acdcState), [acdcState, dbVersion]);
   const dcdcRes = useMemo(() => solveDcDcDesign(dcdcState), [dcdcState, dbVersion]);
+
+  const systemCascade = useMemo(
+    () => solveSystemCascade(acdcState, acdcRes, dcdcState, dcdcRes),
+    [acdcState, acdcRes, dcdcState, dcdcRes]
+  );
+
+  // Sync AC-DC <-> DC-DC stages when Stage Bus / Load Link is enabled
+  useEffect(() => {
+    if (!systemLink.linkBusVoltage && !systemLink.linkLoadPower) return;
+    const { dcdcPatch, acdcPatch } = computeCoupledStagePatches({
+      acdcState,
+      acdcRes,
+      dcdcState,
+      dcdcRes,
+      linkConfig: systemLink,
+    });
+    if (dcdcPatch) {
+      applyDcdcPatch(dcdcPatch, null, { bypassAutoOpt: true });
+    }
+    if (acdcPatch) {
+      applyAcdcPatch(acdcPatch, null, { bypassAutoOpt: true });
+    }
+  }, [
+    systemLink,
+    acdcState.Vdc_bus_V,
+    acdcState.Vdc_min_hold_V,
+    acdcRes.Vdc_ripple_pp_V,
+    dcdcState.Pout_W,
+    dcdcRes.efficiency_pct,
+  ]);
+
+  // Track Undo/Redo history & autosave whenever design state changes
+  useEffect(() => {
+    const snap: StudioWorkspaceSnapshot = {
+      dcdcState,
+      acdcState,
+      inductorConfigs,
+      capacitorConfigs,
+      systemLink,
+    };
+    saveAutosaveProject(snap);
+    if (isApplyingHistoryRef.current) {
+      isApplyingHistoryRef.current = false;
+      return;
+    }
+    setHistoryStack((prev) => pushHistoryState(prev, snap));
+  }, [dcdcState, acdcState, inductorConfigs, capacitorConfigs, systemLink]);
+
+  const applyWorkspaceSnapshot = (snap: StudioWorkspaceSnapshot) => {
+    isApplyingHistoryRef.current = true;
+    clearDcdcChanges();
+    clearAcdcChanges();
+    setDcdcState({ ...snap.dcdcState });
+    setAcdcState({ ...snap.acdcState });
+    replaceInductorConfigs({ ...snap.inductorConfigs });
+    replaceCapacitorConfigs({ ...snap.capacitorConfigs });
+    setSystemLink({ ...snap.systemLink });
+  };
+
+  const handleUndo = () => {
+    if (historyStack.past.length === 0) return;
+    const nextStack = undoHistory(historyStack);
+    setHistoryStack(nextStack);
+    applyWorkspaceSnapshot(nextStack.present);
+  };
+
+  const handleRedo = () => {
+    if (historyStack.future.length === 0) return;
+    const nextStack = redoHistory(historyStack);
+    setHistoryStack(nextStack);
+    applyWorkspaceSnapshot(nextStack.present);
+  };
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isInput =
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.tagName === 'SELECT';
+      if (isInput) return;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) handleRedo();
+        else handleUndo();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        handleRedo();
+      } else if (e.key === 'Escape' && projectsModalOpen) {
+        setProjectsModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  });
 
   const pinnedAcdcRes = useMemo(
     () => (pinnedAcdc ? solveAcDcDesign(pinnedAcdc) : null),
@@ -710,6 +858,111 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
     URL.revokeObjectURL(url);
   };
 
+  const handleExportFullProjectJson = () => {
+    const file = buildProjectFile(projectNameInput || dcdcState.presetName || 'VoltCraft Project', {
+      dcdcState,
+      acdcState,
+      inductorConfigs,
+      capacitorConfigs,
+      systemLink,
+    });
+    const blob = new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `voltcraft_project_v2.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportActiveSpice = () => {
+    const text =
+      domainTab === 'acdc'
+        ? generateAcDcSpiceNetlist(acdcState, acdcRes)
+        : generateDcDcSpiceNetlist(dcdcState, dcdcRes);
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download =
+      domainTab === 'acdc'
+        ? `voltcraft_${acdcState.topology}.cir`
+        : `voltcraft_${dcdcState.topology}.cir`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportFirmwareHeader = () => {
+    const text = generateControlFirmwareHeader(dcdcState, dcdcRes, acdcState, acdcRes);
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'powerstage_control_cfg.h';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleSaveNamedProject = () => {
+    const name = projectNameInput.trim() || `${dcdcState.presetName} (${dcdcState.Pout_W}W)`;
+    const updated = saveNamedProject(name, {
+      dcdcState,
+      acdcState,
+      inductorConfigs,
+      capacitorConfigs,
+      systemLink,
+    });
+    setSavedProjects(updated);
+    setProjectNameInput('');
+    setProjectImportStatus(`Saved "${name}" to browser workspace.`);
+  };
+
+  const handleLoadSavedProject = (entry: SavedProjectEntry) => {
+    applyWorkspaceSnapshot({
+      dcdcState: entry.project.dcdcState,
+      acdcState: entry.project.acdcState,
+      inductorConfigs: entry.project.inductorConfigs || {},
+      capacitorConfigs: entry.project.capacitorConfigs || {},
+      systemLink: entry.project.systemLink || { linkBusVoltage: false, linkLoadPower: false },
+    });
+    setProjectImportStatus(`Loaded "${entry.name}".`);
+    setProjectsModalOpen(false);
+  };
+
+  const handleDeleteSavedProject = (id: string) => {
+    setSavedProjects(deleteSavedProject(id));
+  };
+
+  const handleImportJsonFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = typeof reader.result === 'string' ? reader.result : '';
+      const parsed = parseImportedProjectJson(text, {
+        dcdcState,
+        acdcState,
+        inductorConfigs,
+        capacitorConfigs,
+        systemLink,
+      });
+      if (!parsed.ok) {
+        setProjectImportStatus(`Import failed: ${parsed.error}`);
+        return;
+      }
+      applyWorkspaceSnapshot({
+        dcdcState: parsed.project.dcdcState,
+        acdcState: parsed.project.acdcState,
+        inductorConfigs: parsed.project.inductorConfigs,
+        capacitorConfigs: parsed.project.capacitorConfigs,
+        systemLink: parsed.project.systemLink,
+      });
+      setProjectImportStatus(`Imported ${parsed.importKind}: "${parsed.project.name}".`);
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   const handleEquipDcDcPrimary = (part: SemiconductorSpec) => {
     setDbVersion((v) => v + 1);
     applyDcdcPatch(
@@ -1145,9 +1398,44 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
 
           <button
             type="button"
+            onClick={handleUndo}
+            disabled={historyStack.past.length === 0}
+            className="h-8 w-8 rounded-md bg-white dark:bg-[#131A26] border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700 disabled:opacity-40 inline-flex items-center justify-center shrink-0 cursor-pointer transition-colors"
+            title="Undo last design edit (Ctrl+Z)"
+            aria-label="Undo"
+          >
+            <Undo2 className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={handleRedo}
+            disabled={historyStack.future.length === 0}
+            className="h-8 w-8 rounded-md bg-white dark:bg-[#131A26] border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700 disabled:opacity-40 inline-flex items-center justify-center shrink-0 cursor-pointer transition-colors"
+            title="Redo design edit (Ctrl+Shift+Z)"
+            aria-label="Redo"
+          >
+            <Redo2 className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setProjectImportStatus(null);
+              setProjectsModalOpen(true);
+            }}
+            className="h-8 px-2.5 text-xs font-medium rounded-md bg-white dark:bg-[#131A26] border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-cyan-500/60 inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-colors"
+            title="Save/Load Projects, Import JSON, Export SPICE (.cir) & Embedded C Header (.h)"
+          >
+            <FolderOpen className="w-3.5 h-3.5 text-cyan-500" />
+            <span>Projects</span>
+          </button>
+
+          <button
+            type="button"
             onClick={handleExportJson}
             className="h-8 px-2.5 text-xs font-medium rounded-md bg-white dark:bg-[#131A26] border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700 inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-colors"
-            title="Export design specification as JSON"
+            title="Export active domain specification as JSON"
           >
             <Download className="w-3.5 h-3.5" />
             Export
@@ -1179,6 +1467,67 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
         </div>
       </header>
 
+      {/* 2-STAGE SYSTEM CASCADE LINK & EFFICIENCY STRIP */}
+      <div className="no-print bg-slate-100/90 dark:bg-[#0B0F17] border-b border-slate-200 dark:border-slate-800/80 px-4 lg:px-6 py-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-300">
+            <Link2 className="w-3.5 h-3.5 text-cyan-500" />
+            2-Stage Cascade:
+          </span>
+          <button
+            type="button"
+            onClick={() =>
+              setSystemLink((s) => ({ ...s, linkBusVoltage: !s.linkBusVoltage }))
+            }
+            className={`px-2 py-0.5 rounded border cursor-pointer transition-colors ${
+              systemLink.linkBusVoltage
+                ? 'bg-cyan-600 border-cyan-600 text-white font-semibold'
+                : 'bg-white dark:bg-[#131A26] border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+            }`}
+            title="Propagate AC-DC Vdc_bus & ripple directly into DC-DC Vin_nom/min/max"
+          >
+            Link Bus V ({acdcState.Vdc_bus_V}V → {dcdcState.Vin_nom_V}V)
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              setSystemLink((s) => ({ ...s, linkLoadPower: !s.linkLoadPower }))
+            }
+            className={`px-2 py-0.5 rounded border cursor-pointer transition-colors ${
+              systemLink.linkLoadPower
+                ? 'bg-emerald-600 border-emerald-600 text-white font-semibold'
+                : 'bg-white dark:bg-[#131A26] border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+            }`}
+            title="Propagate DC-DC Pout / η_dcdc back into AC-DC PFC output power"
+          >
+            Link Load P ({systemCascade.P_pfc_required_W.toFixed(0)}W)
+          </button>
+          {!systemLink.linkBusVoltage && systemCascade.busVoltageMismatch_V > 5 && (
+            <span className="text-amber-600 dark:text-amber-400">
+              ΔBus = {systemCascade.busVoltageMismatch_V}V
+            </span>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 tabular-nums text-slate-600 dark:text-slate-300">
+          <span>
+            η_sys: <strong className="text-emerald-600 dark:text-emerald-400">{systemCascade.eta_system_pct}%</strong>
+          </span>
+          <span>
+            P_in(AC): <strong>{systemCascade.Pin_ac_system_W.toFixed(0)}W</strong>
+          </span>
+          <span>
+            P_loss(Total): <strong className="text-amber-600 dark:text-amber-400">{systemCascade.Ploss_system_W.toFixed(1)}W</strong>{' '}
+            <span className="text-slate-400">
+              (PFC {systemCascade.acdcLossShare_pct}% / DC-DC {systemCascade.dcdcLossShare_pct}%)
+            </span>
+          </span>
+          <span>
+            I_AC(nom): <strong>{systemCascade.Iac_system_rms_nom_A}A</strong>
+          </span>
+        </div>
+      </div>
+
       {/* WORKBENCH + COLLAPSIBLE RIGHT-SIDE AI ENGINEER DRAWER */}
       <div className="flex-1 flex items-start min-w-0">
         <main className="flex-1 min-w-0 max-w-[1640px] w-full mx-auto p-4 lg:p-5">
@@ -1201,6 +1550,8 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
               onChange={setDcdcState}
               res={dcdcRes}
               pinnedRes={pinnedDcdcRes}
+              acdcState={acdcState}
+              acdcRes={acdcRes}
               onOpenPartDrawer={() => setDrawerOpen(true)}
               onOpenSmallSignalLab={() => setDomainTab('small-signal')}
               activeSubTab={dcdcSubTab}
@@ -1318,6 +1669,162 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
               onChangeAiConfig={handleChangeAiConfig}
               onClose={() => setAiKeysModalOpen(false)}
             />
+          </div>
+        </div>
+      )}
+
+      {/* PROJECTS, JSON IMPORT & SPICE/FIRMWARE EXPORT MODAL */}
+      {projectsModalOpen && (
+        <div
+          className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-[2px]"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Projects, Import and Engineering Export"
+          onClick={() => setProjectsModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-2xl rounded-lg shadow-2xl bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-700 overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0B0F17] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FolderOpen className="w-4 h-4 text-cyan-500" />
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  Projects, JSON Import &amp; Simulation Exports
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setProjectsModalOpen(false)}
+                className="h-7 w-7 rounded border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 inline-flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4 max-h-[78vh] overflow-y-auto">
+              {/* Save Current Workspace */}
+              <div className="space-y-2">
+                <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                  Save Current 2-Stage Workspace
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={projectNameInput}
+                    onChange={(e) => setProjectNameInput(e.target.value)}
+                    placeholder={`${dcdcState.presetName} (${dcdcState.Pout_W}W)`}
+                    className="flex-1 px-3 py-1.5 text-xs font-mono rounded border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-[#090C12]"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveNamedProject}
+                    className="px-3 py-1.5 text-xs font-semibold rounded bg-cyan-600 hover:bg-cyan-500 text-white inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    Save Slot
+                  </button>
+                </div>
+              </div>
+
+              {/* Import / Export Actions */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <input
+                  ref={jsonFileInputRef}
+                  type="file"
+                  accept=".json,application/json"
+                  onChange={handleImportJsonFile}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => jsonFileInputRef.current?.click()}
+                  className="px-2.5 py-2 text-xs font-mono rounded border border-cyan-500/40 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  Import JSON
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportFullProjectJson}
+                  className="px-2.5 py-2 text-xs font-mono rounded border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 hover:border-cyan-500 inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Project .json
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportActiveSpice}
+                  className="px-2.5 py-2 text-xs font-mono rounded border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  SPICE .cir
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportFirmwareHeader}
+                  className="px-2.5 py-2 text-xs font-mono rounded border border-purple-500/40 bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  DSP Config .h
+                </button>
+              </div>
+
+              {projectImportStatus && (
+                <div className="px-3 py-2 rounded border border-cyan-500/30 bg-cyan-500/10 text-xs font-mono text-cyan-700 dark:text-cyan-300">
+                  {projectImportStatus}
+                </div>
+              )}
+
+              {/* Saved Browser Projects */}
+              <div className="space-y-2">
+                <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                  Saved Projects ({savedProjects.length})
+                </div>
+                {savedProjects.length === 0 ? (
+                  <div className="p-4 rounded border border-dashed border-slate-300 dark:border-slate-700 text-xs text-slate-500 text-center">
+                    No saved project slots yet. Click &quot;Save Slot&quot; above to store your current design.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-200 dark:divide-slate-800 border border-slate-200 dark:border-slate-800 rounded-md overflow-hidden">
+                    {savedProjects.map((entry) => (
+                      <div
+                        key={entry.id}
+                        className="px-3 py-2 bg-white dark:bg-[#0B0F17] flex items-center justify-between gap-2"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">
+                            {entry.name}
+                          </div>
+                          <div className="text-[10px] font-mono text-slate-500 truncate">
+                            {entry.project.dcdcState.topology.toUpperCase()} {entry.project.dcdcState.Vin_nom_V}V→
+                            {entry.project.dcdcState.Vout_V}V ({entry.project.dcdcState.Pout_W}W) ·{' '}
+                            {new Date(entry.savedAt).toLocaleString()}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleLoadSavedProject(entry)}
+                            className="px-2.5 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-semibold cursor-pointer"
+                          >
+                            Load
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSavedProject(entry.id)}
+                            className="p-1 rounded border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-500 cursor-pointer"
+                            title="Delete saved project"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}

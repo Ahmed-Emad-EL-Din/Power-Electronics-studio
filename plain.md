@@ -1,107 +1,226 @@
-# Power Electronics Studio — Engineering Accuracy, Stability & Multi-Provider AI Master Plan
+# Power Electronics Studio (VoltCraft) — Complete Master Development Plan
 
-> Living engineering checklist. Every task is checked (`[x]`) immediately upon completion and verification.
-
----
-
-## Baseline & Environment Setup (Completed Prior)
-- [x] Migrate project dependencies & dev server from Bun to Node.js 22 + npm (`/.env.example`, remove `/bun.lock`, configure `server.ts` on `0.0.0.0:3000`)
-- [x] Complete full-codebase engineering audit across `dcdcEngine.ts`, `autoOptimizer.ts`, `designAlerts.ts`, `designFixSynthesizer.ts`, `databases.ts`, `designReportModel.ts`, `pdfReportBuilder.ts`, `SmallSignalDashboard.tsx`, `AiProviderSettingsPanel.tsx`, and `server.ts`
-- [x] Run baseline test suite (`npx tsx --test src/engine/dcdcSolver.test.ts`) to capture exact initial failures (3 failures: PC95 `PQ50/50` core loss, `Auto-Optimizer` retaining `EE70/33/32` at 7.1% utilization, and `dcdc-core-oversized` 1-click compact core fix returning empty)
-
----
-
-## Task 1 — Steinmetz iGSE & Thermal `Pcore` Model Calibration (`dcdcEngine.ts`, `databases.ts`)
-- [x] Verify TDK `PC95` flat-temperature Steinmetz parabolic coefficient (`tempCoeff_c2`, `T_opt_C`) against real TDK PC95 datasheet behavior (`25–120°C` flat curve) so solved `Pcore_se_W` on `PQ50/50` (`100 kHz`, `73.2 mT`, `Np=30/Ns=5`) matches physical `~4.68–6.5 W` without artificial thermal runaway distortion
-- [x] Audit primary RMS current circulating factor `Ipri_rms_A` in `dcdcEngine.ts` (`sqrt(Deff + (1 - Deff) * 0.72) * 1.02` vs hardcoded `1.09` and FHA RMS for LLC) so primary copper loss `Pcu_pri` reflects actual PSFB/LLC conduction duty and freewheeling decay
-- [x] Re-run `npx tsx --test src/engine/dcdcSolver.test.ts` and confirm Test 1 (`Steinmetz iGSE: TDK PC95 PQ 50/50`) passes cleanly
+> **Living Engineering Checklist.** Every task is tracked with `[ ]` / `[x]` and checked off immediately upon implementation and automated verification (`npm run lint`, `npm run build`, and unit tests).
+>
+> **Architecture & Deep-Dive Blueprints (`docs/`):**
+> - [`docs/01-LOGIC-AND-ARCHITECTURE.md`](./docs/01-LOGIC-AND-ARCHITECTURE.md) — State coupling, undo/redo, persistence, validation, test architecture
+> - [`docs/02-CALCULATION-AND-PHYSICS.md`](./docs/02-CALCULATION-AND-PHYSICS.md) — Multi-stage physics, thermal RC networks, Monte Carlo, new topologies
+> - [`docs/03-DESIGN-AND-GUI.md`](./docs/03-DESIGN-AND-GUI.md) — Workbench UX, project manager, BOM rollup, interactive schematic probing
+> - [`docs/04-GRAPH-TOOLS-AND-VISUALIZATION.md`](./docs/04-GRAPH-TOOLS-AND-VISUALIZATION.md) — 4-channel oscilloscope, 2D efficiency heatmaps, Monte Carlo histograms, CSV/SVG
+> - [`docs/05-AI-AND-AGENT.md`](./docs/05-AI-AND-AGENT.md) — Compact telemetry, audit presets, what-if trade-off sweeps, multi-provider resilience
+> - [`docs/06-MODELING-SIMULATION-AND-EXPORT.md`](./docs/06-MODELING-SIMULATION-AND-EXPORT.md) — RK4 switched ODE transient solver, SPICE `.cir` export, C2000/STM32 `.h` firmware, KiCad BOM
 
 ---
 
-## Task 2 — Turns Ratio Sync, Duty Loss, Low-Line Envelope & Secondary Ringing Math (`dcdcEngine.ts`)
-- [x] Add worst-case low-line (`Vin_min_V`) duty computation (`Deff_max`, `Dloss_max`, `D_applied_max`) and subharmonic quality factor (`Qp_subharmonic_wc`, `slopeStable_wc`, `mc_min_recommended`) to `DcDcResults` in `dcdcEngine.ts`
-- [x] Audit center-tapped vs full-bridge vs current-doubler secondary RMS currents, `Vsec_ideal_max_V`, and `Vsec_unclamped_pk_V` across all 4 DC-DC topologies (`psfb-1ph`, `psfb-2ph`, `llc-fb`, `llc-hb`)
-- [x] Ensure integer turns (`Np_turns / Ns_turns`) and `turnsRatio_n` remain 100% locked in sync across manual edits, optimizer passes, and solver outputs
+## Completed Foundation (Tasks 1–10)
+
+### Task 1 — Steinmetz iGSE & Thermal `Pcore` Model Calibration
+- [x] Calibrate TDK `PC95` flat-temperature Steinmetz parabolic curve (`tempCoeff_c2`, `T_opt_C`) in `databases.ts`
+- [x] Audit primary RMS circulating current factor `Ipri_rms_A` in `dcdcEngine.ts`
+- [x] Verify Steinmetz iGSE `PQ50/50` test passes
+
+### Task 2 — Turns Ratio Sync, Duty Loss & Secondary Ringing Math
+- [x] Compute worst-case low-line (`Vin_min_V`) duty saturation (`Deff_max`, `Dloss_max`, `D_applied_max`) and subharmonic `Qp_subharmonic_wc`
+- [x] Audit secondary RMS currents & unclamped ringing (`Vsec_unclamped_pk_V`) across all 4 DC-DC topologies
+- [x] Synchronize integer `Np_turns / Ns_turns` and `turnsRatio_n` across edits, optimizer, and solver
+
+### Task 3 — Control Loop Compensator RC Scaling & Type-II vs Type-III Accuracy
+- [x] Enforce C0G/NP0-friendly op-amp RC scaling (`R1 >= 4.7kΩ`, `R2 ∈ [10,220]kΩ`, `C1 <= 47nF`, `C2 >= 15pF`)
+- [x] Gate PCMC slope ramp comments in `dspCode` strictly on `controlType === 'pcmc'`
+- [x] Mark Type-II vs Type-III fields cleanly in `SmallSignalDashboard.tsx`
+
+### Task 4 — Auto-Optimizer & 1-Click Compact Core Fix Synthesizer
+- [x] Account for center-tapped doubled secondary windings in `maxWindowSec`
+- [x] Improve `autoOptimizer.ts` transformer search, 200 V SR selection, and low-line `slopeFactor_mc` tuning
+- [x] Synthesize reliable 1-click compact core fixes in `designFixSynthesizer.ts`
+
+### Task 5 — Design Alerts & Engineering Report / PDF Final Audit Synchronization
+- [x] Harden `evaluateDesignAlerts` for low-line PCMC stability, oversized core, `fc` near `f0`, duty saturation, and SR voltage margin
+- [x] Synchronize `designReportModel.ts` (`ch-dcdc-specs`, `ch-audit`), `pdfReportBuilder.ts`, and `DesignReportModal.tsx`
+
+### Task 6 — Audit & Upgrade Built-In Presets
+- [x] Upgrade `DCDC_PRESETS[0]` to 200 V SR (`IPP110N20N3`) with 0 Danger / 0 Warning
+- [x] Audit all `DCDC_PRESETS` and `ACDC_PRESETS` for clean baseline solves
+
+### Task 7 — Multi-Provider AI API Key Experience & Proxy Hardening
+- [x] Add top-bar `AI Keys` trigger & modal supporting Gemini, OpenAI, Anthropic, and OpenAI-Compatible providers
+- [x] Harden `/api/ai-agent` and `/api/component-search` for reasoning models (`o1/o3/o4-mini/gpt-5*`) and error formatting
+
+### Task 8 — Test Suite Expansion (Baseline)
+- [x] Expand `dcdcSolver.test.ts` covering alerts, low-line stability, presets, and RC bounds
+
+### Task 9 — Human-Readable KaTeX Mathematical Rendering in PDF Report
+- [x] Implement `calcStringToTex` and self-contained browser KaTeX-to-PNG rasterizer in `pdfReportBuilder.ts`
+- [x] Validate 100% strict KaTeX parsing across all presets and report chapters
+
+### Task 10 — Gemini API Key Sanitization & Model Fallback
+- [x] Gate `thinkingConfig.thinkingLevel` strictly on Gemini 3/4 models and add automatic `gemini-2.5-flash` fallback
+- [x] Add `gemini-2.5-flash`/`pro` chips and strip quotes/whitespace from pasted keys
 
 ---
 
-## Task 3 — Control Loop Compensator RC Scaling, Crossover Frequency & Type-II vs Type-III Accuracy (`dcdcEngine.ts`, `SmallSignalDashboard.tsx`)
-- [x] Harden analog op-amp compensator impedance scaling in `dcdcEngine.ts` so across all control modes (`pcmc`, `2p2z`, `type-iii`, `acmc`, `cascaded-pi`, `charge-control`, `mpc`) and wide `fc_target_kHz` / `Vout_V` ranges: `R1 >= 4.7 kΩ`, `R2` stays in `10–220 kΩ`, `C1 <= 47 nF` (C0G/NP0 friendly), and `C2 >= 15 pF` while preserving exact `fz1/fp1`
-- [x] Fix `dspCode` generator bug in `dcdcEngine.ts` so PCMC slope ramp comment (`Se`, `mc`, `Qp`) is emitted ONLY when `controlType === 'pcmc'` (not for `2p2z`, `acmc`, `cascaded-pi`, `charge-control`, or `mpc`)
-- [x] Update `SmallSignalDashboard.tsx` synthesized compensator card so `R3`, `C3`, `f_z2`, and `f_p2` clearly indicate `N/A (2P2Z)` when `!dcdcRes.isTwoZeroComp` (matching Type-II vs Type-III topology accurately)
+## Phase A — Logic, Architecture & System Coupling
+
+### Task 11 — 2-Stage System Bus Coupling (`AC-DC PFC` ↔ `Isolated DC-DC`)
+- [x] Build `src/engine/systemCascadeEngine.ts` to couple AC-DC PFC output (`Vdc_bus_V`, `Vdc_ripple_pp_V`) into DC-DC input (`Vin_nom_V`, `Vin_min_V`, `Vin_max_V`) when System Link is enabled
+- [x] Compute true cascaded system metrics (`eta_sys_pct`, `Ptotal_loss_sys_W`, `P_pfc_required_W`, `Iin_ac_system_A`, system hold-up time margin, and bottleneck stage identification)
+- [x] Add bidirectional propagation mode (`Link DC-DC Load → AC-DC Pout` and `Link PFC Bus → DC-DC Vin`) with clear lock indicators in the UI
+- [x] Add automated unit tests verifying cascaded efficiency, ripple voltage propagation, and power balance conservation
+
+### Task 12 — Project Persistence, JSON Import/Export & Undo/Redo History
+- [x] Build `src/engine/projectStorage.ts` defining a versioned `PowerStudioProjectFile` schema (`schemaVersion: 2`, `dcdcState`, `acdcState`, `inductorConfigs`, `capacitorConfigs`, `systemLinkConfig`, metadata)
+- [x] Implement browser `localStorage` autosave recovery + named multi-project slots (Save, Rename, Duplicate, Delete, Load)
+- [x] Implement safe JSON file import with structural validation & backward compatibility for v1 single-domain exports
+- [x] Implement bounded Undo / Redo state stack (`Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y`) across `dcdcState`, `acdcState`, and passive configs
+
+### Task 13 — Dependency Hygiene, Modular Engine Split & Expanded Test Suite
+- [ ] Resolve `vite@8` vs `esbuild` peer dependency alignment in `package.json` so `npm install` runs cleanly without `--legacy-peer-deps`
+- [ ] Add dedicated unit test files: `acdcSolver.test.ts`, `passiveDesign.test.ts`, `systemCascade.test.ts`, and `simulationExport.test.ts`
+- [ ] Add CI validation script (`npm run verify`) running `tsc --noEmit`, all `tsx --test` suites, and `vite build`
+- [ ] Refactor oversized `dcdcEngine.ts` (2,600+ lines) into cohesive sub-modules (`magneticsSolver.ts`, `thermalSolver.ts`, `smallSignalSolver.ts`, `waveformSolver.ts`) while preserving public API exports
 
 ---
 
-## Task 4 — Auto-Optimizer & 1-Click Compact Core Fix Synthesizer (`autoOptimizer.ts`, `designFixSynthesizer.ts`)
-- [x] Fix `maxWindowSec` in `autoOptimizer.ts` & `designFixSynthesizer.ts` to account for center-tapped doubled secondary windings (`isCT ? 2 : 1`) so secondary strand sizing does not overflow compact core windows (`PQ 50/50`, `ETD 59`, `EE 55/28/21`, `ETD 49`)
-- [x] Improve `autoOptimizer.ts` transformer search (`turnPairs`, `secTryVariants`, `interleaveModes`, actual Steinmetz material selection, and `Ap_req` candidate filtering) and scoring penalty so compact cores (`utilization_100C_pct >= 12%`) consistently beat oversized `EE 70/33/32` at both `100 kHz` and `200 kHz` for `center-tapped` and `full-bridge`
-- [x] Upgrade `autoOptimizer.ts` secondary MOSFET selector and control tuning:
-  - [x] Select `200 V` SR (`IPP110N20N3` / `BSC160N20NSFD`) whenever `150 V` devices lack sufficient unclamped ringing margin (`Vsec_unclamped_pk_V > 0.88 * Vds_max`), adjusting `nParallelSec` appropriately
-  - [x] Auto-tune `slopeFactor_mc` against **worst-case low-line** `D'_min` so `Qp_subharmonic_wc <= 1.20` and `Qp_subharmonic <= 1.20`
-  - [x] Keep unlocked `fc_target_kHz >= max(5.0, 2.2 * f0_lc_kHz)` (safely capped below `fsw / 6.5`) with a closed-loop PM/GM guard so crossover never collapses onto `f_0`
-- [x] Fix `synthesizeDcdcCompactCoreFixes` in `designFixSynthesizer.ts` to sweep multiple strand counts, Litz AWGs, interleaving modes (`full-interleaved`, `split-pri`), and turn pairs so valid 1-click compact core fixes are always synthesized when `dcdc-core-oversized` triggers
+## Phase B — Calculation & Physics Accuracy
+
+### Task 14 — High-Resolution Multi-Channel Switching Cycle Waveform Physics
+- [x] Upgrade `WaveformPoint` & `evalFullWaveforms(t_us)` in `dcdcEngine.ts` to compute authentic cycle-by-cycle `v_pri_V`, `i_pri_A`, `v_sec_V`, `i_lo_A`, `i_lm_A` (magnetizing ramp), and `v_cr_V` (resonant capacitor voltage for LLC / clamping plateau for PSFB)
+- [x] Model PSFB dead-time $C_{\text{oss}}$ resonant charging transition (`v_pri` finite slew rate) and leakage-inductance duty-loss current commutation interval accurately
+- [x] Model LLC switching above/at/below resonance ($f_{\text{sw}} > f_r$, $f_{\text{sw}} = f_r$, $f_{\text{sw}} < f_r$ DCM secondary current clamping) in `evalFullWaveforms`
+- [ ] Validate RMS and average values integrated numerically over `evalFullWaveforms` against closed-form analytical `Ipri_rms_A`, `Iout_phase_A`, and `Im_pk_A`
+
+### Task 15 — Monte Carlo Tolerance & Worst-Case Corner Analysis Engine
+- [x] Build `src/engine/monteCarloEngine.ts` with deterministic seeded PRNG (Mulberry32) and Box-Muller Gaussian sampling
+- [x] Support configurable component tolerances (`Llk ±10%`, `Lm ±15%`, `Lo ±10%`, `Co ±20%`, `ESR ±25%`, `Rds_on ±15%`, `Bsat ±10%`, `Vin`, `Tamb`)
+- [x] Compute statistical yield (`passRate_pct`), mean, std-dev, 5th/95th/99th percentiles, and worst-case corner vectors for: `efficiency_pct`, `Tj_pri_C`, `Tj_sec_C`, `Bpk_mT` saturation margin, `pm_actual_deg`, `Qp_subharmonic_wc`, `zvsEnergyRatio_pct`, and `Vout_ripple_mVpp`
+- [x] Identify top sensitivity drivers (Pearson correlation / tornado ranking of which tolerance drives each failure mode)
+
+### Task 16 — Thermal RC Cauer/Foster Network & Transient Overload Modeling
+- [ ] Extend `dcdcEngine.ts` and `acdcEngine.ts` with 4-node Foster/Cauer thermal RC network (`Junction → Case → TIM → Heatsink → Ambient`)
+- [ ] Compute pulsed load / short-circuit $T_j(t)$ peak temperature response for single pulse and repetitive duty pulses ($Z_{\theta JC}(t)$)
+- [ ] Model forced-air vs natural convection heatsink airflow derating (`LFM` / `m/s` airflow curve)
+
+### Task 17 — Next-Generation Topologies (DAB, CLLC, Buck-Boost, Vienna PFC)
+- [ ] Add **Dual Active Bridge (DAB)** bidirectional topology solver (SPS / EPS / TPS phase-shift modulation, ZVS soft-switching map, backflow power)
+- [ ] Add **Bidirectional CLLC Resonant** converter solver (forward/reverse FHA + time-domain gain curves)
+- [ ] Add **4-Switch Buck-Boost / Interleaved Synchronous Buck** non-isolated DC-DC topology for auxiliary/point-of-load stages
+- [ ] Add **3-Phase Vienna Rectifier & 3-Level ANPC PFC** to `acdcEngine.ts` with neutral-point balance & 3-phase line harmonic modeling
+
+### Task 18 — Advanced Magnetics, Parasitic PCB Layout & EMI Physics
+- [ ] Add PCB trace stray inductance & resistance estimator (trace width, length, copper weight `1oz/2oz/4oz`, loop area) feeding directly into `Vsec_ringing_delta_V` and gate-drive ringing
+- [ ] Add 2D Dowell / fringing-flux air-gap proximity loss enhancement around gapped center legs in `passiveDesignEngine.ts`
+- [ ] Add multi-stage differential-mode + common-mode EMI filter insertion loss solver (`CISPR 22 / EN 55032 Class A & Class B` margin check across `150 kHz – 30 MHz`)
 
 ---
 
-## Task 5 — Design Alerts & Engineering Report / PDF Final Audit Synchronization (`designAlerts.ts`, `designReportModel.ts`, `pdfReportBuilder.ts`, `DesignReportModal.tsx`)
-- [x] Harden `evaluateDesignAlerts` in `designAlerts.ts`:
-  - [x] Audit PCMC subharmonic stability at BOTH nominal `Vin_nom_V` and worst-case low-line `Vin_min_V` (`Qp_subharmonic_wc > 2.0` -> Danger, `> 1.5` -> Warning) and synthesize worst-case-safe 1-click `dcdc-pcmc-slope` fixes
-  - [x] Tighten `dcdc-core-oversized` detection (`utilization_100C_pct < 14 && Pcu_W > 3.0 * Math.max(0.25, Pcore_W) && Pcu_W > 2.2 && core.Ve_mm3 >= 35000`) with reliable compact-core fixes
-  - [x] Ensure `dcdc-ctrl-fc-near-f0` catches `fc_target_kHz < Math.max(f0_lc_kHz * 1.45, f0_lc_kHz + 0.4)` cleanly and offers 1-click retune
-  - [x] Add low-line duty saturation warning/danger (`D_applied_max > 0.94`) if `Vin_min_V` risks dropout
-  - [x] Ensure `dcdc-sec-vds-warn` triggers reliably when unclamped secondary ringing > 88% of `secDevice.Vds_max_V` and offers `200 V` `IPP110N20N3` upgrade fixes
-- [x] Fix `designReportModel.ts`:
-  - [x] Fix Step `D1.2` LaTeX and `formulaPlain` for `D_loss` (`4 L_lk I_pri,valley f_sw / V_in`, or `2` factor note for CDR) and display exact `D_eff`, `D_loss`, and low-line `D_applied(Vin_min)`
-  - [x] Update `ch-dcdc-specs.status` dynamically (reflect secondary voltage / duty verdicts instead of hardcoded `'pass'`)
-  - [x] Mark Table `D6.1` capacitors explicitly as C0G/NP0 dielectric and display worst-case `Q_p(Vin_min)` in Step `D6.1`
-  - [x] Fix Page 9 `ch-audit` (`Final Engineering Audit & Hardware Sign-Off`) so it aggregates BOTH `scopedAlerts` AND any preceding chapter `warn`/`fail` status, adds an explicit Chapter-by-Chapter Sign-Off Verification Matrix in `steps` / `paramTables`, and guarantees zero silent regressions between Cover / Chapter verdicts / Page 9 Audit
-- [x] Sync `pdfReportBuilder.ts` & `DesignReportModal.tsx` so Cover badges and Page 9 Audit table reflect aggregated chapter/alert statuses consistently
+## Phase C — Design, GUI & UX Workflows
+
+### Task 19 — Top-Bar Project Manager, Undo/Redo & System Cascade Strip
+- [x] Add **Undo / Redo** buttons with keyboard shortcuts (`Ctrl+Z`, `Ctrl+Shift+Z`) and change tooltip in `src/App.tsx`
+- [x] Add **Projects & Import/Export** popover/modal (Save named project to `localStorage`, Load/Delete saved designs, Import `.json` design file, Export full studio JSON, Export SPICE `.cir`, Export C Header `.h`)
+- [x] Add **System Cascade Link Bar** below header showing AC-DC → DC-DC voltage/power coupling toggle, cascaded efficiency $\eta_{\text{sys}}$, total system loss $P_{\text{loss,sys}}$, and bottleneck indicator
+- [x] Support `Ctrl+S` quick-save and `Esc` modal close consistently across all drawers/modals
+
+### Task 20 — Complete BOM Cost, Area & LCSC/JLCPCB Rollup Workspace
+- [ ] Build `src/engine/bomEngine.ts` aggregating every active & passive component (primary switches, secondary switches/diodes, transformer core + bobbin + Litz wire, output/PFC/EMI inductors, capacitor banks, gate drivers, current-sense, auxiliaries)
+- [ ] Add interactive **BOM & Cost Rollup** panel/drawer with unit pricing at `1 / 100 / 1000` qty, PCB footprint area ($mm^2$), and JLCPCB Basic/Extended classification
+- [ ] Add 1-click **Export BOM CSV** and **Export KiCad BOM / Netlist**
+
+### Task 21 — Interactive Schematic Cross-Probing & Component Inspector
+- [ ] Link `CircuitSchematics.tsx` component clicks (`Q1-Q4`, `T1`, `Llk`, `Lo`, `Co`, `SR1-SR4`, `Cdc`, `Lpfc`) directly to open quick-inspect popovers or jump to the corresponding parameter tab
+- [ ] Add live current/voltage/temperature callout badges toggleable directly on schematic nodes (`Overlay Telemetry: ON/OFF`)
+- [ ] Add interactive schematic comparison diff badge when `Pin Ref` is active
+
+### Task 22 — Responsive Precision Lab UI & Multi-Screen / Print Polish
+- [ ] Add compact **Executive Summary Strip** at top of both `DcDcWorkbench` and `AcDcWorkbench` so key KPIs stay visible while scrolling sub-tabs
+- [ ] Improve mobile/tablet responsiveness for parameter grids and wide tables
+- [ ] Add configurable Report Sections selector in `DesignReportModal.tsx` (include/exclude chapters, waveforms, BOM, Monte Carlo summary)
 
 ---
 
-## Task 6 — Audit & Upgrade Built-In Presets (`src/data/databases.ts`)
-- [x] Upgrade `DCDC_PRESETS[0]` (`3.3 kW PSFB Sync Rectifier Center-Tapped`) from `IPP041N15N5` (150 V) to `IPP110N20N3` (200 V, `nParallelSec: 2`) so the default boot preset has clean unclamped secondary margin and `0 Danger / 0 Warning`
-- [x] Audit all remaining `DCDC_PRESETS` (1–3) and `ACDC_PRESETS` (0–4) via `solve` + `evaluateDesignAlerts` to ensure every built-in preset solves cleanly with zero unintended violations
+## Phase D — Graph Tools & Visualization
+
+### Task 23 — 4-Channel Virtual Oscilloscope (`OscilloscopeViewer.tsx`)
+- [x] Build dedicated interactive multi-channel oscilloscope component rendering `CH1: v_pri(t)`, `CH2: i_pri(t)`, `CH3: v_sec(t)`, `CH4: i_Lo(t)` plus toggleable `i_Lm(t)` and `v_Cr(t)`
+- [x] Support per-channel enable/disable, vertical grid divisions, timebase zoom (`0.25x` to `8x` switching periods), trigger threshold line, and live **M1 / M2 Cursor Measurements** (`RMS`, `Mean`, `Pk-Pk`, `Max`, `Min`, `Δt`, `1/Δt`, `dV/dt`, `dI/dt`, `∫i·dt`)
+- [x] Support 1-click **Export Scope CSV** and **Export Scope SVG/PNG**
+- [x] Integrate `OscilloscopeViewer` into `DcDcWorkbench` (upgrading waveform inspection & new `"Scope & Sim"` sub-tab)
+
+### Task 24 — Closed-Loop Step-Load Transient & Monte Carlo Plots
+- [x] Build interactive **Time-Domain Step-Load Transient Graph** comparing RK4 nonlinear switched response vs small-signal linearized envelope (with overshoot % / undershoot mV / settling time markers)
+- [x] Build **Monte Carlo Distribution Histogram & Yield CDF Chart** with spec limit vertical markers (`Tj_max`, `PM_min`, `Bsat_limit`, `Vripple_max`) and tornado sensitivity bar chart
+- [x] Upgrade `InteractiveChart.tsx` to expose **Export CSV** button directly in its chart toolbar alongside SVG/PNG export
+
+### Task 25 — 2D Parametric Efficiency & Loss Surface / Heatmap Tool
+- [ ] Build interactive **2D Heatmap / Contour Explorer** (`Vin` vs `Pout` efficiency map, `fsw` vs `Lm` ZVS/loss contour, or `Np` vs `fsw` transformer loss map)
+- [ ] Allow clicking any cell on the 2D heatmap to inspect full loss breakdown or jump operating point (`Vin`, `Pout`, `fsw`) directly into the solver
+
+### Task 26 — Unified Multi-Plot Pin Comparison & Bode/Nyquist Enhancements
+- [ ] Overlay pinned reference (`Pin Ref`) curves cleanly across `OscilloscopeViewer` and `TransientAndMonteCarloLab`
+- [ ] Add worst-case corner Bode family overlay (`Vin_min / Vin_nom / Vin_max` + `Co_min / Co_max`) in `BodeStabilityGraph.tsx`
+- [ ] Add interactive Nyquist sensitivity circle ($M_s = 6\text{ dB}$) hover readout and Nichols chart toggle in `SmallSignalDashboard.tsx`
 
 ---
 
-## Task 7 — Multi-Provider AI API Key Experience & Proxy Hardening (`App.tsx`, `server.ts`, `AiProviderSettingsPanel.tsx`)
-- [x] Add a prominent, directly accessible `"AI Keys"` / Provider settings trigger + modal/popover in the top navigation bar (`src/App.tsx`) showing the active provider (`Gemini`, `OpenAI`, `Claude`, `OpenAI-Compatible`) and key status so users can configure any API key immediately without hunting inside sub-drawers
-- [x] Harden `/api/ai-agent` & `/api/component-search` in `server.ts`:
-  - [x] Handle OpenAI reasoning models (`o1`, `o3`, `o4-mini`, `gpt-5*`) cleanly by omitting unsupported `temperature` and automatically retrying without `response_format` on HTTP 400/422 for both `openai` and `openai-compatible`
-  - [x] Ensure Anthropic Claude, Gemini (`@google/genai`), OpenAI, and OpenAI-Compatible custom endpoints return clear, actionable error messages on invalid/missing keys or rate limits
-- [x] Ensure `aiProviderConfig.ts` keeps keys safely in browser `localStorage` (`voltcraft_ai_provider_config_v1`) and validates all 4 providers properly
+## Phase E — AI Engineering Agent & Copilot
+
+### Task 27 — Fix Compact Chat Snapshot & Context Budgeter
+- [x] Optimize `buildAiDesignSnapshot(ctx, { compactForChat: true })` in `src/engine/aiAgentEngine.ts` so compact chat payload is strictly `< 45%` of full snapshot bytes (fixing Test 13 and reducing LLM latency/cost)
+- [x] Display live snapshot payload size (`KB` / estimated tokens) and active provider badge inside `AiEngineerDrawer.tsx`
+
+### Task 28 — Focused Audit Presets & Multi-Candidate Trade-Off Explorer
+- [x] Add 1-click focused audit templates in `AiEngineerDrawer.tsx`: **Full Safety Audit**, **Thermal & Efficiency Boost**, **Light-Load ZVS & Ringing**, and **EMI & Passive Lifetime**
+- [ ] Upgrade `/api/ai-agent` prompt & response handling so AI can propose alternative trade-off options (e.g., *Lowest Loss* vs *Smallest Footprint* vs *Lowest BOM Cost*), all dry-run verified before one-click apply
+- [ ] Add live **Design Diff Preview** inside each staged AI fix card showing exact parameter before → after changes before clicking Apply
+
+### Task 29 — Automated What-If Parametric Sweep & Pareto Copilot
+- [ ] Add client-side deterministic **AI Tool Runner** (`runParetoSweep`, `runMonteCarloCheck`, `checkComponentMargin`) that the AI Agent can invoke or summarize in Chat mode with verified numbers (zero hallucinated specs)
+- [ ] Add **Datasheet Spec Extractor** in `ComponentSearchDrawer` / `AiProviderSettingsPanel` to parse pasted datasheet text/tables into validated `SemiconductorSpec` / `CoreMaterialSpec` JSON entries
+
+### Task 30 — Multi-Provider Streaming & Resilient Error Recovery
+- [ ] Add graceful retry/backoff and clear diagnostic banner when provider rate limits or network timeouts occur
+- [ ] Support custom system prompt engineering constraints (e.g. "Max height 25mm", "Automotive AEC-Q100 only", "Target cost < $18") saved per project
 
 ---
 
-## Task 8 — Test Suite Expansion & Full Build/Lint/Server Verification (`dcdcSolver.test.ts`)
-- [x] Fix `ch-dcdc-passives` / `ch-dcdc-ctrl` chapter ID lookups in `dcdcSolver.test.ts` and add new automated unit tests covering:
-  - [x] Worst-case low-line (`Vin_min_V`) PCMC subharmonic oscillation detection & 1-click fix
-  - [x] Accurate `D_loss` & low-line duty saturation checks
-  - [x] Page 9 `ch-audit` catching any chapter `warn`/`fail` even if alerts were missed
-  - [x] All `DCDC_PRESETS` and `ACDC_PRESETS` producing 0 Danger alerts out-of-the-box
-  - [x] Analog compensator C0G/NP0 RC bounds across `pcmc`, `2p2z`, `type-iii`, and `48V`/`400V` outputs
-- [x] Run `npx tsx --test src/engine/dcdcSolver.test.ts` — verify 100% pass rate
-- [x] Run `compile_applet` and `lint_applet` together and verify zero errors
-- [x] Restart dev server (`restart_dev_server`) and inspect UI/startup cleanly
-- [x] Mark all checkboxes in `/plain.md` as `[x]` upon completion
+## Phase F — Modeling, Simulation & Export
+
+### Task 31 — In-Browser RK4 Time-Domain Switched ODE Transient Simulator (`transientOdeSolver.ts`)
+- [x] Build `src/engine/transientOdeSolver.ts` implementing a 4th-order Runge-Kutta (`RK4`) closed-loop state-space transient solver for DC-DC converters
+- [x] Simulate **Startup Soft-Start** and **Step-Load Transient** (`I_load_1 → I_load_2` with configurable `di/dt` slew rate), computing exact `v_out(t)`, `i_Lo(t)`, `i_C_out(t)`, duty/control effort `u(t)`, peak overshoot/undershoot (`ΔV_pk_mV`), and 2% settling time (`t_settle_us`)
+- [x] Integrate closed-loop digital `2P2Z` / `3P3Z` / `PCMC` discrete-time difference equation synchronized at `fs_digital_kHz` inside the RK4 simulation loop
+
+### Task 32 — LTspice / ngspice `.cir` Netlist Exporter (`spiceNetlistExporter.ts`)
+- [x] Build `src/engine/spiceNetlistExporter.ts` generating simulation-ready `.cir` SPICE netlists for:
+  - [x] DC-DC PSFB (`psfb-1ph`, `psfb-2ph`) with phase-shifted full-bridge voltage-controlled switches, `Llk`, coupled transformer `K1 Lpri Lsec`, `Lm`, center-tapped / full-bridge / current-doubler secondary, `Lo`, `Co`/`ESR`, and load step `PULSE` source
+  - [x] DC-DC LLC (`llc-fb`, `llc-hb`) with half/full-bridge switching network, `Cr`, `Lr`, `Lm`, ideal transformer, rectifier bridge, and `.tran` / `.meas` efficiency & ripple directives
+  - [x] AC-DC PFC (`2ph-interleaved-totem`, `1ph-totem-pfc`, `2ph-interleaved-boost`, `dual-boost-bridgeless`) with AC mains source, EMI DM/CM stage, boost inductors `Lpfc`, DC-link bulk cap + ESR, and resistive/constant-power load
+- [x] Expose live SPICE netlist inspector + copy/download `.cir` button in the Workbench `"Scope & Sim"` tab and Top-Bar Export menu
+
+### Task 33 — Embedded DSP Firmware Config Header Exporter (`.h`)
+- [x] Implement `generateControlFirmwareHeader()` in `src/engine/spiceNetlistExporter.ts` producing a complete, compile-ready C header (`powerstage_control_cfg.h`) for **TI C2000 (DCL / CLA)** and **STM32G4 (HRTIM)**
+- [x] Include exact pre-warped Tustin `2P2Z` / `3P3Z` coefficients (`b0..b3`, `a1..a3`), `fsw_Hz`, `deadTime_ns`, PCMC slope `Se_V_us`, ADC scaling gains, and OCP/OVP protection thresholds
+
+### Task 34 — Interactive `"Scope & Sim"` Workbench Sub-Tab (`TransientAndMonteCarloLab.tsx`)
+- [x] Create `src/components/TransientAndMonteCarloLab.tsx` combining:
+  - [x] 4-Channel Virtual Oscilloscope (`OscilloscopeViewer`)
+  - [x] RK4 Closed-Loop Step-Load Transient Simulator with interactive step %, slew rate, and overshoot KPIs
+  - [x] Monte Carlo Tolerance & Yield Analyzer (100–1000 trials, yield %, worst-case corners, histogram)
+  - [x] SPICE `.cir` & Embedded Firmware `.h` Live Code Preview + Download
+- [x] Wire `"Scope & Sim"` tab cleanly into `DcDcWorkbench.tsx`
+
+### Task 35 — Native Desktop Bridge Preparation (Future Tauri v2 Alignment)
+- [ ] Align all engine DTOs (`DcDcResults`, `AcDcResults`, `WaveformPoint`, `SpiceNetlist`) for clean serialization with `antigravity-desktop-roadmap/` Rust/Tauri IPC contracts
+- [ ] Support optional `ngspice` / `LTspice` batch simulation runner hook when running inside desktop shell
 
 ---
 
-## Task 9 — Human-Readable KaTeX Mathematical Rendering in Generated PDF Report (`pdfReportBuilder.ts`, `mathTexHelper.ts`)
-- [x] Build `calcStringToTex` helper to convert numerical substitutions, given inputs, and computed results cleanly into valid KaTeX LaTeX (proper subscripts, scientific notation $10^n$, square roots, fractions/operators, Greek letters $\eta, \Delta, \Omega, \mu, \phi, \theta$, degrees) with zero parse errors across all DC-DC & AC-DC report steps
-- [x] Implement self-contained browser KaTeX-to-PNG rasterizer in `pdfReportBuilder.ts` (extracting live `.katex` CSS + inlining `@font-face` `.woff2` fonts as base64 data URIs inside XHTML-serialized SVG `<foreignObject>` -> 3× Retina PNG with automatic ASCII fallback)
-- [x] Update Step calculation cards in `pdfReportBuilder.ts` to render Governing Equations (`st.tex`), Numerical Substitutions, Given Inputs, and Computed Results using crisp KaTeX math images instead of raw ASCII Courier text
-- [x] Verify 100% of generated LaTeX strings across all presets pass strict KaTeX parsing in automated unit tests
+## Immediate Execution Queue (Completed This Milestone)
 
----
-
-## Task 10 — Fix AI Chat with User-Supplied Gemini API Keys (`server.ts`, `aiProviderConfig.ts`, `AiProviderSettingsPanel.tsx`, `AiEngineerDrawer.tsx`, `App.tsx`)
-- [x] Fix Gemini model & parameter handling in `server.ts`:
-  - [x] Only pass `thinkingConfig.thinkingLevel` on Gemini 3/4 models (never on `gemini-2.5-*` where it throws HTTP 400)
-  - [x] Automatically fall back to `gemini-2.5-flash` when a user's personal Gemini API key receives 404/unsupported model on workspace aliases (`gemini-4-hydrogen` / `gemini-3.8-flash`), and retry without strict `responseSchema` if schema constraints reject a request
-  - [x] Parse nested JSON error payloads from `@google/genai` into clean human-readable messages and require `replyMarkdown` in `/api/ai-agent` schema
-- [x] Update `AiProviderSettingsPanel.tsx`, `AiEngineerDrawer.tsx`, and `App.tsx`:
-  - [x] Include `gemini-2.5-flash` and `gemini-2.5-pro` in Gemini model chips alongside `gemini-4-hydrogen` and strip quotes/whitespace from pasted keys
-  - [x] Filter prior error messages out of `chatHistory`, safely parse non-JSON HTTP error bodies, and auto-scroll chat messages when AI responses/errors arrive
-- [x] Re-run unit tests, build + lint checks (`compile_applet` + `lint_applet`), restart dev server, and mark all Task 9 & 10 checkboxes `[x]` in `/plain.md`
+The following high-impact tasks were implemented and verified across all 6 dimensions:
+- [x] **Audit & Plan**: Inspect entire 48.7k-line codebase, run baseline tests/lint, write complete `plain.md` and 6 deep-dive blueprints in `docs/`
+- [x] **AI & Agent (Task 27 & 28)**: Fix `buildAiDesignSnapshot({ compactForChat: true })` so Test 13 passes cleanly (< 45% of full snapshot bytes) + add snapshot byte telemetry & 1-click focused audit presets in `AiEngineerDrawer.tsx`
+- [x] **Logic & Architecture (Task 11 & 12)**: Implement `src/engine/systemCascadeEngine.ts` (2-stage AC-DC ↔ DC-DC bus/efficiency/power coupling) and `src/engine/projectStorage.ts` (versioned JSON import/export, `localStorage` project slots, Undo/Redo stack)
+- [x] **Calculation & Modeling (Task 14, 15, 31, 32, 33)**: Upgrade multi-channel `evalFullWaveforms` in `dcdcEngine.ts`, build `transientOdeSolver.ts` (RK4 closed-loop step-load/startup), build `monteCarloEngine.ts` (seeded tolerance yield), and build `spiceNetlistExporter.ts` (LTspice/ngspice `.cir` + C2000/STM32 `.h` firmware header)
+- [x] **Design, GUI & Graph Tools (Task 19, 23, 24, 34)**: Build `OscilloscopeViewer.tsx` (6-channel scope + M1/M2 RMS/pk-pk/dY/dt cursors + CSV/SVG export), build `TransientAndMonteCarloLab.tsx` (`"Scope & Sim"` tab in `DcDcWorkbench.tsx`), add Undo/Redo + Stage Link + Project Manager/Import JSON/SPICE export to `src/App.tsx`
+- [x] **Verification**: Expand unit tests in `src/engine/dcdcSolver.test.ts` (18/18 passing), pass `npm run lint`, and pass `npm run build`
