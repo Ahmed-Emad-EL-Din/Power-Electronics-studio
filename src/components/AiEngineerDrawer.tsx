@@ -25,6 +25,7 @@ import {
   AiContextInputs,
   AiStagedFix,
   DesignRollbackSnapshot,
+  buildAiDesignSnapshot,
   dryRunProposedFix,
   simulateSequentialSafeBatch,
 } from '../engine/aiAgentEngine';
@@ -122,6 +123,41 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
 
   const dangerCount = ctx.designAlerts.danger.length;
   const warningCount = ctx.designAlerts.warning.length;
+
+  const chatPayloadStats = useMemo(() => {
+    const compact = buildAiDesignSnapshot(ctx, { compactForChat: true });
+    const bytes = JSON.stringify(compact).length;
+    return {
+      kb: (bytes / 1024).toFixed(1),
+      tokensEst: Math.round(bytes / 4),
+    };
+  }, [ctx]);
+
+  const focusedAuditPresets = useMemo(
+    () => [
+      {
+        label: 'Thermal & Eff.',
+        prompt:
+          'Run a focused Thermal & Efficiency audit across both AC-DC and DC-DC stages. Identify the top 3 loss drivers and propose verified patches that lower Tj while preserving margin.',
+      },
+      {
+        label: 'ZVS & Ringing',
+        prompt:
+          'Analyze lagging/leading leg ZVS boundaries down to 25% load, dead-time adequacy, and secondary SR ringing margin. Recommend verified Llk, deadTime, or MOSFET upgrades.',
+      },
+      {
+        label: 'Control Loop',
+        prompt:
+          'Audit small-signal Phase Margin, Gain Margin, worst-case line PM, and PCMC subharmonic Qp across Vin_min to Vin_max. Suggest compensator or slope tuning if needed.',
+      },
+      {
+        label: 'EMI & Cap Life',
+        prompt:
+          'Inspect capacitor bank L10 lifetime, voltage derating, earth leakage Cy_nF, and EMI filter attenuation. Flag any passive bottlenecks.',
+      },
+    ],
+    []
+  );
 
   const quickPrompts = useMemo(() => {
     if (dangerCount > 0) {
@@ -308,17 +344,25 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
           </button>
         </div>
 
-        {rollbackSnapshot && (
-          <button
-            type="button"
-            onClick={onUndoLastBatch}
-            className="px-2 py-1 text-[11px] font-medium rounded border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white inline-flex items-center gap-1 cursor-pointer transition-colors whitespace-nowrap"
-            title={`Restore snapshot prior to: ${rollbackSnapshot.label}`}
+        <div className="flex items-center gap-1.5">
+          <span
+            className="text-[10px] font-mono text-slate-400 tabular-nums hidden sm:inline"
+            title="Compact chat telemetry context budget"
           >
-            <Undo2 className="w-3 h-3" />
-            <span>Undo</span>
-          </button>
-        )}
+            {chatPayloadStats.kb}KB (~{chatPayloadStats.tokensEst} tok)
+          </span>
+          {rollbackSnapshot && (
+            <button
+              type="button"
+              onClick={onUndoLastBatch}
+              className="px-2 py-1 text-[11px] font-medium rounded border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white inline-flex items-center gap-1 cursor-pointer transition-colors whitespace-nowrap"
+              title={`Restore snapshot prior to: ${rollbackSnapshot.label}`}
+            >
+              <Undo2 className="w-3 h-3" />
+              <span>Undo</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* EXPANDABLE AI PROVIDER & API KEY SETTINGS */}
@@ -637,6 +681,23 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
                   Ask anything about your live AC-DC PFC, DC-DC converter, transformer magnetics,
                   capacitor banks, thermal margins, or Bode stability. If a design change helps,
                   I will attach a physics-verified 1-click patch right in the answer.
+                </div>
+                <div className="space-y-1.5">
+                  <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                    1-Click Focused Engineering Audits:
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {focusedAuditPresets.map((preset) => (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => onSendChat(preset.prompt)}
+                        className="px-2.5 py-1.5 rounded-md border border-cyan-500/30 bg-cyan-500/5 hover:bg-cyan-500/15 text-[11px] font-mono font-semibold text-cyan-700 dark:text-cyan-300 text-left transition-colors cursor-pointer"
+                      >
+                        ▶ {preset.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 <div className="space-y-1.5">
                   <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">

@@ -35,6 +35,8 @@ export interface WaveformPoint {
   i_pri_A: number;
   v_sec_V: number;
   i_lo_A: number;
+  i_lm_A?: number;
+  v_cr_V?: number;
 }
 
 export interface DeviceBenchmarkRow {
@@ -399,6 +401,7 @@ export interface DcDcResults {
     evalSaturationB: (im_A: number) => { y1: number; y2: number };
     evalSaturationLm: (im_A: number) => { y1: number; y2: number };
     evalWaveforms: (t_us: number) => { y1: number; y2: number };
+    evalFullWaveforms: (t_us: number) => WaveformPoint;
     evalSlope: (d: number) => { y1: number; y2: number };
     evalIgse: (d: number) => { y1: number; y2: number };
     evalDowell: (f_kHz: number) => { y1: number; y2: number };
@@ -2248,45 +2251,136 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
     slopeSweep.push({ x: d, y1: pt.y1, y2: pt.y2 });
   }
 
-  // Waveforms (supports multi-cycle evaluation when zoomed out)
+  // Waveforms (supports multi-cycle, 6-channel PSFB/LLC physics evaluation)
   const T_us = Tsw * 1e6;
-  const evalWaveforms = (t_us: number) => {
+  const evalFullWaveforms = (t_us: number): WaveformPoint => {
     const tau = ((t_us / Math.max(T_us, 1e-3)) % 1 + 1) % 1;
     const halfTau = tau % 0.5;
     const sign = tau < 0.5 ? 1 : -1;
-    const dHalf = (Deff_nom / 2) * 0.5;
-    const active = halfTau > Dloss_nom * 0.25 && halfTau < dHalf + Dloss_nom * 0.25;
 
-    const i_pri_A = isLLC
-      ? Ipri_rms_A * Math.sqrt(2) * Math.sin(2 * Math.PI * tau)
-      : sign * (Iout_phase_A * k_refl + deltaILo_phase_A * k_refl * (halfTau / 0.25 - 0.5));
-    const i_lo_A =
-      Iout_phase_A + deltaILo_phase_A * (active ? halfTau / Math.max(dHalf, 0.05) - 0.5 : 0.5 - halfTau);
+    if (isLLC) {
+      const deadFrac = Math.min(0.06, Math.max(0.008, (state.deadTime_ns * 1e-9) / Math.max(Tsw, 1e-7)));
+      // Smooth resonant transition across dead-time
+      let v_pri_V = sign * V_bridge;
+      if (halfTau < deadFrac) {
+        const alpha = halfTau / deadFrac;
+        v_pri_V = sign * V_bridge * (2 * alpha - 1);
+      }
+      // Magnetizing current triangle (-Im_pk to +Im_pk across half cycle)
+      const i_lm_A = sign * Im_pk_A * ((halfTau / 0.25) - 1);
+      // Reflected secondary sinusoidal half-wave (clamped in DCM if fn < 0.96)
+      const condEnd = fn_nom < 0.96 ? Math.max(0.28, 0.5 * fn_nom) : 0.5;
+      const i_sec_refl =
+        halfTau <= condEnd
+          ? sign *
+            (Math.PI / 2) *
+            Iout_phase_A *
+            k_refl *
+            (0.5 / Math.max(0.25, condEnd)) *
+            Math.sin((Math.PI * halfTau) / condEnd)
+          : 0;
+      const i_pri_A = i_lm_A + i_sec_refl;
+      const v_sec_V = halfTau <= condEnd ? Vsec_ideal_pk_V : Vsec_ideal_pk_V * 0.85 * Math.cos(Math.PI * (halfTau - condEnd) / Math.max(0.05, 0.5 - condEnd));
+      const i_lo_A = Iout_phase_A + 0.5 * deltaILo_phase_A * Math.sin(4 * Math.PI * halfTau - Math.PI / 2);
+      const Cr_eff_F = Math.max(1e-9, state.Cr_nF * 1e-9);
+      const vCr_amp = (Ipri_rms_A * Math.SQRT2) / Math.max(2 * Math.PI * fsw * Cr_eff_F, 1e-3);
+      const v_cr_offset = isHalfBridge ? Vin * 0.5 : 0;
+      const v_cr_V = v_cr_offset - vCr_amp * Math.cos(2 * Math.PI * tau);
+
+      return {
+        t_us: Number(t_us.toFixed(3)),
+        v_pri_V: Number(v_pri_V.toFixed(1)),
+        i_pri_A: Number(i_pri_A.toFixed(2)),
+        v_sec_V: Number(Math.max(0, v_sec_V).toFixed(1)),
+        i_lo_A: Number(i_lo_A.toFixed(2)),
+        i_lm_A: Number(i_lm_A.toFixed(2)),
+        v_cr_V: Number(v_cr_V.toFixed(1)),
+      };
+    }
+
+    // PSFB piecewise physical intervals within each half-period [0, 0.5):
+    // [0, dDead) -> resonant Coss transition
+    // [dDead, dDead + dLoss) -> Llk commutation (duty loss, v_sec = 0)
+    // [dDead + dLoss, dDead + dLoss + dEff) -> active energy transfer (v_pri = ±V_bridge, v_sec = Vsec_ideal_pk)
+    // [dDead + dLoss + dEff, 0.5) -> freewheeling interval (v_pri = 0, v_sec = 0)
+    const dDead = Math.min(0.04, Math.max(0.006, (state.deadTime_ns * 1e-9) / Math.max(Tsw, 1e-7)));
+    const dLoss = Math.min(0.18, Math.max(0.008, Dloss_nom * 0.5));
+    const dEff = Math.min(0.49 - dDead - dLoss, Math.max(0.06, Deff_nom * 0.5));
+    const t1 = dDead;
+    const t2 = t1 + dLoss;
+    const t3 = t2 + dEff;
+
+    const iReflMin = (Iout_phase_A - 0.5 * deltaILo_phase_A) * k_refl;
+    const iFreewheelEnd = (Iout_phase_A - 0.5 * deltaILo_phase_A) * k_refl * 0.94;
+
+    let v_pri_V = 0;
+    let v_sec_V = 0;
+    let i_pri_A = 0;
+    let i_lo_A = Iout_phase_A;
+    let i_lm_A = 0;
+
+    if (halfTau < t1) {
+      const a = halfTau / t1;
+      v_pri_V = sign * V_bridge * a;
+      v_sec_V = 0;
+      i_pri_A = -sign * iFreewheelEnd;
+      i_lm_A = -sign * Im_pk_A;
+      i_lo_A = Iout_phase_A - 0.5 * deltaILo_phase_A;
+    } else if (halfTau < t2) {
+      const a = (halfTau - t1) / Math.max(dLoss, 1e-4);
+      v_pri_V = sign * V_bridge;
+      v_sec_V = 0;
+      i_pri_A = sign * (-iFreewheelEnd + a * (iReflMin + iFreewheelEnd));
+      i_lm_A = sign * (-Im_pk_A + a * 0.12 * Im_pk_A);
+      i_lo_A = Iout_phase_A - 0.5 * deltaILo_phase_A;
+    } else if (halfTau < t3) {
+      const a = (halfTau - t2) / Math.max(dEff, 1e-4);
+      v_pri_V = sign * V_bridge;
+      // Include slight leading-edge damped ringing at secondary turn-on
+      const ringOsc =
+        a < 0.25
+          ? (clampFactor - 1.0) * 0.55 * Math.exp(-a * 14) * Math.sin(a * 48)
+          : 0;
+      v_sec_V = Vsec_ideal_pk_V * (1 + ringOsc);
+      i_lm_A = sign * (-Im_pk_A + 2 * Im_pk_A * a);
+      i_lo_A = Iout_phase_A - 0.5 * deltaILo_phase_A + deltaILo_phase_A * a;
+      i_pri_A = sign * (i_lo_A * k_refl) + i_lm_A;
+    } else {
+      const a = (halfTau - t3) / Math.max(0.5 - t3, 1e-4);
+      v_pri_V = 0;
+      v_sec_V = 0;
+      i_lm_A = sign * Im_pk_A;
+      i_lo_A = Iout_phase_A + 0.5 * deltaILo_phase_A - deltaILo_phase_A * a;
+      i_pri_A = sign * (i_lo_A * k_refl * (1 - 0.06 * a)) + i_lm_A;
+    }
+
+    // Small DC-blocking capacitor ripple around 0V for PSFB
+    const v_cr_V = 3.5 * Math.sin(2 * Math.PI * tau - 0.4);
+
     return {
-      y1: Number(i_pri_A.toFixed(2)),
-      y2: Number(i_lo_A.toFixed(2)),
+      t_us: Number(t_us.toFixed(3)),
+      v_pri_V: Number(v_pri_V.toFixed(1)),
+      i_pri_A: Number(i_pri_A.toFixed(2)),
+      v_sec_V: Number(Math.max(0, v_sec_V).toFixed(1)),
+      i_lo_A: Number(i_lo_A.toFixed(2)),
+      i_lm_A: Number(i_lm_A.toFixed(2)),
+      v_cr_V: Number(v_cr_V.toFixed(2)),
+    };
+  };
+
+  const evalWaveforms = (t_us: number) => {
+    const pt = evalFullWaveforms(t_us);
+    return {
+      y1: pt.i_pri_A,
+      y2: pt.i_lo_A,
     };
   };
 
   const waveforms: WaveformPoint[] = [];
-  for (let i = 0; i <= 80; i++) {
-    const tau = i / 80;
-    const t_us = Number((tau * T_us).toFixed(2));
-    const halfTau = tau % 0.5;
-    const sign = tau < 0.5 ? 1 : -1;
-    const dHalf = (Deff_nom / 2) * 0.5;
-    const active = halfTau > Dloss_nom * 0.25 && halfTau < dHalf + Dloss_nom * 0.25;
-    const v_pri_V = isLLC ? sign * V_bridge : active ? sign * V_bridge : 0;
-    const v_sec_V = active || isLLC ? Vsec_ideal_pk_V : 0;
-    const pt = evalWaveforms(t_us);
-
-    waveforms.push({
-      t_us,
-      v_pri_V: Number(v_pri_V.toFixed(1)),
-      i_pri_A: pt.y1,
-      v_sec_V: Number(v_sec_V.toFixed(1)),
-      i_lo_A: pt.y2,
-    });
+  for (let i = 0; i <= 120; i++) {
+    const tau = i / 120;
+    const t_us = Number((tau * T_us).toFixed(3));
+    waveforms.push(evalFullWaveforms(t_us));
   }
 
   // DSP Code Snippet with Exact Pre-Warped Tustin Coefficients
@@ -2579,6 +2673,7 @@ inline void DcDc_Control_ISR(float v_out_adc, float i_pri_adc) {
         return { y1: s.Lm_inc_uH, y2: s.H_Am };
       },
       evalWaveforms,
+      evalFullWaveforms,
       evalSlope,
       evalIgse: (d: number) => {
         const c = calcIgseCoreLossW(d, tempFactor_F);

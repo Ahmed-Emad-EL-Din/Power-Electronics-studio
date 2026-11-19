@@ -19,6 +19,22 @@ import katex from 'katex';
 import { buildDesignReportModel } from '../utils/designReportModel';
 import { calcStringToTexLines } from '../utils/mathTexHelper';
 import { buildAiDesignSnapshot } from './aiAgentEngine';
+import { computeCoupledStagePatches, solveSystemCascade } from './systemCascadeEngine';
+import {
+  buildProjectFile,
+  createHistory,
+  parseImportedProjectJson,
+  pushHistoryState,
+  redoHistory,
+  undoHistory,
+} from './projectStorage';
+import { runTransientLoadStep } from './transientOdeSolver';
+import { runMonteCarloAnalysis } from './monteCarloEngine';
+import {
+  generateAcDcSpiceNetlist,
+  generateControlFirmwareHeader,
+  generateDcDcSpiceNetlist,
+} from './spiceNetlistExporter';
 import {
   clearAiProviderConfig,
   getDefaultAiProviderConfig,
@@ -715,5 +731,123 @@ test('Gemini API key sanitization and thinkingLevel gating helpers work cleanly'
   const chatBytes = JSON.stringify(chatSnap).length;
   assert.ok(chatBytes < fullBytes * 0.5, `Expected compact chat snapshot (${chatBytes}B) < 50% of full (${fullBytes}B)`);
   assert.ok(Array.isArray((chatSnap.catalogs as { transformerCoreIds?: string[] }).transformerCoreIds));
+});
+
+test('2-Stage System Cascade Coupling computes accurate cascaded efficiency, bus link, and power balance', () => {
+  const acdcState = { ...ACDC_PRESETS[0].state, Vdc_bus_V: 400, Pout_W: 2500 };
+  const acdcRes = solveAcDcDesign(acdcState);
+  const dcdcState = { ...DCDC_PRESETS[0].state, Vin_nom_V: 380, Pout_W: 3300 };
+  const dcdcRes = solveDcDcDesign(dcdcState);
+
+  const cascade = solveSystemCascade(acdcState, acdcRes, dcdcState, dcdcRes);
+  const expectedEta = (acdcRes.efficiency_pct / 100) * (dcdcRes.efficiency_pct / 100) * 100;
+  assert.ok(Math.abs(cascade.eta_system_pct - expectedEta) < 0.05);
+  assert.ok(cascade.Pin_ac_system_W > dcdcState.Pout_W);
+  assert.ok(Math.abs(cascade.Ploss_system_W - (acdcRes.Ptotal_loss_W + dcdcRes.Ptotal_loss_W)) < 0.3);
+
+  const patches = computeCoupledStagePatches({
+    acdcState,
+    acdcRes,
+    dcdcState,
+    dcdcRes,
+    linkConfig: { linkBusVoltage: true, linkLoadPower: true },
+  });
+  assert.equal(patches.dcdcPatch?.Vin_nom_V, 400);
+  assert.ok(patches.acdcPatch?.Pout_W && patches.acdcPatch.Pout_W > dcdcState.Pout_W);
+});
+
+test('Project Storage validates v2/v1 JSON imports and Undo/Redo history stack', () => {
+  const fallback = {
+    dcdcState: DCDC_PRESETS[0].state,
+    acdcState: ACDC_PRESETS[0].state,
+    inductorConfigs: {},
+    capacitorConfigs: {},
+    systemLink: { linkBusVoltage: false, linkLoadPower: false },
+  };
+  const fileV2 = buildProjectFile('Lab Rev 5', fallback);
+  const parsedV2 = parseImportedProjectJson(JSON.stringify(fileV2), fallback);
+  assert.equal(parsedV2.ok, true);
+  if (parsedV2.ok) {
+    assert.equal(parsedV2.project.name, 'Lab Rev 5');
+    assert.equal(parsedV2.project.schemaVersion, 2);
+  }
+
+  const v1Export = JSON.stringify({
+    domain: 'dc-dc-isolated',
+    state: { ...DCDC_PRESETS[0].state, Pout_W: 4200, presetName: '4.2kW Custom' },
+  });
+  const parsedV1 = parseImportedProjectJson(v1Export, fallback);
+  assert.equal(parsedV1.ok, true);
+  if (parsedV1.ok) {
+    assert.equal(parsedV1.project.dcdcState.Pout_W, 4200);
+  }
+
+  const bad = parseImportedProjectJson('{invalid', fallback);
+  assert.equal(bad.ok, false);
+
+  let hist = createHistory(1);
+  hist = pushHistoryState(hist, 2);
+  hist = pushHistoryState(hist, 3);
+  assert.equal(hist.present, 3);
+  hist = undoHistory(hist);
+  assert.equal(hist.present, 2);
+  hist = redoHistory(hist);
+  assert.equal(hist.present, 3);
+});
+
+test('Multi-channel evalFullWaveforms produces realistic PSFB and LLC tank signals', () => {
+  const psfbRes = solveDcDcDesign(DCDC_PRESETS[0].state);
+  assert.ok(psfbRes.waveforms.length >= 100);
+  const psfbPt = psfbRes.evaluators.evalFullWaveforms(2.5);
+  assert.ok(Number.isFinite(psfbPt.v_pri_V));
+  assert.ok(Number.isFinite(psfbPt.i_lm_A));
+  assert.ok(Number.isFinite(psfbPt.v_cr_V));
+
+  const llcPreset = DCDC_PRESETS.find((p) => p.state.topology.startsWith('llc')) ?? DCDC_PRESETS[1];
+  const llcRes = solveDcDcDesign(llcPreset.state);
+  const llcPt = llcRes.evaluators.evalFullWaveforms(1.5);
+  assert.ok(Number.isFinite(llcPt.i_pri_A));
+  assert.ok(Number.isFinite(llcPt.v_cr_V));
+});
+
+test('RK4 Transient ODE Solver & Monte Carlo Tolerance Engine compute bounded physical outputs', () => {
+  const state = DCDC_PRESETS[0].state;
+  const res = solveDcDcDesign(state);
+  const tran = runTransientLoadStep(state, res, {
+    scenario: 'load-step',
+    initialLoad_pct: 20,
+    finalLoad_pct: 90,
+    totalTime_us: 800,
+  });
+  assert.ok(tran.points.length > 50);
+  assert.ok(tran.maxDeviation_pct < 15, `Expected bounded transient deviation, got ${tran.maxDeviation_pct}%`);
+  assert.ok(Math.abs(tran.steadyStateError_mV) < 1500);
+
+  const mc = runMonteCarloAnalysis(state, { numTrials: 60, seed: 42 });
+  assert.equal(mc.numTrials, 60);
+  assert.ok(mc.yield_pct >= 0 && mc.yield_pct <= 100);
+  assert.ok(mc.stats.efficiency_pct.mean > 85);
+  assert.ok(mc.sensitivities.length >= 4);
+});
+
+test('SPICE .cir Netlist & Embedded C Header Exporters emit valid netlists and Tustin coefficients', () => {
+  const dcdcState = DCDC_PRESETS[0].state;
+  const dcdcRes = solveDcDcDesign(dcdcState);
+  const acdcState = ACDC_PRESETS[0].state;
+  const acdcRes = solveAcDcDesign(acdcState);
+
+  const dcdcCir = generateDcDcSpiceNetlist(dcdcState, dcdcRes);
+  assert.ok(dcdcCir.includes('.tran'));
+  assert.ok(dcdcCir.includes('K_TX L_PRI L_SEC1 L_SEC2'));
+  assert.ok(dcdcCir.endsWith('.end'));
+
+  const acdcCir = generateAcDcSpiceNetlist(acdcState, acdcRes);
+  assert.ok(acdcCir.includes('L_PFC1'));
+  assert.ok(acdcCir.endsWith('.end'));
+
+  const header = generateControlFirmwareHeader(dcdcState, dcdcRes, acdcState, acdcRes);
+  assert.ok(header.includes('#define DCDC_CTRL_B0'));
+  assert.ok(header.includes('#define ACDC_I_B0'));
+  assert.ok(header.includes('#endif /* POWERSTAGE_CONTROL_CFG_H */'));
 });
 
