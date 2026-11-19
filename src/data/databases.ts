@@ -582,6 +582,8 @@ export interface DcDcDesignState {
   Rsense_mOhm: number;     // Current sense transfer gain (mΩ)
   slopeFactor_mc: number;  // Artificial ramp multiplier mc = 1 + Se/Sf (1.0 = no ramp, 2.0 = Se=Sf)
   fs_digital_kHz: number;  // Digital controller sampling rate (kHz)
+  type2Architecture?: 'opamp' | 'ota'; // Analog Type-II topology paired with PCMC / 2P2Z
+  ota_gm_mS?: number;                  // Transconductance amplifier gain g_m (mS) when OTA Type-II is selected
 }
 
 export const DCDC_PRESETS: { id: string; title: string; state: DcDcDesignState }[] = [

@@ -1070,11 +1070,11 @@ export const BhLoopVisualizer: React.FC<BhLoopVisualizerProps> = ({
         <div className="xl:col-span-4 space-y-3">
           {/* Saturation Flux Utilization Gauge Card */}
           <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-[#0B0E17] border border-slate-200 dark:border-slate-800 space-y-2.5">
-            <div className="flex items-center justify-between text-xs font-mono">
-              <span className="font-bold uppercase tracking-wider text-purple-400">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-medium text-slate-900 dark:text-[#eef0f5]">
                 Flux Swing vs. Material Saturation (Bs)
               </span>
-              <span className="font-bold text-slate-900 dark:text-slate-100">
+              <span className="font-mono font-medium tabular-nums text-slate-900 dark:text-slate-100">
                 {biasedLoop.maxB.toFixed(1)} / {bh.Bsat_100C_mT} mT
               </span>
             </div>
@@ -1149,7 +1149,7 @@ export const BhLoopVisualizer: React.FC<BhLoopVisualizerProps> = ({
 
           {/* Core Geometry -> B-H Coordinate Mapping Equations (KaTeX) */}
           <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-[#0B0E17] border border-slate-200 dark:border-slate-800 space-y-2.5 text-xs font-mono">
-            <div className="font-bold uppercase tracking-wider text-cyan-400">
+            <div className="font-medium font-sans text-slate-900 dark:text-[#eef0f5]">
               Core Geometry to B-H Plane Physics
             </div>
 
@@ -1262,20 +1262,20 @@ export const BhLoopVisualizer: React.FC<BhLoopVisualizerProps> = ({
       <div className="border-t border-slate-200 dark:border-slate-800 pt-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <Flame className="w-4 h-4 text-amber-400 shrink-0" />
-            <span className="text-xs font-mono font-bold uppercase tracking-wider text-amber-400">
-              Steinmetz &amp; iGSE Core Loss Module — Total Core Heating Under Specific f_sw &amp; ΔB Swings
+            <Flame className="w-4 h-4 text-amber-500 shrink-0" />
+            <span className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
+              Steinmetz &amp; iGSE Core Loss Module — Core Heating Under f_sw &amp; ΔB Swings
             </span>
             <span
-              className={`px-2 py-0.5 text-[10px] font-mono rounded font-semibold ${
+              className={`px-2 py-0.5 text-[10px] font-mono rounded font-medium ${
                 ct.coreThermalStable
-                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                  : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                  ? 'bg-emerald-500/15 text-emerald-500 dark:text-emerald-400 border border-emerald-500/30'
+                  : 'bg-rose-500/15 text-rose-500 dark:text-rose-400 border border-rose-500/30'
               }`}
             >
               {ct.coreThermalStable
-                ? `THERMALLY STABLE (dPfe/dT·Rθ = ${ct.coreThermalLoopGain} < 1)`
-                : `FERRITE THERMAL RUNAWAY RISK (dPfe/dT·Rθ = ${ct.coreThermalLoopGain})`}
+                ? `Thermally stable (dPfe/dT·Rθ = ${ct.coreThermalLoopGain} < 1)`
+                : `Thermal runaway risk (dPfe/dT·Rθ = ${ct.coreThermalLoopGain})`}
             </span>
           </div>
 

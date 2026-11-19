@@ -678,9 +678,9 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5">
         {/* Left Controls (5 cols) */}
         <div className="lg:col-span-5 bg-slate-50 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-lg p-3.5 space-y-3">
-          <div className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-400 flex items-center justify-between">
+          <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5] flex items-center justify-between">
             <span className="inline-flex items-center gap-1.5">
-              <Sliders className="w-3.5 h-3.5" /> Capacitor Dielectrics, ESR &amp; Thermal Controls
+              <Sliders className="w-3.5 h-3.5 text-cyan-500" /> Capacitor Dielectrics, ESR &amp; Thermal Controls
             </span>
             {esrLock.locked && (
               <button
@@ -865,7 +865,7 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
           <div className="bg-slate-50 dark:bg-slate-900/70 border border-cyan-500/30 rounded-lg p-3.5 flex flex-col justify-between space-y-2">
             <div>
               <div className="flex items-center justify-between">
-                <span className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-400">
+                <span className="text-xs font-medium text-slate-900 dark:text-[#eef0f5]">
                   1. Input DC-Link Capacitor Stress ({state.Vin_nom_V}V)
                 </span>
                 <span
@@ -921,7 +921,7 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
           <div className="bg-slate-50 dark:bg-slate-900/70 border border-emerald-500/30 rounded-lg p-3.5 flex flex-col justify-between space-y-2">
             <div>
               <div className="flex items-center justify-between">
-                <span className="text-xs font-mono font-bold uppercase tracking-wider text-emerald-400">
+                <span className="text-xs font-medium text-slate-900 dark:text-[#eef0f5]">
                   2. Output Filter Capacitor Stress ({state.Vout_V}V)
                 </span>
                 <span

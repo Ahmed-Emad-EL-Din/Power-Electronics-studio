@@ -39,6 +39,14 @@ export interface AiChatMessage {
   text: string;
   timestamp: string;
   attachedFixes?: AiStagedFix[];
+  toolTrace?: {
+    step: number;
+    tool: string;
+    argsSummary: string;
+    resultSummary: string;
+    committed: boolean;
+  }[];
+  committedSummary?: string[];
   error?: string;
 }
 
@@ -454,18 +462,18 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
           {/* LOADING SKELETON / AUDIT SUMMARY */}
           {isAuditing ? (
             <div className="p-4 space-y-3">
-              <div className="flex items-center gap-2 text-xs font-semibold text-cyan-700 dark:text-cyan-300">
+              <div className="flex items-center gap-2 text-xs font-medium text-cyan-700 dark:text-cyan-300">
                 <Loader2 className="w-4 h-4 animate-spin" />
                 <span>
                   {isVerifyingPass
-                    ? 'Running agentic verification pass on updated design...'
-                    : 'Inspecting AC-DC PFC, DC-DC magnetics, thermals, caps & Bode loops...'}
+                    ? 'Running agentic verification pass on updated design…'
+                    : 'Inspecting AC-DC PFC, DC-DC magnetics, thermals, caps & Bode loops…'}
                 </span>
               </div>
               <div className="space-y-2">
-                <div className="h-3 w-3/4 rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />
-                <div className="h-3 w-full rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />
-                <div className="h-3 w-5/6 rounded bg-slate-200 dark:bg-slate-800 animate-pulse" />
+                <div className="h-3 w-3/4 rounded bg-slate-200 dark:bg-[#1a1e28]" />
+                <div className="h-3 w-full rounded bg-slate-200 dark:bg-[#1a1e28]" />
+                <div className="h-3 w-5/6 rounded bg-slate-200 dark:bg-[#1a1e28]" />
               </div>
             </div>
           ) : (
@@ -737,6 +745,35 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
                       <span className="tabular-nums">{msg.timestamp}</span>
                     </div>
                     <div>{msg.text}</div>
+                    {msg.committedSummary && msg.committedSummary.length > 0 && (
+                      <div className="mt-2 p-2 rounded bg-emerald-500/10 border border-emerald-500/30 text-[11px] font-mono text-emerald-700 dark:text-emerald-300 space-y-0.5">
+                        <div className="font-semibold">Live Edits Applied &amp; Verified:</div>
+                        {msg.committedSummary.map((line, i) => (
+                          <div key={i}>• {line}</div>
+                        ))}
+                      </div>
+                    )}
+                    {msg.toolTrace && msg.toolTrace.length > 0 && (
+                      <details className="mt-2 text-[10px] font-mono text-slate-600 dark:text-slate-400">
+                        <summary className="cursor-pointer select-none text-cyan-700 dark:text-cyan-400 hover:underline">
+                          Verified Solver Calls ({msg.toolTrace.length})
+                        </summary>
+                        <div className="mt-1.5 space-y-1 pl-2 border-l border-cyan-500/30">
+                          {msg.toolTrace.map((t) => (
+                            <div key={t.step} className="leading-snug">
+                              <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                {t.step}. {t.tool}
+                              </span>
+                              {t.argsSummary ? `(${t.argsSummary})` : ''} →{' '}
+                              <span className="text-emerald-700 dark:text-emerald-400">
+                                {t.resultSummary}
+                              </span>
+                              {t.committed ? ' [committed]' : ''}
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
                     {msg.error && (
                       <div className="mt-2">
                         <button

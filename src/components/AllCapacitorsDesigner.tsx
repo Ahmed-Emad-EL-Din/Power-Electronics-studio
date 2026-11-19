@@ -245,7 +245,7 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
       <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
         <div className="px-4 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 flex flex-wrap items-center justify-between gap-2">
           <div>
-            <div className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
+            <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
               All Circuit Capacitor Banks — Matrix, Derating &amp; L10 Life ({mode === 'dcdc' ? 'DC-DC Stage' : 'AC-DC PFC Stage'})
             </div>
             <div className="text-[11px] text-slate-500 dark:text-slate-400">
@@ -322,11 +322,20 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
                     </td>
                     <td className="py-2.5 px-3 font-sans font-medium">
                       {bank.status === 'critical' ? (
-                        <span className="text-rose-600 dark:text-rose-400">✖ Critical</span>
+                        <span className="inline-flex items-center gap-1.5 text-rose-600 dark:text-rose-400">
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                          Critical
+                        </span>
                       ) : bank.status === 'warning' ? (
-                        <span className="text-amber-600 dark:text-amber-400">▲ Tight</span>
+                        <span className="inline-flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                          Tight
+                        </span>
                       ) : (
-                        <span className="text-emerald-600 dark:text-emerald-400">● Nominal</span>
+                        <span className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          Nominal
+                        </span>
                       )}
                     </td>
                   </tr>

@@ -368,6 +368,21 @@ export interface DcDcResults {
   C1_e24_nF: number;
   C2_e24_pF: number;
   C3_e24_nF: number;
+  // PCMC + Type-II Ridley Plant & OTA Transconductance Network Telemetry
+  type2Architecture: 'opamp' | 'ota';
+  type2_k_factor: number;
+  type2_boost_deg: number;
+  plant_Hdc_dB: number;
+  plant_fp1_Hz: number;
+  plant_fn_sh_kHz: number;
+  ota_gm_mS: number;
+  R1_ota_kOhm: number;
+  R4_ota_kOhm: number;
+  R2_ota_kOhm: number;
+  C1_ota_nF: number;
+  C2_ota_pF: number;
+  C1_ota_e24_nF: number;
+  C2_ota_e24_pF: number;
   Q_charge_nC: number;
   Vth_charge_V: number;
   L_emi_uH: number;
@@ -1924,6 +1939,19 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
     state.controlType === 'acmc' ||
     state.controlType === 'cascaded-pi';
 
+  // Effective ripple frequency for Ridley PCMC sample-and-hold & current-loop damping
+  const f_eff_pcmc = isLLC ? fsw : 2 * fsw;
+  const Ts_eff_pcmc = 1 / f_eff_pcmc;
+  const ridleyDampingTerm = Math.max(0.02, mc_slope * D_prime - 0.5);
+  const Hdc_ridley_linear =
+    (Rload_Ohm / Math.max(Rsense_Ohm, 0.005)) /
+    (1 + (Rload_Ohm * Ts_eff_pcmc) / Math.max(Lo_eq, 1e-7) * ridleyDampingTerm);
+  const wp1_ridley_rad =
+    1 / (Rload_Ohm * Co) + ridleyDampingTerm / (Math.max(Lo_eq, 1e-7) * Co * f_eff_pcmc);
+  const plant_Hdc_dB = 20 * Math.log10(Math.max(Hdc_ridley_linear, 1e-6));
+  const plant_fp1_Hz = wp1_ridley_rad / (2 * Math.PI);
+  const plant_fn_sh_kHz = (f_eff_pcmc * 0.5) / 1e3;
+
   const evalPlantCorner = (
     w: number,
     lScale = 1.0,
@@ -1936,12 +1964,16 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
     const ph_esr = (Math.atan(w / w_esr) * 180) / Math.PI;
 
     if (isCurrentOrChargeMode) {
-      const dcGain = (Rload_Ohm / Math.max(Rsense_Ohm, 0.01)) * 0.65;
-      const w_p1 = 1 / (Rload_Ohm * Co_c);
+      // Exact Ridley (1990) PCMC small-signal control-to-output transfer function
+      const dcGain =
+        (Rload_Ohm / Math.max(Rsense_Ohm, 0.005)) /
+        (1 + ((Rload_Ohm * Ts_eff_pcmc) / Math.max(Lo_c, 1e-7)) * ridleyDampingTerm);
+      const w_p1 =
+        1 / (Rload_Ohm * Co_c) + ridleyDampingTerm / (Math.max(Lo_c, 1e-7) * Co_c * f_eff_pcmc);
       const mag1 = (dcGain * mag_esr) / Math.sqrt(1 + Math.pow(w / w_p1, 2));
       const ph1 = -((Math.atan(w / w_p1) * 180) / Math.PI) + ph_esr;
 
-      const wn_sh = Math.PI * fsw;
+      const wn_sh = Math.PI * f_eff_pcmc;
       const q_eff = state.controlType === 'mpc' ? 0.707 : Math.max(Qp_subharmonic * lScale, 0.35);
       const re_sh = 1 - Math.pow(w / wn_sh, 2);
       const im_sh = w / (wn_sh * q_eff);
@@ -1979,20 +2011,32 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
   let fz2_kHz = 1.0;
   let fp1_kHz = 25.0;
   let fp2_kHz = 45.0;
+  let type2_k_factor = 1.0;
+  let type2_boost_deg = 45.0;
 
   if (isTwoZeroComp) {
     const boostClamped = Math.max(25, Math.min(162, reqBoost_deg));
     const k_sqrt = Math.tan(((boostClamped / 4 + 45) * Math.PI) / 180);
+    type2_k_factor = k_sqrt * k_sqrt;
+    type2_boost_deg = boostClamped;
     fz1_kHz = Math.max(0.15, (state.fc_target_kHz / k_sqrt) * 0.86);
     fz2_kHz = Math.max(0.2, (state.fc_target_kHz / k_sqrt) * 1.16);
     fp1_kHz = Math.min(state.fsw_kHz * 0.44, state.fc_target_kHz * k_sqrt * 0.9);
     fp2_kHz = Math.min(state.fsw_kHz * 0.49, state.fc_target_kHz * k_sqrt * 1.18);
   } else {
+    // Symmetric k-factor Type-II placement + ESR zero cancellation when f_esr sits in [1.25*fc, 0.45*fsw]
     const boostClamped = Math.max(15, Math.min(76, reqBoost_deg));
     const k2 = Math.tan(((boostClamped / 2 + 45) * Math.PI) / 180);
+    type2_k_factor = k2;
+    type2_boost_deg = boostClamped;
     fz1_kHz = Math.max(0.15, state.fc_target_kHz / k2);
     fz2_kHz = fz1_kHz;
-    fp1_kHz = Math.min(state.fsw_kHz * 0.45, state.fc_target_kHz * k2);
+    const fpSym = Math.min(state.fsw_kHz * 0.45, state.fc_target_kHz * k2);
+    fp1_kHz =
+      state.controlType === 'pcmc' && f_esr_kHz > state.fc_target_kHz * 1.35 && f_esr_kHz < state.fsw_kHz * 0.45
+        ? Math.min(fpSym, f_esr_kHz)
+        : fpSym;
+    fp1_kHz = Math.max(state.fc_target_kHz * 1.25, fp1_kHz);
     fp2_kHz = state.fsw_kHz * 0.49;
   }
 
@@ -2079,6 +2123,32 @@ export function solveDcDcDesign(state: DcDcDesignState): DcDcResults {
   const C1_e24_nF = snapToE24(C1_nF);
   const C2_e24_pF = snapToE24(C2_pF);
   const C3_e24_nF = snapToE24(C3_nF);
+
+  // TI SLVA662 OTA (gm Transconductance) Type-II Network Synthesis (COMP-to-GND)
+  const type2Architecture: 'opamp' | 'ota' = state.type2Architecture === 'ota' ? 'ota' : 'opamp';
+  const ota_gm_mS = Math.max(0.2, Math.min(10, state.ota_gm_mS ?? 1.2));
+  const ota_gm_S = ota_gm_mS * 1e-3;
+  const Vref_ota_V = 1.25;
+  const R4_ota_Ohm = snapToE96(10_000);
+  const R1_ota_Ohm = snapToE96(Math.max(4_700, R4_ota_Ohm * Math.max(0.5, Vout / Vref_ota_V - 1)));
+  const dividerGain = R4_ota_Ohm / (R1_ota_Ohm + R4_ota_Ohm);
+  const compGainAtFc = Math.max(1e-4, Ki_ctrl * compAtWc.mag);
+  const fz1_Hz = fz1_kHz * 1e3;
+  const fp1_Hz = Math.max(fz1_Hz * 1.15, fp1_kHz * 1e3);
+  const R2_ota_raw =
+    (compGainAtFc / Math.max(dividerGain * ota_gm_S, 1e-7)) *
+    (fp1_Hz / (fp1_Hz - fz1_Hz)) *
+    (Math.sqrt(1 + Math.pow(fc_Hz / fp1_Hz, 2)) / Math.sqrt(1 + Math.pow(fz1_Hz / fc_Hz, 2)));
+  const R2_ota_Ohm = Math.max(1_000, Math.min(470_000, snapToE96(R2_ota_raw)));
+  const C1_ota_F = 1 / (wz1 * R2_ota_Ohm);
+  const C2_ota_F = C1_ota_F * (fz1_Hz / Math.max(1, fp1_Hz - fz1_Hz));
+  const R1_ota_kOhm = R1_ota_Ohm / 1e3;
+  const R4_ota_kOhm = R4_ota_Ohm / 1e3;
+  const R2_ota_kOhm = R2_ota_Ohm / 1e3;
+  const C1_ota_nF = C1_ota_F * 1e9;
+  const C2_ota_pF = C2_ota_F * 1e12;
+  const C1_ota_e24_nF = snapToE24(C1_ota_nF);
+  const C2_ota_e24_pF = snapToE24(C2_ota_pF);
 
   // ============================================================================
   // FIX 3: EXACT TUSTIN BILINEAR TRANSFORM s = (2/Ts)*(1 - z^-1)/(1 + z^-1)
@@ -2826,6 +2896,20 @@ inline void DcDc_Control_ISR(float v_out_adc, float i_pri_adc) {
     C1_e24_nF,
     C2_e24_pF,
     C3_e24_nF,
+    type2Architecture,
+    type2_k_factor: Number(type2_k_factor.toFixed(2)),
+    type2_boost_deg: Number(type2_boost_deg.toFixed(1)),
+    plant_Hdc_dB: Number(plant_Hdc_dB.toFixed(1)),
+    plant_fp1_Hz: Number(plant_fp1_Hz.toFixed(1)),
+    plant_fn_sh_kHz: Number(plant_fn_sh_kHz.toFixed(1)),
+    ota_gm_mS,
+    R1_ota_kOhm,
+    R4_ota_kOhm,
+    R2_ota_kOhm,
+    C1_ota_nF,
+    C2_ota_pF,
+    C1_ota_e24_nF,
+    C2_ota_e24_pF,
     Q_charge_nC,
     Vth_charge_V,
     L_emi_uH,

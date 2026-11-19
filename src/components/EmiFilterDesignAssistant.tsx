@@ -1057,8 +1057,8 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
         {/* Left Control Column (5 cols) */}
         <div className="lg:col-span-5 bg-slate-50 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-lg p-3.5 space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-400 inline-flex items-center gap-1.5">
-              <Sliders className="w-3.5 h-3.5" /> 1. Switching Frequency, Power &amp; Filter Topology
+            <span className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5] inline-flex items-center gap-1.5">
+              <Sliders className="w-3.5 h-3.5 text-cyan-500" /> 1. Switching Frequency, Power &amp; Filter Topology
             </span>
             <span className="text-[11px] font-mono text-slate-400">
               f_rip = {f_ripple_kHz} kHz
@@ -1303,7 +1303,7 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
           {/* Card 1: INPUT Differential-Mode (DM) Recommended L & C */}
           <div className="bg-slate-50 dark:bg-slate-900/70 border border-cyan-500/30 rounded-lg p-3 flex flex-col justify-between space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-400">
+              <span className="text-xs font-medium text-slate-900 dark:text-[#eef0f5]">
                 1. Input DM Filter (Primary Bus)
               </span>
               <span className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
@@ -1345,7 +1345,7 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
           {/* Card 2: INPUT Common-Mode (CM) Recommended L & C */}
           <div className="bg-slate-50 dark:bg-slate-900/70 border border-purple-500/30 rounded-lg p-3 flex flex-col justify-between space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-mono font-bold uppercase tracking-wider text-purple-400">
+              <span className="text-xs font-medium text-slate-900 dark:text-[#eef0f5]">
                 2. Input CM Filter (Primary Bus)
               </span>
               <span className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-purple-500/15 text-purple-300 border border-purple-500/30">
@@ -1387,7 +1387,7 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
           {/* Card 3: OUTPUT Differential-Mode (DM) Recommended L & C */}
           <div className="bg-slate-50 dark:bg-slate-900/70 border border-emerald-500/30 rounded-lg p-3 flex flex-col justify-between space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-mono font-bold uppercase tracking-wider text-emerald-400">
+              <span className="text-xs font-medium text-slate-900 dark:text-[#eef0f5]">
                 3. Output DM Post-Filter (Secondary)
               </span>
               <span className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
@@ -1429,7 +1429,7 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
           {/* Card 4: OUTPUT Common-Mode (CM) Recommended L & C + Y1 Bridge */}
           <div className="bg-slate-50 dark:bg-slate-900/70 border border-amber-500/30 rounded-lg p-3 flex flex-col justify-between space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-mono font-bold uppercase tracking-wider text-amber-400">
+              <span className="text-xs font-medium text-slate-900 dark:text-[#eef0f5]">
                 4. Output CM Filter &amp; Isolation Bridge
               </span>
               <span className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-amber-500/15 text-amber-300 border border-amber-500/30">
@@ -1986,7 +1986,7 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
         {/* Governing Equations Card (4 cols) */}
         <div className="xl:col-span-4 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg p-3.5 space-y-2.5">
-          <div className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-400">
+          <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
             Input &amp; Output EMI Filter Synthesis Equations
           </div>
           <div className="space-y-2 text-xs font-mono">
@@ -2015,8 +2015,8 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
         <div className="xl:col-span-8 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
             <div>
-              <div className="text-xs font-mono font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5" /> Synthesized Input &amp; Output EMI Filter BOM ({emiDesign.std.shortName})
+              <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5] flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5 text-emerald-500" /> Synthesized Input &amp; Output EMI Filter BOM ({emiDesign.std.shortName})
               </div>
               <div className="text-[11px] font-mono text-slate-400">
                 Recommended CM &amp; DM inductors and capacitors for P_out = {activePout_W} W at f_sw = {activeFsw_kHz} kHz

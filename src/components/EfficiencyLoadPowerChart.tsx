@@ -624,8 +624,8 @@ export const EfficiencyLoadPowerChart: React.FC<EfficiencyLoadPowerChartProps> =
       {/* BOTTOM ROW: MULTI-LOAD EFFICIENCY & LOSS BREAKDOWN TABLE + PEAK EFFICIENCY EQUATION */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
         <div className="xl:col-span-4 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg p-3.5 space-y-2">
-          <div className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
-            <Zap className="w-3.5 h-3.5" /> Peak Efficiency Load Law
+          <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5] flex items-center gap-1.5">
+            <Zap className="w-3.5 h-3.5 text-cyan-500" /> Peak Efficiency Load Law
           </div>
           <div className="p-2.5 rounded bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
             <MathFormula tex="\eta(P_{\text{out}}) = \frac{P_{\text{out}}}{P_{\text{out}} + P_{\text{fixed}} + k_{\text{load}}^2 P_{\text{quad}}(T_j)}" />
@@ -639,7 +639,7 @@ export const EfficiencyLoadPowerChart: React.FC<EfficiencyLoadPowerChartProps> =
         </div>
 
         <div className="xl:col-span-8 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
-          <div className="text-xs font-mono font-bold uppercase tracking-wider text-emerald-400 mb-2">
+          <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5] mb-2">
             Standard Load-Point Efficiency &amp; Semiconductor / Magnetic Loss Audit (10% – 100% Rated Power)
           </div>
           <div className="overflow-x-auto">

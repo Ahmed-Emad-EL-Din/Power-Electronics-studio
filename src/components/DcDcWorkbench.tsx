@@ -297,7 +297,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
               [
                 { id: '2p2z', label: '2P2Z (Type-II)' },
                 { id: 'type-iii', label: 'Type-III (3P3Z)' },
-                { id: 'pcmc', label: 'PCMC + Slope Se' },
+                { id: 'pcmc', label: 'PCMC + Type-II' },
                 { id: 'acmc', label: 'ACMC' },
                 { id: 'cascaded-pi', label: 'Cascaded PI' },
                 { id: 'charge-control', label: 'Charge Control' },
@@ -1489,7 +1489,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
         {/* Sub-Navigation Bar */}
         <div
           ref={subTabNavRef}
-          className="scroll-mt-20 flex flex-wrap items-center gap-1.5 border-b border-slate-200 dark:border-slate-800 pb-2.5"
+          className="scroll-mt-20 flex flex-wrap items-center gap-1.5 border-b border-slate-200 dark:border-white/[0.08] pb-2.5"
         >
           {(
             [
@@ -1512,12 +1512,12 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
               key={tab.id}
               type="button"
               onClick={() => setSubTab(tab.id)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md border inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg border inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
                 subTab === tab.id
-                  ? 'bg-cyan-600 border-cyan-600 text-white font-semibold'
+                  ? 'bg-[#eceff4] dark:bg-[#1a1e28] border-cyan-500/50 text-cyan-700 dark:text-cyan-300 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
                   : tab.alert
-                  ? 'bg-rose-500/10 border-rose-500/50 text-rose-600 dark:text-rose-400 font-semibold'
-                  : 'bg-white dark:bg-[#0E131D] border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700 hover:text-slate-900 dark:hover:text-slate-100'
+                  ? 'bg-rose-500/10 border-rose-500/40 text-rose-600 dark:text-rose-400'
+                  : 'bg-white dark:bg-[#11141c] border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-[#a3a9b8] hover:border-slate-300 dark:hover:border-white/[0.16] hover:text-slate-900 dark:hover:text-[#eef0f5]'
               }`}
             >
               {tab.icon}
@@ -1533,9 +1533,9 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
             <DcDcSchematicView res={res} />
 
             {/* Governing Equations Table with KaTeX Mathematical Typesetting */}
-            <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-4">
-              <div className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400 mb-2.5">
-                Exact Governing Equations (KaTeX) &amp; Calculated Design Numbers
+            <div className="bg-white dark:bg-[#11141c] border border-slate-200 dark:border-white/[0.08] rounded-xl p-4">
+              <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5] mb-2.5">
+                Governing Equations (KaTeX) &amp; Calculated Design Numbers
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs font-mono">
@@ -1605,14 +1605,14 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                       <td
                         className={`py-2.5 ${
                           res.saturationCheck.status === 'critical'
-                            ? 'text-rose-500 font-bold'
+                            ? 'text-rose-500 font-medium'
                             : res.saturationCheck.status === 'warning'
-                            ? 'text-amber-500 font-semibold'
+                            ? 'text-amber-500 font-medium'
                             : 'text-slate-400'
                         }`}
                       >
                         Bpk = {res.Bpk_mT.toFixed(1)} mT (Margin {res.fluxMargin_pct.toFixed(1)}% to Bsat={res.saturationCheck.Bsat_100C_mT.toFixed(0)} mT)
-                        {res.saturationCheck.status === 'critical' && ' — SATURATION ALERT!'}
+                        {res.saturationCheck.status === 'critical' && ' — Saturation limit exceeded'}
                       </td>
                     </tr>
                     <tr>
@@ -1643,14 +1643,6 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                 </table>
               </div>
             </div>
-
-            {/* Recharts Efficiency & Decomposed Loss vs Load Power Curve Section */}
-            <EfficiencyLoadPowerChart
-              state={state}
-              res={res}
-              pinnedRes={pinnedRes}
-              onChange={onChange}
-            />
           </div>
         )}
 
@@ -1866,14 +1858,6 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                 series2={{ label: 'Output Inductor i_Lo(t)', unit: 'A', color: '#10b981' }}
               />
             </div>
-
-            {/* Capacitor Stress Analysis: Input & Output RMS Ripple Current Rating & L10 Life-Expectancy */}
-            <CapacitorBankAnalyzer
-              state={state}
-              res={res}
-              onChange={onChange}
-              onOpenPartDrawer={onOpenPartDrawer}
-            />
           </div>
         )}
 
@@ -2270,18 +2254,10 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
               />
             </div>
 
-            {/* Gate Drive Current (Ig) & Power (Pg) Analysis Module */}
-            <GateDriveAnalysisPanel
-              state={state}
-              res={res}
-              onChange={onChange}
-              onOpenPartDrawer={onOpenPartDrawer}
-            />
-
             {/* Detailed Loss Breakdown & Governing KaTeX Equations */}
-            <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-4">
-              <div className="text-xs font-mono font-bold uppercase tracking-wider text-amber-500 mb-2.5">
-                Complete Semiconductor Electro-Thermal Loss Breakdown &amp; KaTeX Physics Equations
+            <div className="bg-white dark:bg-[#11141c] border border-slate-200 dark:border-white/[0.08] rounded-xl p-4">
+              <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5] mb-2.5">
+                Semiconductor Electro-Thermal Loss Breakdown &amp; Physics Equations
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs font-mono">
@@ -2378,14 +2354,14 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
             </div>
 
             {/* Multi-Device Figure-of-Merit (FOM) & Converter Operating Point Benchmark Table */}
-            <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-4">
+            <div className="bg-white dark:bg-[#11141c] border border-slate-200 dark:border-white/[0.08] rounded-xl p-4">
               <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
                 <div>
-                  <div className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-400">
-                    LCSC / OEM Multi-Device Figure-of-Merit (FOM) &amp; Active Operating-Point Benchmark ({state.Vin_nom_V}V, {state.Pout_W}W, {state.fsw_kHz}kHz)
+                  <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
+                    LCSC / OEM Multi-Device Figure-of-Merit (FOM) &amp; Active Benchmark ({state.Vin_nom_V}V, {state.Pout_W}W, {state.fsw_kHz}kHz)
                   </div>
-                  <div className="text-[11px] font-mono text-slate-400">
-                    Compares all compatible LCSC &amp; custom grounded primary switches — click any row to equip
+                  <div className="text-[11px] font-mono text-slate-500 dark:text-[#7a8296]">
+                    Compares compatible LCSC &amp; custom grounded primary switches — click any row to equip
                   </div>
                 </div>
                 {onOpenPartDrawer && (
@@ -2506,7 +2482,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
               <InteractiveChart
                 title="Middlebrook Input EMI Filter Impedance Stability Criterion"
-                subtitle={`|Zin,closed-loop(jω)| vs |Zout,EMI(jω)| · Margin ΔZ_MB = ${res.middlebrookMargin_dB.toFixed(1)} dB (${res.middlebrookStable ? 'STABLE >6dB' : 'INTERACTION RISK'})`}
+                subtitle={`|Zin,closed-loop(jω)| vs |Zout,EMI(jω)| · Margin ΔZ_MB = ${res.middlebrookMargin_dB.toFixed(1)} dB (${res.middlebrookStable ? 'Margin > 6 dB' : 'Interaction risk'})`}
                 xLabel="Frequency"
                 xUnit="Hz"
                 logX={true}
@@ -2564,25 +2540,9 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
               />
             </div>
 
-            {/* EMI / EMC Conducted Filter Design & Attenuation Synthesis Assistant */}
-            <EmiFilterDesignAssistant
-              state={state}
-              res={res}
-              onChange={onChange}
-              onOpenPartDrawer={onOpenPartDrawer}
-            />
-
-            {/* Hardware Protection, Current-Sense & Desaturation Synthesizer */}
-            <ProtectionCurrentSensePanel
-              state={state}
-              res={res}
-              onChange={onChange}
-              onOpenPartDrawer={onOpenPartDrawer}
-            />
-
-            <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
+            <div className="bg-white dark:bg-[#11141c] border border-slate-200 dark:border-white/[0.08] rounded-xl p-3.5">
               <div className="flex items-center justify-between mb-2">
-                <div className="text-xs font-mono font-bold uppercase tracking-wider text-emerald-500">
+                <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
                   Synthesized {state.controlType.toUpperCase()} Pre-Warped Tustin Coefficients &amp; C ISR Implementation
                 </div>
                 <button
@@ -2796,12 +2756,6 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
               );
             })()}
 
-            {/* 2D Transformer Winding Window Cross-Section, Spatial MMF F(x) & Air-Gap Fringing Visualizer */}
-            <WindingWindowVisualizer state={state} res={res} onChange={onChange} />
-
-            {/* Real-Time Magnetic Core Saturation Headroom & Instantaneous B-Field vs Material B-H Panel */}
-            <MagneticSaturationPanel state={state} res={res} onChange={onChange} />
-
             {/* Specialized 4-Quadrant B-H Hysteresis Loop & Steinmetz Core Heating Workstation */}
             <BhLoopVisualizer
               res={res}
@@ -2921,13 +2875,13 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
             </div>
 
             {/* Multi-Material Steinmetz Coefficients & Core Heating Benchmark Table */}
-            <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
+            <div className="bg-white dark:bg-[#11141c] border border-slate-200 dark:border-white/[0.08] rounded-xl p-3.5">
               <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
                 <div>
-                  <div className="text-xs font-mono font-bold uppercase tracking-wider text-amber-400">
+                  <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
                     Multi-Material Steinmetz Coefficients (k, α, β, k_i) &amp; Core Heating Benchmark ({state.fsw_kHz} kHz, B_pk = {res.Bpk_mT.toFixed(1)} mT, {res.core.name})
                   </div>
-                  <div className="text-[11px] font-mono text-slate-400">
+                  <div className="text-[11px] font-mono text-slate-500 dark:text-[#7a8296]">
                     Compares volumetric core loss density Pv, iGSE vs SE power loss, and equilibrium core heating across power ferrite grades
                   </div>
                 </div>
@@ -3153,8 +3107,8 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5 space-y-3">
-                <div className="text-xs font-mono font-bold uppercase tracking-wider text-purple-400">
+              <div className="bg-white dark:bg-[#11141c] border border-slate-200 dark:border-white/[0.08] rounded-xl p-3.5 space-y-3">
+                <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
                   Transformer Core, Winding Stackup &amp; iGSE / Dowell Parameters
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -3339,8 +3293,8 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                 </div>
               </div>
 
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5 space-y-3">
-                <div className="text-xs font-mono font-bold uppercase tracking-wider text-amber-400">
+              <div className="bg-white dark:bg-[#11141c] border border-slate-200 dark:border-white/[0.08] rounded-xl p-3.5 space-y-3">
+                <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
                   Semiconductor Selection &amp; Secondary Parasitic Ringing / Snubber
                 </div>
                 <div className="space-y-2">

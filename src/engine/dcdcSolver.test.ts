@@ -12,9 +12,12 @@ import { evaluateDesignAlerts } from './designAlerts';
 import {
   extractCircuitCapacitors,
   extractCircuitInductors,
+  rankInductorCoreMaterials,
+  rankTransformerCoresForDcDc,
   solveCapacitorBank,
   solveCustomInductorDesign,
 } from './passiveDesignEngine';
+import { createAiToolSession } from './aiToolRegistry';
 import katex from 'katex';
 import { buildDesignReportModel } from '../utils/designReportModel';
 import { calcStringToTexLines } from '../utils/mathTexHelper';
@@ -31,8 +34,10 @@ import {
 import { runTransientLoadStep } from './transientOdeSolver';
 import { runMonteCarloAnalysis } from './monteCarloEngine';
 import {
+  generateAcDcLtspiceAsc,
   generateAcDcSpiceNetlist,
   generateControlFirmwareHeader,
+  generateDcDcLtspiceAsc,
   generateDcDcSpiceNetlist,
 } from './spiceNetlistExporter';
 import {
@@ -963,5 +968,161 @@ test('Auto-Optimizer solves unlocked LLC across low-line 330V with 0 Danger aler
   );
   assert.ok([5, 8, 10, 12, 15, 20, 25, 30, 33, 40, 50, 68, 75, 100].includes(opt.nextState.Rsense_mOhm));
 });
+
+test('Ridley PCMC + Type II (Op-Amp & OTA gm) synthesizes exact plant damping, BOM & SPICE/C exports', () => {
+  const base = DCDC_PRESETS[0].state;
+  const pcmcOta = solveDcDcDesign({
+    ...base,
+    controlType: 'pcmc',
+    type2Architecture: 'ota',
+    ota_gm_mS: 1.2,
+    slopeFactor_mc: 1.65,
+    fc_target_kHz: 12,
+    pm_target_deg: 60,
+  });
+
+  assert.equal(pcmcOta.isTwoZeroComp, false);
+  assert.equal(pcmcOta.type2Architecture, 'ota');
+  assert.ok(pcmcOta.plant_fp1_Hz > 50, 'Ridley PCMC current-loop damping pole fp1 should be positive');
+  assert.ok(pcmcOta.pm_actual_deg >= 50 && pcmcOta.pm_actual_deg <= 80, `Expected healthy PM, got ${pcmcOta.pm_actual_deg}`);
+  assert.ok(pcmcOta.R2_ota_kOhm >= 1 && pcmcOta.R2_ota_kOhm <= 470);
+  assert.ok(pcmcOta.C1_ota_e24_nF > 0 && pcmcOta.C2_ota_e24_pF > 0);
+  assert.ok(pcmcOta.fz1_kHz < pcmcOta.fc_actual_kHz && pcmcOta.fp1_kHz > pcmcOta.fc_actual_kHz);
+
+  const spice = generateDcDcSpiceNetlist(pcmcOta.state, pcmcOta);
+  assert.ok(spice.includes('G_OTA') && spice.includes('R_OTA_Z') && spice.includes('PCMC Artificial Slope Ramp'));
+
+  const acdcRes = solveAcDcDesign(ACDC_PRESETS[0].state);
+  const fw = generateControlFirmwareHeader(pcmcOta.state, pcmcOta, ACDC_PRESETS[0].state, acdcRes);
+  assert.ok(fw.includes('DCDC_TYPE2_IS_OTA           (1)'));
+  assert.ok(fw.includes('DCDC_PCMC_QP_WC'));
+});
+
+test('Inductor Pareto Core×Material Ranker, Gap Fringing Loss & Transformer Core Ranker work accurately', () => {
+  const dcdcState = DCDC_PRESETS[0].state;
+  const dcdcRes = solveDcDcDesign(dcdcState);
+  const acdcState = ACDC_PRESETS[0].state;
+  const acdcRes = solveAcDcDesign(acdcState);
+
+  const indReqs = extractCircuitInductors('dcdc', dcdcState, dcdcRes, acdcState, acdcRes);
+  const shimReq = indReqs.find((r) => r.id === 'dcdc-res-shim')!;
+  const rankedMinLoss = rankInductorCoreMaterials(shimReq, 'min-loss', 'all');
+  assert.ok(rankedMinLoss.length > 0);
+  assert.ok(rankedMinLoss[0].passesAll, 'Top-ranked AC shim inductor should pass all thermal/sat/fill limits');
+  assert.ok(rankedMinLoss[0].sol.P_gap_fringing_W >= 0);
+
+  const outChokeReq = indReqs.find((r) => r.id === 'dcdc-out-choke')!;
+  const rankedCompact = rankInductorCoreMaterials(outChokeReq, 'compact', 'toroid');
+  assert.ok(rankedCompact.length > 0 && rankedCompact.every((r) => r.core.shape === 'toroid'));
+
+  const txRanked = rankTransformerCoresForDcDc(dcdcState);
+  assert.ok(txRanked.length >= 4);
+  assert.ok(txRanked.some((r) => r.passesAll));
+});
+
+test('AI Tool Registry session executes multi-step solver tools & commits verified edits', () => {
+  const session = createAiToolSession({
+    dcdcState: DCDC_PRESETS[0].state,
+    acdcState: ACDC_PRESETS[0].state,
+  });
+
+  const summary = session.executeTool('get_design_summary', { stage: 'all' });
+  assert.ok(summary.dcdc && summary.acdc);
+
+  const simRes = session.executeTool('simulate_dcdc_patch', {
+    patch: {
+      controlType: 'pcmc',
+      type2Architecture: 'ota',
+      ota_gm_mS: 1.5,
+      slopeFactor_mc: 1.75,
+      fc_target_kHz: 10,
+      pm_target_deg: 60,
+    },
+    commit: true,
+  });
+  assert.equal(simRes.committed, true);
+  assert.equal((simRes.control as Record<string, unknown>).type2Architecture, 'ota');
+
+  const indRes = session.executeTool('design_and_rank_inductor', {
+    inductorId: 'dcdc-out-choke',
+    goal: 'min-loss',
+    commit: true,
+  });
+  assert.equal(indRes.committed, true);
+
+  const tranRes = session.executeTool('run_transient_step_check', { scenario: 'load-step' });
+  assert.ok(Number(tranRes.maxDeviation_pct) < 15);
+
+  const catalog = session.executeTool('search_parts_catalog', { category: 'semiconductors', query: 'SiC' });
+  assert.ok(Array.isArray(catalog.items) && catalog.items.length > 0);
+
+  const diff = session.getCommittedDiff();
+  assert.equal(diff.hasChanges, true);
+  assert.equal(session.getWorkingState().dcdcState.controlType, 'pcmc');
+  assert.equal(diff.dcdcPatch.type2Architecture, 'ota');
+  assert.equal(diff.dcdcPatch.ota_gm_mS, 1.5);
+  assert.ok(diff.inductorConfigsPatch['dcdc-out-choke']);
+  assert.equal(session.getTrace().length, 5);
+});
+
+test('LTspice .asc schematic exporter produces grid-aligned, orthogonal, well-organized diagrams across DC-DC & AC-DC variants', () => {
+  const verifyAsc = (ascText: string, label: string) => {
+    assert.ok(!ascText.includes('NaN') && !ascText.includes('undefined'), `[${label}] Contains NaN/undefined`);
+    const lines = ascText.trim().split('\n');
+    assert.equal(lines[0], 'Version 4', `[${label}] Missing Version 4 header`);
+    assert.ok(lines[1].startsWith('SHEET 1 '), `[${label}] Missing SHEET 1 line`);
+
+    const wireLines = lines.filter((l) => l.startsWith('WIRE '));
+    assert.ok(wireLines.length >= 15, `[${label}] Expected wired connections, got ${wireLines.length}`);
+    for (const w of wireLines) {
+      const [, x1s, y1s, x2s, y2s] = w.split(/\s+/);
+      const [x1, y1, x2, y2] = [Number(x1s), Number(y1s), Number(x2s), Number(y2s)];
+      assert.ok(
+        x1 === x2 || y1 === y2,
+        `[${label}] Non-orthogonal wire found: ${w}`
+      );
+      assert.ok(
+        x1 % 16 === 0 && y1 % 16 === 0 && x2 % 16 === 0 && y2 % 16 === 0,
+        `[${label}] Wire not aligned to 16px LTspice grid: ${w}`
+      );
+    }
+
+    const symLines = lines.filter((l) => l.startsWith('SYMBOL '));
+    assert.ok(symLines.length >= 8, `[${label}] Expected symbols`);
+    for (const s of symLines) {
+      const parts = s.split(/\s+/);
+      const sx = Number(parts[2]);
+      const sy = Number(parts[3]);
+      assert.ok(sx % 16 === 0 && sy % 16 === 0, `[${label}] Symbol off 16px grid: ${s}`);
+    }
+
+    assert.ok(lines.some((l) => l.startsWith('FLAG ') && l.endsWith(' 0')), `[${label}] Missing GND flag 0`);
+    assert.ok(lines.some((l) => l.includes('!.tran ')), `[${label}] Missing .tran directive`);
+  };
+
+  // Test DC-DC PSFB (CT + Op-Amp), PSFB (Full-Bridge + OTA), PSFB (Current-Doubler), and LLC-HB
+  for (const variant of [
+    { ...DCDC_PRESETS[0].state, txType: 'center-tapped' as const, type2Architecture: 'opamp' as const },
+    { ...DCDC_PRESETS[0].state, txType: 'full-bridge' as const, type2Architecture: 'ota' as const },
+    { ...DCDC_PRESETS[0].state, txType: 'current-doubler' as const, type2Architecture: 'ota' as const },
+    { ...DCDC_PRESETS[3].state, topology: 'llc-hb' as const },
+  ]) {
+    const res = solveDcDcDesign(variant);
+    const asc = generateDcDcLtspiceAsc(variant, res);
+    verifyAsc(asc, `${variant.topology}-${variant.txType}-${variant.type2Architecture ?? 'default'}`);
+    assert.ok(asc.includes('K_TX L_PRI L_SEC1'));
+    assert.ok(asc.includes('SYMBOL nmos '));
+  }
+
+  // Test AC-DC PFC (2-Phase Interleaved & 1-Phase)
+  for (const preset of [ACDC_PRESETS[0].state, ACDC_PRESETS[1].state]) {
+    const res = solveAcDcDesign(preset);
+    const asc = generateAcDcLtspiceAsc(preset, res);
+    verifyAsc(asc, preset.topology);
+    assert.ok(asc.includes('SYMBOL nmos '));
+  }
+});
+
+
 
 

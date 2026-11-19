@@ -68,8 +68,10 @@ import {
   undoHistory,
 } from './engine/projectStorage';
 import {
+  generateAcDcLtspiceAsc,
   generateAcDcSpiceNetlist,
   generateControlFirmwareHeader,
+  generateDcDcLtspiceAsc,
   generateDcDcSpiceNetlist,
 } from './engine/spiceNetlistExporter';
 import {
@@ -132,9 +134,11 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
     setDcdcField,
     applyDcdcPatch,
     clearDcdcChanges,
+    dcdcLocked,
     setAcdcField,
     applyAcdcPatch,
     clearAcdcChanges,
+    acdcLocked,
     inductorConfigs,
     updateInductorConfig,
     replaceInductorConfigs,
@@ -411,6 +415,14 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
         body: JSON.stringify({
           mode: 'audit',
           snapshot,
+          fullContext: {
+            dcdcState,
+            acdcState,
+            inductorConfigs,
+            capacitorConfigs,
+            dcdcLocked,
+            acdcLocked,
+          },
           isVerificationPass: isVerify,
           appliedSummary: opts?.appliedSummary || [],
           aiConfig: toServerAiConfig(aiConfig),
@@ -615,6 +627,14 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
               text: m.text,
             })),
           snapshot,
+          fullContext: {
+            dcdcState,
+            acdcState,
+            inductorConfigs,
+            capacitorConfigs,
+            dcdcLocked,
+            acdcLocked,
+          },
           aiConfig: toServerAiConfig(aiConfig),
         }),
       });
@@ -644,6 +664,45 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
         );
       }
       const parsed = data as unknown as AiAgentServerResponse;
+      const committedSummary: string[] = [];
+      if (parsed.committedPatch) {
+        const cp = parsed.committedPatch;
+        const hasDcdc = cp.dcdcPatch && Object.keys(cp.dcdcPatch).length > 0;
+        const hasAcdc = cp.acdcPatch && Object.keys(cp.acdcPatch).length > 0;
+        const hasInd = cp.inductorConfigsPatch && Object.keys(cp.inductorConfigsPatch).length > 0;
+        const hasCap = cp.capacitorConfigsPatch && Object.keys(cp.capacitorConfigsPatch).length > 0;
+        if (hasDcdc || hasAcdc || hasInd || hasCap) {
+          setAiRollback(createRollbackSnapshot('AI Tool-Verified Edit'));
+          if (hasDcdc && cp.dcdcPatch) {
+            applyDcdcPatch(cp.dcdcPatch, null, { bypassAutoOpt: true });
+            committedSummary.push(
+              `DC-DC: ${Object.entries(cp.dcdcPatch)
+                .map(([k, v]) => `${k}=${String(v)}`)
+                .join(', ')}`
+            );
+          }
+          if (hasAcdc && cp.acdcPatch) {
+            applyAcdcPatch(cp.acdcPatch, null, { bypassAutoOpt: true });
+            committedSummary.push(
+              `AC-DC: ${Object.entries(cp.acdcPatch)
+                .map(([k, v]) => `${k}=${String(v)}`)
+                .join(', ')}`
+            );
+          }
+          if (hasInd && cp.inductorConfigsPatch) {
+            replaceInductorConfigs({ ...inductorConfigs, ...cp.inductorConfigsPatch });
+            committedSummary.push(
+              `Inductors updated: ${Object.keys(cp.inductorConfigsPatch).join(', ')}`
+            );
+          }
+          if (hasCap && cp.capacitorConfigsPatch) {
+            replaceCapacitorConfigs({ ...capacitorConfigs, ...cp.capacitorConfigsPatch });
+            committedSummary.push(
+              `Capacitors updated: ${Object.keys(cp.capacitorConfigsPatch).join(', ')}`
+            );
+          }
+        }
+      }
       const attached = stageAndValidateAiFixes(parsed.proposedFixes || [], aiContextInputs);
       setAiChatMessages((prev) => [
         ...prev,
@@ -653,6 +712,8 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
           text: parsed.replyMarkdown || parsed.executiveSummary || parsed.headline,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           attachedFixes: attached,
+          toolTrace: parsed.toolTrace,
+          committedSummary,
         },
       ]);
     } catch (err: unknown) {
@@ -892,6 +953,23 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
     URL.revokeObjectURL(url);
   };
 
+  const handleExportActiveLtspiceAsc = () => {
+    const text =
+      domainTab === 'acdc'
+        ? generateAcDcLtspiceAsc(acdcState, acdcRes)
+        : generateDcDcLtspiceAsc(dcdcState, dcdcRes);
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download =
+      domainTab === 'acdc'
+        ? `voltcraft_${acdcState.topology}.asc`
+        : `voltcraft_${dcdcState.topology}.asc`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleExportFirmwareHeader = () => {
     const text = generateControlFirmwareHeader(dcdcState, dcdcRes, acdcState, acdcRes);
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
@@ -990,32 +1068,32 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
   const isPinned = domainTab === 'acdc' ? Boolean(pinnedAcdc) : Boolean(pinnedDcdc);
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#090C12] text-slate-900 dark:text-slate-100 flex flex-col transition-colors duration-150">
+    <div className="min-h-screen bg-[#f5f7fa] dark:bg-[#0b0d14] text-[#111827] dark:text-[#eef0f5] flex flex-col transition-colors duration-150">
       <div className={reportOpen ? 'no-print flex-1 flex flex-col' : 'flex-1 flex flex-col'}>
       {/* 3-ZONE TOP HEADER BAR */}
-      <header className="sticky top-0 z-30 min-h-14 py-2 px-4 lg:px-6 bg-white dark:bg-[#0D1119] border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4 lg:gap-8">
+      <header className="sticky top-0 z-30 min-h-14 py-2 px-4 lg:px-6 bg-white dark:bg-[#11141c] border-b border-slate-200/90 dark:border-white/[0.08] flex flex-wrap items-center justify-between gap-3 lg:gap-6">
         {/* Zone 1: Brand Title */}
         <div className="shrink-0">
-          <div className="text-[15px] font-semibold tracking-tight text-slate-900 dark:text-slate-100 leading-tight whitespace-nowrap">
+          <div className="text-[15px] font-medium tracking-tight text-slate-900 dark:text-[#eef0f5] leading-tight whitespace-nowrap">
             Power Converter Design Studio
           </div>
-          <div className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5 whitespace-nowrap">
-            Made By: Ahmed Emad
+          <div className="text-[11px] text-slate-500 dark:text-[#7a8296] leading-tight mt-0.5 whitespace-nowrap">
+            Made by Ahmed Emad
           </div>
         </div>
 
         {/* Zone 2: Primary Domain Switcher */}
         <nav
           aria-label="Workbench domains"
-          className="flex items-center gap-1 bg-slate-100 dark:bg-[#090C12] p-1 rounded-md border border-slate-200 dark:border-slate-800 overflow-x-auto"
+          className="flex items-center gap-1 bg-[#eceff4] dark:bg-[#07080d] p-1 rounded-lg border border-slate-200/80 dark:border-white/[0.07] overflow-x-auto"
         >
           <button
             type="button"
             onClick={() => setDomainTab('acdc')}
-            className={`px-3 py-1.5 text-xs font-medium rounded transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
               domainTab === 'acdc'
-                ? 'bg-white dark:bg-[#161E2E] text-cyan-700 dark:text-cyan-300 border border-slate-200 dark:border-slate-700 font-semibold'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 border border-transparent'
+                ? 'bg-white dark:bg-[#1a1e28] text-cyan-700 dark:text-cyan-300 border border-slate-200/90 dark:border-white/[0.12] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
+                : 'text-slate-600 dark:text-[#a3a9b8] hover:text-slate-900 dark:hover:text-[#eef0f5] border border-transparent'
             }`}
           >
             <Zap className="w-3.5 h-3.5" />
@@ -1024,10 +1102,10 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
           <button
             type="button"
             onClick={() => setDomainTab('dcdc')}
-            className={`px-3 py-1.5 text-xs font-medium rounded transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
               domainTab === 'dcdc'
-                ? 'bg-white dark:bg-[#161E2E] text-cyan-700 dark:text-cyan-300 border border-slate-200 dark:border-slate-700 font-semibold'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 border border-transparent'
+                ? 'bg-white dark:bg-[#1a1e28] text-cyan-700 dark:text-cyan-300 border border-slate-200/90 dark:border-white/[0.12] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
+                : 'text-slate-600 dark:text-[#a3a9b8] hover:text-slate-900 dark:hover:text-[#eef0f5] border border-transparent'
             }`}
           >
             <Cpu className="w-3.5 h-3.5" />
@@ -1036,10 +1114,10 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
           <button
             type="button"
             onClick={() => setDomainTab('small-signal')}
-            className={`px-3 py-1.5 text-xs font-medium rounded transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
               domainTab === 'small-signal'
-                ? 'bg-white dark:bg-[#161E2E] text-emerald-700 dark:text-emerald-300 border border-slate-200 dark:border-slate-700 font-semibold'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 border border-transparent'
+                ? 'bg-white dark:bg-[#1a1e28] text-cyan-700 dark:text-cyan-300 border border-slate-200/90 dark:border-white/[0.12] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
+                : 'text-slate-600 dark:text-[#a3a9b8] hover:text-slate-900 dark:hover:text-[#eef0f5] border border-transparent'
             }`}
           >
             <Compass className="w-3.5 h-3.5" />
@@ -1055,19 +1133,19 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
               type="button"
               onClick={() => toggleAlertPopover('danger')}
               aria-expanded={openAlertFilter === 'danger'}
-              className={`h-8 px-2.5 text-xs font-medium rounded-md border transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`h-8 px-2.5 text-xs font-medium rounded-lg border transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
                 designAlerts.danger.length > 0
                   ? openAlertFilter === 'danger'
-                    ? 'bg-rose-600 border-rose-600 text-white font-semibold'
-                    : 'bg-rose-500/10 hover:bg-rose-500/15 border-rose-500/50 text-rose-700 dark:text-rose-300 font-semibold'
+                    ? 'bg-rose-600 border-rose-600 text-white'
+                    : 'bg-rose-500/10 hover:bg-rose-500/15 border-rose-500/40 text-rose-700 dark:text-rose-300'
                   : openAlertFilter === 'danger'
-                  ? 'bg-emerald-600 border-emerald-600 text-white font-semibold'
-                  : 'bg-emerald-500/10 hover:bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-300'
+                  ? 'bg-emerald-600 border-emerald-600 text-white'
+                  : 'bg-[#eceff4]/70 dark:bg-[#1a1e28] hover:border-slate-300 dark:hover:border-white/[0.16] border-slate-200 dark:border-white/[0.08] text-emerald-700 dark:text-emerald-400'
               }`}
-              title="Critical danger alerts that cannot be left as-is — click to list and jump directly"
+              title="Critical danger alerts that require fixes — click to list and jump directly"
             >
               <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
-              <span className="font-mono font-bold tabular-nums">{designAlerts.danger.length}</span>
+              <span className="font-mono font-medium tabular-nums">{designAlerts.danger.length}</span>
               <span>Danger</span>
             </button>
 
@@ -1075,19 +1153,19 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
               type="button"
               onClick={() => toggleAlertPopover('warning')}
               aria-expanded={openAlertFilter === 'warning'}
-              className={`h-8 px-2.5 text-xs font-medium rounded-md border transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`h-8 px-2.5 text-xs font-medium rounded-lg border transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
                 designAlerts.warning.length > 0
                   ? openAlertFilter === 'warning'
-                    ? 'bg-amber-600 border-amber-600 text-white font-semibold'
-                    : 'bg-amber-500/10 hover:bg-amber-500/15 border-amber-500/50 text-amber-700 dark:text-amber-300 font-semibold'
+                    ? 'bg-amber-600 border-amber-600 text-white'
+                    : 'bg-amber-500/10 hover:bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300'
                   : openAlertFilter === 'warning'
-                  ? 'bg-slate-700 border-slate-600 text-white font-semibold'
-                  : 'bg-white dark:bg-[#131A26] border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
+                  ? 'bg-slate-700 border-slate-600 text-white'
+                  : 'bg-white dark:bg-[#1a1e28] border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-[#a3a9b8] hover:border-slate-300 dark:hover:border-white/[0.16]'
               }`}
-              title="Advisory warnings that are better to change — click to list and jump directly"
+              title="Advisory warnings with tight design margins — click to list and jump directly"
             >
               <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-              <span className="font-mono font-bold tabular-nums">{designAlerts.warning.length}</span>
+              <span className="font-mono font-medium tabular-nums">{designAlerts.warning.length}</span>
               <span>Warning</span>
             </button>
 
@@ -1095,19 +1173,19 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
               <div
                 role="dialog"
                 aria-label="Design alerts list"
-                className="fixed sm:absolute left-3 right-3 sm:left-auto sm:right-0 top-16 sm:top-full sm:mt-2 sm:w-[440px] max-h-[75vh] flex flex-col bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl z-50 overflow-hidden"
+                className="fixed sm:absolute left-3 right-3 sm:left-auto sm:right-0 top-16 sm:top-full sm:mt-2 sm:w-[440px] max-h-[75vh] flex flex-col bg-white dark:bg-[#11141c] border border-slate-200 dark:border-white/[0.12] rounded-xl shadow-lg z-50 overflow-hidden overscroll-contain"
               >
                 {/* Popover Header */}
-                <div className="px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 bg-slate-50 dark:bg-[#0B0F17]">
+                <div className="px-3.5 py-2.5 border-b border-slate-200 dark:border-white/[0.08] flex items-center justify-between gap-2 bg-[#f5f7fa] dark:bg-[#0b0d14]">
                   <div>
-                    <div className="text-xs font-semibold text-slate-900 dark:text-slate-100">
-                      Design Alerts — Click any item to jump directly
+                    <div className="text-xs font-medium text-slate-900 dark:text-[#eef0f5]">
+                      Design alerts — click any item to jump
                     </div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                    <div className="text-[11px] text-slate-500 dark:text-[#7a8296]">
                       {openAlertFilter === 'danger'
-                        ? 'Critical limit violations that must be fixed'
+                        ? 'Critical limit violations requiring resolution'
                         : openAlertFilter === 'warning'
-                        ? 'Tight margins or sub-optimal specs better to change'
+                        ? 'Tight margins or sub-optimal operating points'
                         : 'All critical and advisory design findings'}
                     </div>
                   </div>
@@ -1115,44 +1193,46 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
                     type="button"
                     onClick={() => setOpenAlertFilter(null)}
                     aria-label="Close alerts list"
-                    className="h-7 w-7 rounded border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 inline-flex items-center justify-center cursor-pointer"
+                    className="h-7 w-7 rounded-md border border-slate-200 dark:border-white/[0.1] text-slate-500 hover:text-slate-900 dark:hover:text-[#eef0f5] inline-flex items-center justify-center cursor-pointer"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
 
                 {/* Filter & Scope Controls */}
-                <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-[#0E131D]">
-                  <div className="inline-flex items-center gap-1 bg-slate-100 dark:bg-[#090C12] p-0.5 rounded border border-slate-200 dark:border-slate-800">
+                <div className="px-3 py-2 border-b border-slate-200 dark:border-white/[0.08] flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-[#11141c]">
+                  <div className="inline-flex items-center gap-1 bg-[#eceff4] dark:bg-[#07080d] p-0.5 rounded-lg border border-slate-200 dark:border-white/[0.07]">
                     <button
                       type="button"
                       onClick={() => setOpenAlertFilter('danger')}
-                      className={`px-2 py-1 text-[11px] font-mono rounded cursor-pointer transition-colors ${
+                      className={`px-2 py-1 text-[11px] font-mono rounded-md cursor-pointer transition-colors inline-flex items-center gap-1.5 ${
                         openAlertFilter === 'danger'
-                          ? 'bg-rose-600 text-white font-semibold'
+                          ? 'bg-rose-600 text-white font-medium'
                           : 'text-rose-700 dark:text-rose-400 hover:bg-rose-500/10'
                       }`}
                     >
-                      ✖ Danger ({designAlerts.danger.length})
+                      <span className={`w-1.5 h-1.5 rounded-full ${openAlertFilter === 'danger' ? 'bg-white' : 'bg-rose-500'}`} />
+                      Danger ({designAlerts.danger.length})
                     </button>
                     <button
                       type="button"
                       onClick={() => setOpenAlertFilter('warning')}
-                      className={`px-2 py-1 text-[11px] font-mono rounded cursor-pointer transition-colors ${
+                      className={`px-2 py-1 text-[11px] font-mono rounded-md cursor-pointer transition-colors inline-flex items-center gap-1.5 ${
                         openAlertFilter === 'warning'
-                          ? 'bg-amber-600 text-white font-semibold'
+                          ? 'bg-amber-600 text-white font-medium'
                           : 'text-amber-700 dark:text-amber-400 hover:bg-amber-500/10'
                       }`}
                     >
-                      ▲ Warning ({designAlerts.warning.length})
+                      <span className={`w-1.5 h-1.5 rounded-full ${openAlertFilter === 'warning' ? 'bg-white' : 'bg-amber-500'}`} />
+                      Warning ({designAlerts.warning.length})
                     </button>
                     <button
                       type="button"
                       onClick={() => setOpenAlertFilter('all')}
-                      className={`px-2 py-1 text-[11px] font-mono rounded cursor-pointer transition-colors ${
+                      className={`px-2 py-1 text-[11px] font-mono rounded-md cursor-pointer transition-colors ${
                         openAlertFilter === 'all'
-                          ? 'bg-cyan-600 text-white font-semibold'
-                          : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-800'
+                          ? 'bg-white dark:bg-[#1a1e28] text-slate-900 dark:text-[#eef0f5] font-medium'
+                          : 'text-slate-600 dark:text-[#a3a9b8] hover:bg-slate-200/60 dark:hover:bg-white/[0.05]'
                       }`}
                     >
                       All ({designAlerts.all.length})
@@ -1164,10 +1244,10 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
                       <button
                         type="button"
                         onClick={() => setAlertStageScope('all')}
-                        className={`px-1.5 py-0.5 rounded border cursor-pointer ${
+                        className={`px-2 py-0.5 rounded-md border cursor-pointer ${
                           alertStageScope === 'all'
-                            ? 'bg-slate-800 dark:bg-slate-700 border-slate-700 text-white'
-                            : 'border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400'
+                            ? 'bg-slate-800 dark:bg-[#1a1e28] border-slate-700 dark:border-white/[0.16] text-white'
+                            : 'border-slate-200 dark:border-white/[0.08] text-slate-500 dark:text-[#7a8296]'
                         }`}
                       >
                         Both Stages
@@ -1175,10 +1255,10 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
                       <button
                         type="button"
                         onClick={() => setAlertStageScope('active')}
-                        className={`px-1.5 py-0.5 rounded border cursor-pointer ${
+                        className={`px-2 py-0.5 rounded-md border cursor-pointer ${
                           alertStageScope === 'active'
                             ? 'bg-cyan-600 border-cyan-600 text-white'
-                            : 'border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400'
+                            : 'border-slate-200 dark:border-white/[0.08] text-slate-500 dark:text-[#7a8296]'
                         }`}
                       >
                         {domainTab === 'dcdc' ? 'DC-DC Only' : 'AC-DC Only'}
@@ -1188,18 +1268,18 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
                 </div>
 
                 {/* Scrollable Alert Rows */}
-                <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/80">
+                <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-white/[0.06]">
                   {visiblePopoverAlerts.length === 0 ? (
                     <div className="p-6 text-center space-y-1.5">
                       <CheckCircle2 className="w-6 h-6 text-emerald-500 mx-auto" />
-                      <div className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                      <div className="text-xs font-medium text-slate-800 dark:text-[#eef0f5]">
                         {openAlertFilter === 'danger'
                           ? 'No critical danger alerts active'
                           : openAlertFilter === 'warning'
                           ? 'No advisory warnings active'
                           : 'All converter parameters within safe limits'}
                       </div>
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                      <div className="text-[11px] text-slate-500 dark:text-[#7a8296]">
                         {alertStageScope === 'active'
                           ? 'Switch to "Both Stages" to inspect the other converter stage.'
                           : 'All magnetic, thermal, electrical, and control checks pass.'}
@@ -1235,20 +1315,20 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-1.5 min-w-0">
                                   <span
-                                    className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold border shrink-0 ${
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-medium border shrink-0 ${
                                       alert.domain === 'dcdc'
                                         ? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-700 dark:text-cyan-300'
-                                        : 'bg-indigo-500/10 border-indigo-500/30 text-indigo-700 dark:text-indigo-300'
+                                        : 'bg-slate-500/10 border-slate-500/30 text-slate-700 dark:text-[#a3a9b8]'
                                     }`}
                                   >
                                     {alert.domainLabel}
                                   </span>
-                                  <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate">
-                                    → {alert.subTabLabel}
+                                  <span className="text-[10px] font-mono text-slate-500 dark:text-[#7a8296] truncate">
+                                    / {alert.subTabLabel}
                                   </span>
                                 </div>
                                 <span
-                                  className={`inline-flex items-center gap-0.5 text-[10px] font-mono font-semibold shrink-0 ${
+                                  className={`inline-flex items-center gap-0.5 text-[10px] font-mono font-medium shrink-0 ${
                                     isDanger
                                       ? 'text-rose-600 dark:text-rose-400'
                                       : 'text-amber-600 dark:text-amber-400'
@@ -1259,7 +1339,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
                                 </span>
                               </div>
 
-                              <div className="text-xs font-semibold text-slate-900 dark:text-slate-100 leading-snug">
+                              <div className="text-xs font-medium text-slate-900 dark:text-[#eef0f5] leading-snug">
                                 {alert.title}
                               </div>
 
@@ -1273,7 +1353,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
                                 {alert.metric}
                               </div>
 
-                              <div className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+                              <div className="text-[11px] text-slate-500 dark:text-[#7a8296] leading-snug">
                                 {alert.actionHint}
                               </div>
                             </div>
@@ -1289,17 +1369,17 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
                                     e.stopPropagation();
                                     handleApplyAlertFix(fix);
                                   }}
-                                  className={`w-full text-left px-2.5 py-1.5 rounded border transition-colors cursor-pointer ${
+                                  className={`w-full text-left px-2.5 py-1.5 rounded-lg border transition-colors cursor-pointer ${
                                     isDanger
-                                      ? 'bg-white dark:bg-[#0D131E] border-rose-300 dark:border-rose-500/40 hover:border-emerald-500 dark:hover:border-emerald-500/70'
-                                      : 'bg-white dark:bg-[#0D131E] border-amber-300 dark:border-amber-500/40 hover:border-emerald-500 dark:hover:border-emerald-500/70'
+                                      ? 'bg-white dark:bg-[#1a1e28] border-rose-300 dark:border-rose-500/35 hover:border-emerald-500 dark:hover:border-emerald-500/60'
+                                      : 'bg-white dark:bg-[#1a1e28] border-amber-300 dark:border-amber-500/35 hover:border-emerald-500 dark:hover:border-emerald-500/60'
                                   }`}
                                 >
                                   <div className="flex items-center justify-between gap-2">
-                                    <span className="text-[11px] font-semibold text-slate-900 dark:text-slate-100 leading-tight">
+                                    <span className="text-[11px] font-medium text-slate-900 dark:text-[#eef0f5] leading-tight">
                                       1-Click Fix: {fix.label}
                                     </span>
-                                    <span className="px-1.5 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-mono font-semibold shrink-0">
+                                    <span className="px-1.5 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-mono font-medium shrink-0">
                                       Apply
                                     </span>
                                   </div>
@@ -1323,12 +1403,12 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
             type="button"
             onClick={() => setAiKeysModalOpen(true)}
             aria-expanded={aiKeysModalOpen}
-            className={`h-8 px-2.5 text-xs font-medium rounded-md border transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+            className={`h-8 px-2.5 text-xs font-medium rounded-lg border transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
               aiKeysModalOpen
-                ? 'bg-cyan-600 border-cyan-600 text-white font-semibold'
+                ? 'bg-[#eceff4] dark:bg-[#1a1e28] border-cyan-500/60 text-cyan-700 dark:text-cyan-300'
                 : validateAiProviderConfig(aiConfig)
-                ? 'bg-amber-500/10 border-amber-500/60 text-amber-700 dark:text-amber-300 hover:bg-amber-500/15'
-                : 'bg-white dark:bg-[#131A26] border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:border-cyan-500/60'
+                ? 'bg-amber-500/10 border-amber-500/50 text-amber-700 dark:text-amber-300 hover:bg-amber-500/15'
+                : 'bg-white dark:bg-[#1a1e28] border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-[#a3a9b8] hover:border-slate-300 dark:hover:border-white/[0.16]'
             }`}
             title={`Configure AI API Keys & Provider (${AI_PROVIDER_META[aiConfig.provider].label} · ${aiConfig.model})`}
           >
@@ -1349,24 +1429,23 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
             type="button"
             onClick={handleToggleAiEngineer}
             aria-pressed={aiEnabled}
-            className={`h-8 px-2.5 text-xs font-medium rounded-md border transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+            className={`h-8 px-2.5 text-xs font-medium rounded-lg border transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
               aiEnabled
-                ? 'bg-cyan-600 border-cyan-600 text-white font-semibold hover:bg-cyan-500'
-                : designAlerts.danger.length > 0
-                ? 'bg-white dark:bg-[#131A26] border-cyan-500/60 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/10'
-                : 'bg-white dark:bg-[#131A26] border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700'
+                ? 'bg-cyan-500/12 border-cyan-500/60 text-cyan-700 dark:text-cyan-300'
+                : 'bg-white dark:bg-[#1a1e28] border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-[#a3a9b8] hover:border-slate-300 dark:hover:border-white/[0.16]'
             }`}
-            title="Toggle AI Engineer Assistant to audit full converter state, propose verified Danger/Warning fixes, and verify safety"
+            title="Toggle AI Engineer Assistant to audit converter state, propose verified fixes, and verify safety"
           >
             <Bot className="w-3.5 h-3.5 shrink-0" />
-            <span>AI Agent: {aiEnabled ? 'ON' : 'OFF'}</span>
+            <span>AI Agent</span>
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${aiEnabled ? 'bg-cyan-500' : 'bg-slate-400 dark:bg-slate-600'}`} />
           </button>
 
           <button
             type="button"
             onClick={() => setReportOpen(true)}
-            className="h-8 px-3 text-xs font-medium rounded-md bg-slate-900 dark:bg-emerald-600 hover:bg-slate-800 dark:hover:bg-emerald-500 text-white transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
-            title="Generate textbook-style Engineering Design Report with TOC, derivations, graphs & PDF print"
+            className="h-8 px-3 text-xs font-medium rounded-lg bg-[#111827] dark:bg-cyan-500 hover:bg-slate-800 dark:hover:bg-cyan-400 text-white dark:text-[#07080d] transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+            title="Generate engineering design report with derivations, graphs & PDF print"
           >
             <FileText className="w-3.5 h-3.5" />
             Generate Report
@@ -1375,20 +1454,20 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
-            className="h-8 px-3 text-xs font-medium rounded-md bg-cyan-600 hover:bg-cyan-500 text-white transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+            className="h-8 px-2.5 text-xs font-medium rounded-lg bg-white dark:bg-[#1a1e28] border border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-[#eef0f5] hover:border-slate-300 dark:hover:border-white/[0.16] transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
             title="Open LCSC / DigiKey Component Database and BOM Exporter"
           >
-            <Search className="w-3.5 h-3.5" />
+            <Search className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
             Component DB
           </button>
 
           <button
             type="button"
             onClick={handlePinToggle}
-            className={`h-8 px-2.5 text-xs font-medium rounded-md border transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+            className={`h-8 px-2.5 text-xs font-medium rounded-lg border transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
               isPinned
-                ? 'bg-amber-500/10 border-amber-500/60 text-amber-700 dark:text-amber-300 font-semibold'
-                : 'bg-white dark:bg-[#131A26] border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700'
+                ? 'bg-amber-500/10 border-amber-500/50 text-amber-700 dark:text-amber-300'
+                : 'bg-white dark:bg-[#1a1e28] border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-[#a3a9b8] hover:border-slate-300 dark:hover:border-white/[0.16]'
             }`}
             title="Pin current curves as reference overlay"
           >
@@ -1400,7 +1479,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
             type="button"
             onClick={handleUndo}
             disabled={historyStack.past.length === 0}
-            className="h-8 w-8 rounded-md bg-white dark:bg-[#131A26] border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700 disabled:opacity-40 inline-flex items-center justify-center shrink-0 cursor-pointer transition-colors"
+            className="h-8 w-8 rounded-lg bg-white dark:bg-[#1a1e28] border border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-[#a3a9b8] hover:border-slate-300 dark:hover:border-white/[0.16] disabled:opacity-40 inline-flex items-center justify-center shrink-0 cursor-pointer transition-colors"
             title="Undo last design edit (Ctrl+Z)"
             aria-label="Undo"
           >
@@ -1411,7 +1490,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
             type="button"
             onClick={handleRedo}
             disabled={historyStack.future.length === 0}
-            className="h-8 w-8 rounded-md bg-white dark:bg-[#131A26] border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700 disabled:opacity-40 inline-flex items-center justify-center shrink-0 cursor-pointer transition-colors"
+            className="h-8 w-8 rounded-lg bg-white dark:bg-[#1a1e28] border border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-[#a3a9b8] hover:border-slate-300 dark:hover:border-white/[0.16] disabled:opacity-40 inline-flex items-center justify-center shrink-0 cursor-pointer transition-colors"
             title="Redo design edit (Ctrl+Shift+Z)"
             aria-label="Redo"
           >
@@ -1424,17 +1503,17 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
               setProjectImportStatus(null);
               setProjectsModalOpen(true);
             }}
-            className="h-8 px-2.5 text-xs font-medium rounded-md bg-white dark:bg-[#131A26] border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-cyan-500/60 inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-colors"
-            title="Save/Load Projects, Import JSON, Export SPICE (.cir) & Embedded C Header (.h)"
+            className="h-8 px-2.5 text-xs font-medium rounded-lg bg-white dark:bg-[#1a1e28] border border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-[#a3a9b8] hover:border-slate-300 dark:hover:border-white/[0.16] inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-colors"
+            title="Save/Load Projects, Import JSON, Export LTspice (.asc), SPICE (.cir) & Embedded C Header (.h)"
           >
-            <FolderOpen className="w-3.5 h-3.5 text-cyan-500" />
+            <FolderOpen className="w-3.5 h-3.5 text-slate-500 dark:text-[#7a8296]" />
             <span>Projects</span>
           </button>
 
           <button
             type="button"
             onClick={handleExportJson}
-            className="h-8 px-2.5 text-xs font-medium rounded-md bg-white dark:bg-[#131A26] border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700 inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-colors"
+            className="h-8 px-2.5 text-xs font-medium rounded-lg bg-white dark:bg-[#1a1e28] border border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-[#a3a9b8] hover:border-slate-300 dark:hover:border-white/[0.16] inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-colors"
             title="Export active domain specification as JSON"
           >
             <Download className="w-3.5 h-3.5" />
@@ -1444,7 +1523,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
           <button
             type="button"
             onClick={handleReset}
-            className="h-8 w-8 rounded-md bg-white dark:bg-[#131A26] border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700 inline-flex items-center justify-center shrink-0 cursor-pointer transition-colors"
+            className="h-8 w-8 rounded-lg bg-white dark:bg-[#1a1e28] border border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-[#a3a9b8] hover:border-slate-300 dark:hover:border-white/[0.16] inline-flex items-center justify-center shrink-0 cursor-pointer transition-colors"
             title="Reset current tab to default preset"
             aria-label="Reset current tab to default preset"
           >
@@ -1454,7 +1533,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
           <button
             type="button"
             onClick={() => setDarkMode((d) => !d)}
-            className="h-8 w-8 rounded-md bg-white dark:bg-[#131A26] border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700 inline-flex items-center justify-center shrink-0 cursor-pointer transition-colors"
+            className="h-8 w-8 rounded-lg bg-white dark:bg-[#1a1e28] border border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-[#a3a9b8] hover:border-slate-300 dark:hover:border-white/[0.16] inline-flex items-center justify-center shrink-0 cursor-pointer transition-colors"
             title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
             aria-label={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
           >
@@ -1468,24 +1547,25 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
       </header>
 
       {/* 2-STAGE SYSTEM CASCADE LINK & EFFICIENCY STRIP */}
-      <div className="no-print bg-slate-100/90 dark:bg-[#0B0F17] border-b border-slate-200 dark:border-slate-800/80 px-4 lg:px-6 py-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono">
+      <div className="no-print bg-[#eceff4]/75 dark:bg-[#07080d] border-b border-slate-200 dark:border-white/[0.07] px-4 lg:px-6 py-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1 font-semibold text-slate-700 dark:text-slate-300">
-            <Link2 className="w-3.5 h-3.5 text-cyan-500" />
-            2-Stage Cascade:
+          <span className="inline-flex items-center gap-1.5 font-medium text-slate-700 dark:text-[#a3a9b8]">
+            <Link2 className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
+            2-Stage Cascade
           </span>
           <button
             type="button"
             onClick={() =>
               setSystemLink((s) => ({ ...s, linkBusVoltage: !s.linkBusVoltage }))
             }
-            className={`px-2 py-0.5 rounded border cursor-pointer transition-colors ${
+            className={`px-2 py-0.5 rounded-md border cursor-pointer transition-colors inline-flex items-center gap-1.5 ${
               systemLink.linkBusVoltage
-                ? 'bg-cyan-600 border-cyan-600 text-white font-semibold'
-                : 'bg-white dark:bg-[#131A26] border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                ? 'bg-white dark:bg-[#1a1e28] border-cyan-500/50 text-cyan-700 dark:text-cyan-300 font-medium'
+                : 'bg-white/70 dark:bg-[#11141c] border-slate-300 dark:border-white/[0.08] text-slate-600 dark:text-[#7a8296]'
             }`}
             title="Propagate AC-DC Vdc_bus & ripple directly into DC-DC Vin_nom/min/max"
           >
+            <span className={`w-1.5 h-1.5 rounded-full ${systemLink.linkBusVoltage ? 'bg-cyan-500' : 'bg-slate-400 dark:bg-slate-600'}`} />
             Link Bus V ({acdcState.Vdc_bus_V}V → {dcdcState.Vin_nom_V}V)
           </button>
           <button
@@ -1493,13 +1573,14 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
             onClick={() =>
               setSystemLink((s) => ({ ...s, linkLoadPower: !s.linkLoadPower }))
             }
-            className={`px-2 py-0.5 rounded border cursor-pointer transition-colors ${
+            className={`px-2 py-0.5 rounded-md border cursor-pointer transition-colors inline-flex items-center gap-1.5 ${
               systemLink.linkLoadPower
-                ? 'bg-emerald-600 border-emerald-600 text-white font-semibold'
-                : 'bg-white dark:bg-[#131A26] border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                ? 'bg-white dark:bg-[#1a1e28] border-emerald-500/50 text-emerald-700 dark:text-emerald-300 font-medium'
+                : 'bg-white/70 dark:bg-[#11141c] border-slate-300 dark:border-white/[0.08] text-slate-600 dark:text-[#7a8296]'
             }`}
             title="Propagate DC-DC Pout / η_dcdc back into AC-DC PFC output power"
           >
+            <span className={`w-1.5 h-1.5 rounded-full ${systemLink.linkLoadPower ? 'bg-emerald-500' : 'bg-slate-400 dark:bg-slate-600'}`} />
             Link Load P ({systemCascade.P_pfc_required_W.toFixed(0)}W)
           </button>
           {!systemLink.linkBusVoltage && systemCascade.busVoltageMismatch_V > 5 && (
@@ -1509,21 +1590,21 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 tabular-nums text-slate-600 dark:text-slate-300">
+        <div className="flex flex-wrap items-center gap-3 tabular-nums text-slate-600 dark:text-[#a3a9b8]">
           <span>
-            η_sys: <strong className="text-emerald-600 dark:text-emerald-400">{systemCascade.eta_system_pct}%</strong>
+            η_sys: <strong className="font-medium text-emerald-600 dark:text-emerald-400">{systemCascade.eta_system_pct}%</strong>
           </span>
           <span>
-            P_in(AC): <strong>{systemCascade.Pin_ac_system_W.toFixed(0)}W</strong>
+            P_in(AC): <strong className="font-medium text-slate-900 dark:text-[#eef0f5]">{systemCascade.Pin_ac_system_W.toFixed(0)}W</strong>
           </span>
           <span>
-            P_loss(Total): <strong className="text-amber-600 dark:text-amber-400">{systemCascade.Ploss_system_W.toFixed(1)}W</strong>{' '}
-            <span className="text-slate-400">
+            P_loss(Total): <strong className="font-medium text-amber-600 dark:text-amber-400">{systemCascade.Ploss_system_W.toFixed(1)}W</strong>{' '}
+            <span className="text-slate-400 dark:text-[#7a8296]">
               (PFC {systemCascade.acdcLossShare_pct}% / DC-DC {systemCascade.dcdcLossShare_pct}%)
             </span>
           </span>
           <span>
-            I_AC(nom): <strong>{systemCascade.Iac_system_rms_nom_A}A</strong>
+            I_AC(nom): <strong className="font-medium text-slate-900 dark:text-[#eef0f5]">{systemCascade.Iac_system_rms_nom_A}A</strong>
           </span>
         </div>
       </div>
@@ -1654,14 +1735,14 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
       {/* TOP-BAR AI PROVIDER & API KEYS MODAL */}
       {aiKeysModalOpen && (
         <div
-          className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-[2px]"
+          className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#07080d]/65 backdrop-blur-[2px] overscroll-contain"
           role="dialog"
           aria-modal="true"
           aria-label="Configure AI Provider and API Keys"
           onClick={() => setAiKeysModalOpen(false)}
         >
           <div
-            className="w-full max-w-lg rounded-lg shadow-2xl bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-700 overflow-hidden"
+            className="w-full max-w-lg rounded-xl shadow-lg bg-white dark:bg-[#11141c] border border-slate-200 dark:border-white/[0.12] overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <AiProviderSettingsPanel
@@ -1676,37 +1757,38 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
       {/* PROJECTS, JSON IMPORT & SPICE/FIRMWARE EXPORT MODAL */}
       {projectsModalOpen && (
         <div
-          className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-[2px]"
+          className="no-print fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#07080d]/65 backdrop-blur-[2px] overscroll-contain"
           role="dialog"
           aria-modal="true"
           aria-label="Projects, Import and Engineering Export"
           onClick={() => setProjectsModalOpen(false)}
         >
           <div
-            className="w-full max-w-2xl rounded-lg shadow-2xl bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-700 overflow-hidden"
+            className="w-full max-w-2xl rounded-xl shadow-lg bg-white dark:bg-[#11141c] border border-slate-200 dark:border-white/[0.12] overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0B0F17] flex items-center justify-between">
+            <div className="px-4 py-3 border-b border-slate-200 dark:border-white/[0.08] bg-[#f5f7fa] dark:bg-[#0b0d14] flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <FolderOpen className="w-4 h-4 text-cyan-500" />
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                <FolderOpen className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+                <h3 className="text-sm font-medium text-slate-900 dark:text-[#eef0f5]">
                   Projects, JSON Import &amp; Simulation Exports
                 </h3>
               </div>
               <button
                 type="button"
+                aria-label="Close projects modal"
                 onClick={() => setProjectsModalOpen(false)}
-                className="h-7 w-7 rounded border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 inline-flex items-center justify-center cursor-pointer"
+                className="h-7 w-7 rounded-md border border-slate-200 dark:border-white/[0.1] text-slate-500 hover:text-slate-900 dark:hover:text-[#eef0f5] inline-flex items-center justify-center cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
 
-            <div className="p-4 space-y-4 max-h-[78vh] overflow-y-auto">
+            <div className="p-4 space-y-4 max-h-[78vh] overflow-y-auto overscroll-contain">
               {/* Save Current Workspace */}
               <div className="space-y-2">
-                <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                  Save Current 2-Stage Workspace
+                <div className="text-xs font-medium text-slate-700 dark:text-[#eef0f5]">
+                  Save current 2-stage workspace
                 </div>
                 <div className="flex items-center gap-2">
                   <input
@@ -1714,12 +1796,12 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
                     value={projectNameInput}
                     onChange={(e) => setProjectNameInput(e.target.value)}
                     placeholder={`${dcdcState.presetName} (${dcdcState.Pout_W}W)`}
-                    className="flex-1 px-3 py-1.5 text-xs font-mono rounded border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-[#090C12]"
+                    className="flex-1 px-3 py-1.5 text-xs font-mono rounded-lg border border-slate-300 dark:border-white/[0.1] bg-[#f5f7fa] dark:bg-[#0b0d14] text-slate-900 dark:text-[#eef0f5]"
                   />
                   <button
                     type="button"
                     onClick={handleSaveNamedProject}
-                    className="px-3 py-1.5 text-xs font-semibold rounded bg-cyan-600 hover:bg-cyan-500 text-white inline-flex items-center gap-1.5 cursor-pointer"
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg bg-[#111827] dark:bg-cyan-500 hover:bg-slate-800 dark:hover:bg-cyan-400 text-white dark:text-[#07080d] inline-flex items-center gap-1.5 cursor-pointer"
                   >
                     <Save className="w-3.5 h-3.5" />
                     Save Slot
@@ -1739,7 +1821,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
                 <button
                   type="button"
                   onClick={() => jsonFileInputRef.current?.click()}
-                  className="px-2.5 py-2 text-xs font-mono rounded border border-cyan-500/40 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="px-2.5 py-2 text-xs font-mono rounded-lg border border-slate-200 dark:border-white/[0.1] bg-[#f5f7fa] dark:bg-[#1a1e28] hover:border-cyan-500/60 text-cyan-700 dark:text-cyan-300 inline-flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
                 >
                   <Upload className="w-3.5 h-3.5" />
                   Import JSON
@@ -1747,56 +1829,64 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
                 <button
                   type="button"
                   onClick={handleExportFullProjectJson}
-                  className="px-2.5 py-2 text-xs font-mono rounded border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 hover:border-cyan-500 inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="px-2.5 py-2 text-xs font-mono rounded-lg border border-slate-200 dark:border-white/[0.1] bg-[#f5f7fa] dark:bg-[#1a1e28] hover:border-slate-300 dark:hover:border-white/[0.2] text-slate-700 dark:text-[#eef0f5] inline-flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
                 >
                   <Download className="w-3.5 h-3.5" />
                   Project .json
                 </button>
                 <button
                   type="button"
-                  onClick={handleExportActiveSpice}
-                  className="px-2.5 py-2 text-xs font-mono rounded border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                  onClick={handleExportActiveLtspiceAsc}
+                  className="px-2.5 py-2 text-xs font-mono rounded-lg border border-slate-200 dark:border-white/[0.1] bg-[#f5f7fa] dark:bg-[#1a1e28] hover:border-emerald-500/60 text-emerald-700 dark:text-emerald-300 inline-flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
                 >
-                  <Download className="w-3.5 h-3.5" />
+                  <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  LTspice .asc
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportActiveSpice}
+                  className="px-2.5 py-2 text-xs font-mono rounded-lg border border-slate-200 dark:border-white/[0.1] bg-[#f5f7fa] dark:bg-[#1a1e28] hover:border-slate-300 dark:hover:border-white/[0.2] text-slate-700 dark:text-[#eef0f5] inline-flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                   SPICE .cir
                 </button>
                 <button
                   type="button"
                   onClick={handleExportFirmwareHeader}
-                  className="px-2.5 py-2 text-xs font-mono rounded border border-purple-500/40 bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="px-2.5 py-2 text-xs font-mono rounded-lg border border-slate-200 dark:border-white/[0.1] bg-[#f5f7fa] dark:bg-[#1a1e28] hover:border-slate-300 dark:hover:border-white/[0.2] text-slate-700 dark:text-[#eef0f5] inline-flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
                 >
-                  <Download className="w-3.5 h-3.5" />
+                  <Download className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
                   DSP Config .h
                 </button>
               </div>
 
               {projectImportStatus && (
-                <div className="px-3 py-2 rounded border border-cyan-500/30 bg-cyan-500/10 text-xs font-mono text-cyan-700 dark:text-cyan-300">
+                <div className="px-3 py-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 text-xs font-mono text-cyan-700 dark:text-cyan-300">
                   {projectImportStatus}
                 </div>
               )}
 
               {/* Saved Browser Projects */}
               <div className="space-y-2">
-                <div className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                <div className="text-xs font-medium text-slate-700 dark:text-[#eef0f5]">
                   Saved Projects ({savedProjects.length})
                 </div>
                 {savedProjects.length === 0 ? (
-                  <div className="p-4 rounded border border-dashed border-slate-300 dark:border-slate-700 text-xs text-slate-500 text-center">
+                  <div className="p-4 rounded-lg border border-dashed border-slate-300 dark:border-white/[0.12] text-xs text-slate-500 dark:text-[#7a8296] text-center">
                     No saved project slots yet. Click &quot;Save Slot&quot; above to store your current design.
                   </div>
                 ) : (
-                  <div className="divide-y divide-slate-200 dark:divide-slate-800 border border-slate-200 dark:border-slate-800 rounded-md overflow-hidden">
+                  <div className="divide-y divide-slate-200 dark:divide-white/[0.06] border border-slate-200 dark:border-white/[0.08] rounded-lg overflow-hidden">
                     {savedProjects.map((entry) => (
                       <div
                         key={entry.id}
-                        className="px-3 py-2 bg-white dark:bg-[#0B0F17] flex items-center justify-between gap-2"
+                        className="px-3 py-2 bg-white dark:bg-[#0b0d14] flex items-center justify-between gap-2"
                       >
                         <div className="min-w-0">
-                          <div className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">
+                          <div className="text-xs font-medium text-slate-900 dark:text-[#eef0f5] truncate">
                             {entry.name}
                           </div>
-                          <div className="text-[10px] font-mono text-slate-500 truncate">
+                          <div className="text-[10px] font-mono text-slate-500 dark:text-[#7a8296] truncate">
                             {entry.project.dcdcState.topology.toUpperCase()} {entry.project.dcdcState.Vin_nom_V}V→
                             {entry.project.dcdcState.Vout_V}V ({entry.project.dcdcState.Pout_W}W) ·{' '}
                             {new Date(entry.savedAt).toLocaleString()}
@@ -1806,15 +1896,16 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
                           <button
                             type="button"
                             onClick={() => handleLoadSavedProject(entry)}
-                            className="px-2.5 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-semibold cursor-pointer"
+                            className="px-2.5 py-1 rounded-md bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-medium cursor-pointer"
                           >
                             Load
                           </button>
                           <button
                             type="button"
                             onClick={() => handleDeleteSavedProject(entry.id)}
-                            className="p-1 rounded border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-rose-500 cursor-pointer"
+                            className="p-1 rounded-md border border-slate-200 dark:border-white/[0.1] text-slate-400 hover:text-rose-500 cursor-pointer"
                             title="Delete saved project"
+                            aria-label="Delete saved project"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>

@@ -690,7 +690,7 @@ export const BodeStabilityGraph: React.FC<BodeStabilityGraphProps> = ({
             [
               { id: '2p2z', label: 'Digital 2P2Z (Type-II)' },
               { id: 'type-iii', label: 'Type-III (3P3Z)' },
-              { id: 'pcmc', label: 'Peak Current Mode + Slope' },
+              { id: 'pcmc', label: 'PCMC + Type-II (Ridley)' },
               { id: 'acmc', label: 'Average Current Mode' },
               { id: 'cascaded-pi', label: 'Cascaded Dual-Loop PI' },
               { id: 'charge-control', label: 'Resonant Charge Control' },

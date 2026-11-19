@@ -3,9 +3,9 @@
 // Iterative Physical Winding Solver (Powder & Gapped Ferrite) + COTS Matcher
 // ============================================================================
 
-import { AcDcDesignState, DcDcDesignState } from '../data/databases';
+import { AcDcDesignState, CORE_DATABASE, CoreSpec, DcDcDesignState } from '../data/databases';
 import { AcDcResults } from './acdcEngine';
-import { DcDcResults } from './dcdcEngine';
+import { DcDcResults, solveDcDcDesign } from './dcdcEngine';
 import {
   INDUCTOR_CORE_DATABASE,
   INDUCTOR_MATERIAL_DATABASE,
@@ -119,6 +119,7 @@ export interface CustomInductorSolution {
   R_ac_mOhm: number;
   P_cu_dc_W: number;
   P_cu_ac_W: number;
+  P_gap_fringing_W: number;
   P_cu_total_W: number;
   P_core_W: number;
   P_total_W: number;
@@ -663,12 +664,18 @@ function solveCoreTrial(
   );
   const R_ac_mOhm = R_dc_hot_mOhm * Fr_ac;
 
-  // Copper Losses (DC/line RMS component + HF AC ripple RMS component)
+  // Copper Losses (DC/line RMS component + HF AC ripple RMS component + gapped ferrite fringing eddy loss)
   const I_hf_rms_A = req.deltaI_pp_A / Math.sqrt(12);
   const I_lf_rms_A = Math.sqrt(Math.max(0, req.I_rms_A * req.I_rms_A - I_hf_rms_A * I_hf_rms_A));
   const P_cu_dc_W = I_lf_rms_A * I_lf_rms_A * (R_dc_hot_mOhm * 1e-3) * (isCM ? 2 : 1);
   const P_cu_ac_W = I_hf_rms_A * I_hf_rms_A * (R_ac_mOhm * 1e-3) * (isCM ? 2 : 1);
-  const P_cu_total_W = P_cu_dc_W + P_cu_ac_W;
+  // Gapped ferrite center-leg fringing H-field proximity loss in inner winding layers
+  const gapProximityScale =
+    isFerrite && airGap_mm > 0.02
+      ? Math.min(2.5, (airGap_mm / Math.max(4, core.bw_mm)) * (useLitz ? 0.12 : 0.85) * Math.pow(d_clamped, 1.8))
+      : 0;
+  const P_gap_fringing_W = Number((P_cu_ac_W * gapProximityScale).toFixed(3));
+  const P_cu_total_W = P_cu_dc_W + P_cu_ac_W + P_gap_fringing_W;
 
   // Steinmetz Core Loss (kW/m^3 -> W)
   const Pv_kW_m3 = mat.k_se * Math.pow(f_kHz, mat.alpha) * Math.pow(Math.max(0.002, B_ac_pk_T), mat.beta);
@@ -898,6 +905,7 @@ function solveCoreTrial(
     R_ac_mOhm,
     P_cu_dc_W,
     P_cu_ac_W,
+    P_gap_fringing_W,
     P_cu_total_W,
     P_core_W,
     P_total_W,
@@ -1028,6 +1036,140 @@ export function solveCustomInductorDesign(
     conductorPref,
     true
   );
+}
+
+// ============================================================================
+// 2B. MULTI-CORE × MULTI-MATERIAL PARETO AUTO-RANKER & TRANSFORMER CORE RANKER
+// ============================================================================
+export type InductorOptGoal = 'balanced' | 'min-loss' | 'compact' | 'low-temp';
+export type InductorShapeFilter = 'all' | InductorCoreSpec['shape'];
+
+export interface InductorRankedCandidate {
+  core: InductorCoreSpec;
+  material: InductorMaterialSpec;
+  sol: CustomInductorSolution;
+  rankScore: number;
+  passesAll: boolean;
+  dominantLoss: 'copper' | 'core' | 'balanced';
+}
+
+export function rankInductorCoreMaterials(
+  req: CircuitInductorRequirement,
+  goal: InductorOptGoal = 'balanced',
+  shapeFilter: InductorShapeFilter = 'all',
+  targetL_uH?: number
+): InductorRankedCandidate[] {
+  const effTargetL = targetL_uH ?? req.targetL_uH;
+  const results: InductorRankedCandidate[] = [];
+
+  for (const mat of INDUCTOR_MATERIAL_DATABASE) {
+    if (req.role === 'cm-choke' && mat.category !== 'nanocrystalline') continue;
+    if (req.role !== 'cm-choke' && mat.category === 'nanocrystalline') continue;
+    if (req.role === 'resonant-shim' && mat.category !== 'ferrite') continue;
+
+    const fam: InductorCoreSpec['family'] =
+      mat.category === 'nanocrystalline'
+        ? 'cm-toroid'
+        : mat.category === 'ferrite'
+        ? 'ferrite'
+        : 'powder';
+
+    const cores = INDUCTOR_CORE_DATABASE.filter(
+      (c) => c.family === fam && (shapeFilter === 'all' || c.shape === shapeFilter)
+    );
+
+    for (const core of cores) {
+      const sol = solveCoreTrial(
+        req,
+        core,
+        mat,
+        effTargetL,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        'auto',
+        false
+      );
+
+      const passesAll =
+        sol.satStatus !== 'critical' &&
+        sol.windowFitStatus !== 'overflow' &&
+        sol.T_hotspot_C <= Math.min(125, mat.maxTemp_C - 10);
+
+      const penalty =
+        (sol.satStatus === 'critical' ? 500 : sol.satStatus === 'warning' ? 35 : 0) +
+        (sol.windowFitStatus === 'overflow' ? 450 : sol.windowFitStatus === 'tight' ? 30 : 0) +
+        (sol.T_hotspot_C > 120 ? (sol.T_hotspot_C - 120) * 8 : 0);
+
+      const volCm3 = core.Ve_mm3 / 1000;
+      let costMetric = 0;
+      if (goal === 'min-loss') {
+        costMetric = sol.P_total_W * 12 + volCm3 * 0.25 + core.approxCost_USD * 0.5;
+      } else if (goal === 'compact') {
+        costMetric = volCm3 * 3.5 + sol.P_total_W * 2.5 + sol.windowFill_pct * 0.15;
+      } else if (goal === 'low-temp') {
+        costMetric = sol.deltaT_C * 1.6 + sol.P_total_W * 4.0 + volCm3 * 0.15;
+      } else {
+        // balanced
+        costMetric = sol.P_total_W * 6.5 + volCm3 * 1.1 + sol.deltaT_C * 0.45 + core.approxCost_USD * 1.4;
+      }
+
+      const dominantLoss: InductorRankedCandidate['dominantLoss'] =
+        sol.P_cu_total_W > sol.P_core_W * 1.4
+          ? 'copper'
+          : sol.P_core_W > sol.P_cu_total_W * 1.4
+          ? 'core'
+          : 'balanced';
+
+      results.push({
+        core,
+        material: mat,
+        sol,
+        rankScore: Math.max(0, 1000 - costMetric - penalty),
+        passesAll,
+        dominantLoss,
+      });
+    }
+  }
+
+  return results
+    .sort((a, b) => {
+      if (a.passesAll !== b.passesAll) return a.passesAll ? -1 : 1;
+      return b.rankScore - a.rankScore;
+    })
+    .slice(0, 8);
+}
+
+export interface TransformerCoreRankRow {
+  core: CoreSpec;
+  res: DcDcResults;
+  passesAll: boolean;
+  score: number;
+}
+
+export function rankTransformerCoresForDcDc(state: DcDcDesignState): TransformerCoreRankRow[] {
+  const rows: TransformerCoreRankRow[] = [];
+  for (const core of CORE_DATABASE) {
+    const res = solveDcDcDesign({ ...state, coreId: core.id });
+    const fillOk = res.windowFill_pct <= 52;
+    const bOk = res.Bpk_mT <= res.material.Bsat_100C_T * 1000 * 0.85;
+    const tempOk = res.Tcore_C <= 115;
+    const passesAll = fillOk && bOk && tempOk;
+    const penalty =
+      (fillOk ? 0 : (res.windowFill_pct - 52) * 15 + 250) +
+      (bOk ? 0 : 350) +
+      (tempOk ? 0 : (res.Tcore_C - 115) * 10);
+    const totalMagLoss = res.Pcore_W + res.Pcu_W;
+    const volCm3 = core.Ve_mm3 / 1000;
+    const score = Math.max(0, 1000 - totalMagLoss * 8 - volCm3 * 1.4 - Math.abs(res.windowFill_pct - 36) * 1.2 - penalty);
+    rows.push({ core, res, passesAll, score });
+  }
+  return rows.sort((a, b) => {
+    if (a.passesAll !== b.passesAll) return a.passesAll ? -1 : 1;
+    return b.score - a.score;
+  });
 }
 
 // ============================================================================

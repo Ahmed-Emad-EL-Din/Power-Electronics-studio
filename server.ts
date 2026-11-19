@@ -4,6 +4,12 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { GoogleGenAI, ThinkingLevel, Type } from '@google/genai';
+import {
+  AI_TOOL_DEFINITIONS,
+  AiToolTraceEntry,
+  AiWorkspaceFullContext,
+  createAiToolSession,
+} from './src/engine/aiToolRegistry';
 
 dotenv.config();
 
@@ -185,6 +191,394 @@ function extractJsonObject(rawText: string): Record<string, unknown> {
       throw new Error('Model response was not valid JSON.');
     }
   }
+}
+
+async function runAiAgentWithTools(params: {
+  aiConfig: ServerAiConfig;
+  defaultGeminiModel: string;
+  systemInstruction: string;
+  userPrompt: string;
+  jsonSchemaHint: string;
+  geminiResponseSchema: Record<string, unknown>;
+  toolSession: ReturnType<typeof createAiToolSession>;
+  useSchema: boolean;
+  thinkingLevel?: ThinkingLevel;
+}): Promise<{ data: Record<string, unknown>; toolTrace: AiToolTraceEntry[] }> {
+  const {
+    aiConfig,
+    defaultGeminiModel,
+    systemInstruction,
+    userPrompt,
+    jsonSchemaHint,
+    geminiResponseSchema,
+    toolSession,
+    useSchema,
+    thinkingLevel,
+  } = params;
+
+  const MAX_TOOL_ROUNDS = 5;
+
+  const toolSystemInstruction = `${systemInstruction}
+
+AGENTIC TOOL-CALLING PROTOCOL:
+You have live, exact physics/magnetics/control/transient calculation tools available (${AI_TOOL_DEFINITIONS.map((t) => t.name).join(', ')}).
+- Whenever the user asks you to tune, edit, resize, compare, verify, or optimize converter/inductor/capacitor/control parameters, CALL the relevant simulation/ranking tools first and verify the solved numbers!
+- Pass commit=true on simulate_dcdc_patch / simulate_acdc_patch / design_and_rank_inductor / design_capacitor_bank / run_auto_optimizer ONLY when the engineer explicitly requested an edit or optimization you are committing to the workspace; otherwise dry-run with commit=false (or call simulate_* with commit=true after confirming margins) and propose fixes in proposedFixes[].
+- After tool calls finish, output ONLY a single valid JSON object matching:\n${jsonSchemaHint}`;
+
+  if (aiConfig.provider === 'gemini') {
+    const effectiveKey = aiConfig.apiKey || process.env.GEMINI_API_KEY || '';
+    if (!effectiveKey) {
+      throw new AiHttpError(
+        400,
+        'Gemini API key is missing. Enter your Gemini API key in AI Keys settings or set GEMINI_API_KEY on the server.'
+      );
+    }
+    const modelToUse = aiConfig.model || defaultGeminiModel;
+    const client = new GoogleGenAI({
+      apiKey: effectiveKey,
+      httpOptions: {
+        timeout: 24000,
+        headers: { 'User-Agent': 'aistudio-build' },
+      },
+    });
+
+    const toGeminiType = (t: unknown): Type => {
+      if (t === 'number' || t === 'integer') return Type.NUMBER;
+      if (t === 'boolean') return Type.BOOLEAN;
+      if (t === 'array') return Type.ARRAY;
+      if (t === 'object') return Type.OBJECT;
+      return Type.STRING;
+    };
+
+    const convertProps = (props: Record<string, Record<string, unknown>>) => {
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(props)) {
+        out[k] = {
+          type: toGeminiType(v.type),
+          ...(v.description ? { description: v.description } : {}),
+          ...(Array.isArray(v.enum) ? { enum: v.enum } : {}),
+        };
+      }
+      return out;
+    };
+
+    const functionDeclarations = AI_TOOL_DEFINITIONS.map((t) => ({
+      name: t.name,
+      description: t.description,
+      parameters: {
+        type: Type.OBJECT,
+        properties: convertProps(t.parameters.properties),
+        ...(t.parameters.required ? { required: t.parameters.required } : {}),
+      },
+    }));
+
+    const contents: unknown[] = [{ role: 'user', parts: [{ text: userPrompt }] }];
+
+    try {
+      for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+        const useThinking = Boolean(thinkingLevel && isGeminiThinkingLevelSupported(modelToUse));
+        const resp = await client.models.generateContent({
+          model: modelToUse,
+          contents: contents as never,
+          config: {
+            abortSignal: AbortSignal.timeout(22000),
+            systemInstruction: toolSystemInstruction,
+            ...(useThinking ? { thinkingConfig: { thinkingLevel } } : {}),
+            tools: [{ functionDeclarations: functionDeclarations as never }],
+          },
+        });
+
+        const fnCalls = resp.functionCalls;
+        if (!fnCalls || fnCalls.length === 0) {
+          const text = (resp.text ?? '').trim();
+          if (text) {
+            try {
+              return { data: extractJsonObject(text), toolTrace: toolSession.getTrace() };
+            } catch {
+              // Ask once more for strict JSON if final text wasn't pure JSON
+              contents.push({ role: 'model', parts: [{ text }] });
+              contents.push({
+                role: 'user',
+                parts: [{ text: `Format your final verified answer as a SINGLE valid JSON object matching:\n${jsonSchemaHint}` }],
+              });
+              const finalResp = await client.models.generateContent({
+                model: modelToUse,
+                contents: contents as never,
+                config: {
+                  abortSignal: AbortSignal.timeout(18000),
+                  systemInstruction: toolSystemInstruction,
+                  responseMimeType: 'application/json',
+                  ...(useSchema ? { responseSchema: geminiResponseSchema } : {}),
+                },
+              });
+              return {
+                data: extractJsonObject((finalResp.text ?? '{}').trim()),
+                toolTrace: toolSession.getTrace(),
+              };
+            }
+          }
+          break;
+        }
+
+        const modelContent = resp.candidates?.[0]?.content;
+        if (modelContent) {
+          contents.push(modelContent);
+        }
+
+        const fnRespParts = fnCalls.map((call) => {
+          const fnName = call.name || 'get_design_summary';
+          const fnArgs = (call.args && typeof call.args === 'object' ? call.args : {}) as Record<string, unknown>;
+          const fnResult = toolSession.executeTool(fnName, fnArgs);
+          return {
+            functionResponse: {
+              name: fnName,
+              response: fnResult,
+            },
+          };
+        });
+
+        contents.push({ role: 'user', parts: fnRespParts });
+      }
+    } catch (toolErr: unknown) {
+      const d = extractGoogleErrorDetails(toolErr);
+      if (d.isAuthOrKey || d.status === 429) {
+        const httpStatus = d.status >= 400 && d.status < 500 ? d.status : 502;
+        throw new AiHttpError(httpStatus, formatProviderHttpError('Gemini', d.status, d.cleanMsg));
+      }
+      // Graceful fallback to single-turn structured JSON if tool declarations aren't supported on selected model
+      if (toolSession.getTrace().length === 0) {
+        const fallback = await callAiModelJson({
+          aiConfig,
+          defaultGeminiModel,
+          systemInstruction,
+          userPrompt,
+          jsonSchemaHint,
+          geminiResponseSchema,
+          useSchema,
+          thinkingLevel,
+        });
+        return { data: fallback.data, toolTrace: [] };
+      }
+      throw toolErr;
+    }
+
+    // Final JSON synthesis after max tool rounds
+    const finalResp = await client.models.generateContent({
+      model: modelToUse,
+      contents: [
+        ...(contents as never[]),
+        {
+          role: 'user',
+          parts: [{ text: `Synthesize your final verified answer as a SINGLE valid JSON object matching:\n${jsonSchemaHint}` }],
+        },
+      ] as never,
+      config: {
+        abortSignal: AbortSignal.timeout(18000),
+        systemInstruction: toolSystemInstruction,
+        responseMimeType: 'application/json',
+        ...(useSchema ? { responseSchema: geminiResponseSchema } : {}),
+      },
+    });
+    return {
+      data: extractJsonObject((finalResp.text ?? '{}').trim()),
+      toolTrace: toolSession.getTrace(),
+    };
+  }
+
+  if (aiConfig.provider === 'anthropic') {
+    if (!aiConfig.apiKey) {
+      throw new AiHttpError(
+        400,
+        'Anthropic Claude API key is required. Configure your sk-ant-... key in AI Keys settings.'
+      );
+    }
+    const base = (aiConfig.baseUrl || 'https://api.anthropic.com/v1').replace(/\/+$/, '');
+    const endpoint = base.endsWith('/messages') ? base : `${base}/messages`;
+    const anthropicTools = AI_TOOL_DEFINITIONS.map((t) => ({
+      name: t.name,
+      description: t.description,
+      input_schema: t.parameters,
+    }));
+    const messages: unknown[] = [{ role: 'user', content: userPrompt }];
+
+    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      const resp = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'x-api-key': aiConfig.apiKey,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: aiConfig.model,
+          max_tokens: 4096,
+          temperature: 0.2,
+          system: toolSystemInstruction,
+          tools: anthropicTools,
+          messages,
+        }),
+      });
+      const bodyText = await resp.text();
+      let bodyJson: Record<string, unknown> = {};
+      try {
+        bodyJson = JSON.parse(bodyText) as Record<string, unknown>;
+      } catch {
+        // handled below
+      }
+      if (!resp.ok) {
+        const errObj = bodyJson.error as { message?: string } | undefined;
+        const errMsg = errObj?.message || bodyText || resp.statusText;
+        throw new AiHttpError(
+          resp.status >= 400 && resp.status < 500 ? resp.status : 502,
+          formatProviderHttpError('Anthropic Claude', resp.status, errMsg)
+        );
+      }
+
+      const contentBlocks = Array.isArray(bodyJson.content)
+        ? (bodyJson.content as { type?: string; id?: string; name?: string; input?: Record<string, unknown>; text?: string }[])
+        : [];
+      const toolUses = contentBlocks.filter((b) => b.type === 'tool_use');
+      if (toolUses.length === 0) {
+        const combinedText = contentBlocks
+          .filter((b) => b.type === 'text' && typeof b.text === 'string')
+          .map((b) => b.text as string)
+          .join('\n');
+        return { data: extractJsonObject(combinedText), toolTrace: toolSession.getTrace() };
+      }
+
+      messages.push({ role: 'assistant', content: contentBlocks });
+      const toolResults = toolUses.map((tu) => {
+        const out = toolSession.executeTool(tu.name || 'get_design_summary', tu.input || {});
+        return {
+          type: 'tool_result',
+          tool_use_id: tu.id,
+          content: JSON.stringify(out),
+        };
+      });
+      messages.push({ role: 'user', content: toolResults });
+    }
+
+    const finalFallback = await callAiModelJson({
+      aiConfig,
+      defaultGeminiModel,
+      systemInstruction: toolSystemInstruction,
+      userPrompt: `${userPrompt}\n\nTOOL EXECUTION TRACE:\n${JSON.stringify(toolSession.getTrace())}`,
+      jsonSchemaHint,
+      geminiResponseSchema,
+      useSchema,
+    });
+    return { data: finalFallback.data, toolTrace: toolSession.getTrace() };
+  }
+
+  // OpenAI & OpenAI-Compatible tool-calling loop
+  if (aiConfig.provider === 'openai' && !aiConfig.apiKey) {
+    throw new AiHttpError(
+      400,
+      'OpenAI API key is required. Configure your sk-... key in AI Keys settings.'
+    );
+  }
+  const rawBase = aiConfig.baseUrl || 'https://api.openai.com/v1';
+  if (!/^https?:\/\//i.test(rawBase)) {
+    throw new AiHttpError(400, 'OpenAI-Compatible Base URL must start with http:// or https://.');
+  }
+  const cleanBase = rawBase.replace(/\/+$/, '');
+  const endpoint = cleanBase.endsWith('/chat/completions') ? cleanBase : `${cleanBase}/chat/completions`;
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (aiConfig.apiKey) headers.Authorization = `Bearer ${aiConfig.apiKey}`;
+
+  const openAiTools = AI_TOOL_DEFINITIONS.map((t) => ({
+    type: 'function',
+    function: {
+      name: t.name,
+      description: t.description,
+      parameters: t.parameters,
+    },
+  }));
+  const messages: Record<string, unknown>[] = [
+    { role: 'system', content: toolSystemInstruction },
+    { role: 'user', content: userPrompt },
+  ];
+  const includeTemp = !isReasoningModelId(aiConfig.model);
+
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    const payload: Record<string, unknown> = {
+      model: aiConfig.model,
+      messages,
+      tools: openAiTools,
+    };
+    if (includeTemp) payload.temperature = 0.2;
+
+    const resp = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+    const bodyText = await resp.text();
+    let bodyJson: Record<string, unknown> = {};
+    try {
+      bodyJson = JSON.parse(bodyText) as Record<string, unknown>;
+    } catch {
+      // handled below
+    }
+
+    if (!resp.ok) {
+      // Fall back cleanly if endpoint does not support OpenAI function-calling tools
+      if ((resp.status === 400 || resp.status === 422) && toolSession.getTrace().length === 0) {
+        const fallback = await callAiModelJson({
+          aiConfig,
+          defaultGeminiModel,
+          systemInstruction,
+          userPrompt,
+          jsonSchemaHint,
+          geminiResponseSchema,
+          useSchema,
+        });
+        return { data: fallback.data, toolTrace: [] };
+      }
+      const errObj = bodyJson.error as { message?: string } | undefined;
+      throw new AiHttpError(
+        resp.status >= 400 && resp.status < 500 ? resp.status : 502,
+        formatProviderHttpError(aiConfig.provider === 'openai' ? 'OpenAI' : 'OpenAI-Compatible', resp.status, errObj?.message || bodyText)
+      );
+    }
+
+    const choices = Array.isArray(bodyJson.choices) ? (bodyJson.choices as { message?: { role?: string; content?: string; tool_calls?: { id: string; function?: { name?: string; arguments?: string } }[] } }[]) : [];
+    const msg = choices[0]?.message;
+    if (!msg) break;
+
+    if (!msg.tool_calls || msg.tool_calls.length === 0) {
+      return { data: extractJsonObject(String(msg.content || '{}')), toolTrace: toolSession.getTrace() };
+    }
+
+    messages.push(msg as Record<string, unknown>);
+    for (const tc of msg.tool_calls) {
+      const fnName = tc.function?.name || 'get_design_summary';
+      let fnArgs: Record<string, unknown> = {};
+      try {
+        fnArgs = tc.function?.arguments ? (JSON.parse(tc.function.arguments) as Record<string, unknown>) : {};
+      } catch {
+        fnArgs = {};
+      }
+      const fnOut = toolSession.executeTool(fnName, fnArgs);
+      messages.push({
+        role: 'tool',
+        tool_call_id: tc.id,
+        content: JSON.stringify(fnOut),
+      });
+    }
+  }
+
+  const finalRes = await callAiModelJson({
+    aiConfig,
+    defaultGeminiModel,
+    systemInstruction: toolSystemInstruction,
+    userPrompt: `${userPrompt}\n\nTOOL EXECUTION TRACE:\n${JSON.stringify(toolSession.getTrace())}`,
+    jsonSchemaHint,
+    geminiResponseSchema,
+    useSchema,
+  });
+  return { data: finalRes.data, toolTrace: toolSession.getTrace() };
 }
 
 async function callAiModelJson(params: {
@@ -685,6 +1079,7 @@ Return 1 to 4 real, commercially available power semiconductor devices matching 
         userMessage,
         chatHistory,
         snapshot,
+        fullContext,
         isVerificationPass,
         appliedSummary,
         aiConfig: rawAiConfig,
@@ -693,6 +1088,7 @@ Return 1 to 4 real, commercially available power semiconductor devices matching 
         userMessage?: string;
         chatHistory?: { role: 'user' | 'model'; text: string }[];
         snapshot?: Record<string, unknown>;
+        fullContext?: Partial<AiWorkspaceFullContext>;
         isVerificationPass?: boolean;
         appliedSummary?: string[];
         aiConfig?: unknown;
@@ -705,6 +1101,18 @@ Return 1 to 4 real, commercially available power semiconductor devices matching 
 
       const aiConfig = normalizeServerAiConfig(rawAiConfig);
       const activeMode: 'audit' | 'chat' = mode === 'chat' ? 'chat' : 'audit';
+      const snapTyped = snapshot as {
+        dcdc?: { state?: Partial<AiWorkspaceFullContext['dcdcState']> };
+        acdc?: { state?: Partial<AiWorkspaceFullContext['acdcState']> };
+      };
+      const toolSession = createAiToolSession({
+        dcdcState: { ...(snapTyped.dcdc?.state || {}), ...(fullContext?.dcdcState || {}) } as AiWorkspaceFullContext['dcdcState'],
+        acdcState: { ...(snapTyped.acdc?.state || {}), ...(fullContext?.acdcState || {}) } as AiWorkspaceFullContext['acdcState'],
+        inductorConfigs: fullContext?.inductorConfigs || {},
+        capacitorConfigs: fullContext?.capacitorConfigs || {},
+        dcdcLocked: fullContext?.dcdcLocked,
+        acdcLocked: fullContext?.acdcLocked,
+      });
 
       const systemInstruction = `You are a Principal Power Electronics Design Verification Agent embedded inside a live AC-DC PFC + Isolated DC-DC CAD workbench.
 You receive a complete live engineering telemetry JSON snapshot containing:
@@ -833,6 +1241,9 @@ Return JSON strictly matching the responseSchema.`;
                         fc_target_kHz: { type: Type.NUMBER },
                         pm_target_deg: { type: Type.NUMBER },
                         slopeFactor_mc: { type: Type.NUMBER },
+                        controlType: { type: Type.STRING },
+                        type2Architecture: { type: Type.STRING },
+                        ota_gm_mS: { type: Type.NUMBER },
                       },
                     },
                     acdcPatch: {
@@ -890,7 +1301,7 @@ Return JSON strictly matching the responseSchema.`;
         required: ['overallVerdict', 'headline', 'executiveSummary', 'replyMarkdown', 'proposedFixes'],
       };
 
-      const { data: parsed } = await callAiModelJson({
+      const { data: parsed, toolTrace } = await runAiAgentWithTools({
         aiConfig,
         defaultGeminiModel: 'gemini-4-hydrogen',
         systemInstruction,
@@ -898,9 +1309,12 @@ Return JSON strictly matching the responseSchema.`;
         jsonSchemaHint:
           '{ "overallVerdict": "critical"|"warning"|"verified-safe", "headline": string, "executiveSummary": string, "replyMarkdown": string, "proposedFixes": [{ "id": string, "alertId": string, "severity": "danger"|"warning"|"optimization", "domain": "dcdc"|"acdc", "title": string, "rationale": string, "couplingNote": string, "patchSummary": string, "patch": { "targetKind": "dcdc"|"acdc"|"inductor"|"capacitor", "alertFixId"?: string, "itemId"?: string, "capacitorUnlockMatrix"?: boolean, "syncToCircuit"?: boolean, "dcdcPatch"?: object, "acdcPatch"?: object, "inductorOverridesPatch"?: object, "capacitorOverridesPatch"?: object } }] }',
         geminiResponseSchema,
+        toolSession,
         useSchema: activeMode === 'audit',
         thinkingLevel: activeMode === 'chat' ? ThinkingLevel.LOW : ThinkingLevel.MEDIUM,
       });
+
+      const committedDiff = toolSession.getCommittedDiff();
 
       res.json({
         mode: activeMode,
@@ -909,6 +1323,15 @@ Return JSON strictly matching the responseSchema.`;
         executiveSummary: parsed.executiveSummary || '',
         replyMarkdown: parsed.replyMarkdown || parsed.executiveSummary || '',
         proposedFixes: Array.isArray(parsed.proposedFixes) ? parsed.proposedFixes : [],
+        toolTrace,
+        committedPatch: committedDiff.hasChanges
+          ? {
+              dcdcPatch: committedDiff.dcdcPatch,
+              acdcPatch: committedDiff.acdcPatch,
+              inductorConfigsPatch: committedDiff.inductorConfigsPatch,
+              capacitorConfigsPatch: committedDiff.capacitorConfigsPatch,
+            }
+          : null,
       });
     } catch (err: unknown) {
       const status = err instanceof AiHttpError ? err.status : 500;

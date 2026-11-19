@@ -385,8 +385,8 @@ export const ProtectionCurrentSensePanel: React.FC<ProtectionCurrentSensePanelPr
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5">
         {/* Left Controls (5 cols) */}
         <div className="lg:col-span-5 bg-slate-50 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-lg p-3.5 space-y-3">
-          <div className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-400 flex items-center gap-1.5">
-            <Sliders className="w-3.5 h-3.5" /> Sensing Architecture &amp; Trip Timing Parameters
+          <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5] flex items-center gap-1.5">
+            <Sliders className="w-3.5 h-3.5 text-cyan-500" /> Sensing Architecture &amp; Trip Timing Parameters
           </div>
 
           <div>
@@ -531,7 +531,7 @@ export const ProtectionCurrentSensePanel: React.FC<ProtectionCurrentSensePanelPr
           <div className="bg-slate-50 dark:bg-slate-900/70 border border-cyan-500/30 rounded-lg p-3.5 flex flex-col justify-between space-y-2">
             <div>
               <div className="flex items-center justify-between">
-                <span className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-400">
+                <span className="text-xs font-medium text-slate-900 dark:text-[#eef0f5]">
                   1. Synthesized Current-Sense Network
                 </span>
                 <span className="px-2 py-0.5 text-[10px] font-mono rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
@@ -587,7 +587,7 @@ export const ProtectionCurrentSensePanel: React.FC<ProtectionCurrentSensePanelPr
           <div className="bg-slate-50 dark:bg-slate-900/70 border border-rose-500/30 rounded-lg p-3.5 flex flex-col justify-between space-y-2">
             <div>
               <div className="flex items-center justify-between">
-                <span className="text-xs font-mono font-bold uppercase tracking-wider text-rose-400">
+                <span className="text-xs font-medium text-slate-900 dark:text-[#eef0f5]">
                   2. Fault Propagation Overshoot &amp; Desat
                 </span>
                 <span className="px-2 py-0.5 text-[10px] font-mono rounded bg-rose-500/15 text-rose-300 border border-rose-500/30">
@@ -719,7 +719,7 @@ void Init_CurrentProtection_CMPSS(void) {
           </div>
 
           <div className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg p-3.5 space-y-2 text-xs font-mono">
-            <div className="font-bold uppercase tracking-wider text-amber-400">
+            <div className="font-medium font-sans text-slate-900 dark:text-[#eef0f5]">
               Governing Fault &amp; Desaturation Equations
             </div>
             <div className="p-2 rounded bg-white dark:bg-slate-950 border border-slate-800">
