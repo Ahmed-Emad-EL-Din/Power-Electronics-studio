@@ -1,14 +1,33 @@
 import { AcDcDesignState, DcDcDesignState } from '../data/databases';
 import { AcDcResults } from './acdcEngine';
 import { DcDcResults } from './dcdcEngine';
+import { expandHybridCapBankForSpice, getDefaultHybridCapBank } from './passiveDesignEngine';
 import {
   generateManufacturerMosfetSubckt,
   generateManufacturerRectifierSubckt,
   generatePfcBoostDiodeSubckt,
 } from './spiceModelLibrary';
-export { generateAcDcLtspiceAsc, generateDcDcLtspiceAsc } from './ltspiceAscExporter';
-export { generateAcDcQspiceBundle, generateDcDcQspiceBundle } from './qspiceExporter';
+export {
+  generateAcDcLtspiceAsc,
+  generateCombinedSystemLtspiceAsc,
+  generateDcDcLtspiceAsc,
+} from './ltspiceAscExporter';
+export {
+  generateAcDcQspiceBundle,
+  generateCombinedSystemQspiceBundle,
+  generateDcDcQspiceBundle,
+} from './qspiceExporter';
 export type { QspiceSimulationBundle } from './qspiceExporter';
+export {
+  findPlecsBlockOverlaps,
+  generateAcDcPlecsBundle,
+  generateAcDcPlecsModel,
+  generateCombinedSystemPlecsBundle,
+  generateCombinedSystemPlecsModel,
+  generateDcDcPlecsBundle,
+  generateDcDcPlecsModel,
+} from './plecsExporter';
+export type { PlecsBundle } from './plecsExporter';
 
 /**
  * Generates an LTspice / QSPICE compatible .cir switching SPICE netlist
@@ -38,6 +57,11 @@ export function generateDcDcSpiceNetlist(state: DcDcDesignState, res: DcDcResult
   const tStop_us = Math.round(Math.max(500, (1e6 / fswHz) * 60));
   const Tsw_ns = Math.round(Tsw * 1e9);
 
+  const cinBank = getDefaultHybridCapBank('dcdc-cin', state);
+  const coutBank = getDefaultHybridCapBank('dcdc-cout', state);
+  const cinUnits = expandHybridCapBankForSpice(cinBank, 'C_IN', state.Vin_max_V, 4);
+  const coutUnits = expandHybridCapBankForSpice(coutBank, 'C_OUT', state.Vout_V * 1.05, 4);
+
   const header = [
     `* ============================================================================`,
     `* VoltCraft Power Electronics Studio -- SPICE Netlist (${state.topology.toUpperCase()})`,
@@ -49,9 +73,11 @@ export function generateDcDcSpiceNetlist(state: DcDcDesignState, res: DcDcResult
     `* ============================================================================`,
     `.param FSW=${fswHz} TSW={1/FSW} VIN=${state.Vin_nom_V} VOUT_REF=${state.Vout_V}`,
     ``,
-    `* Input Source & Bulk Decoupling`,
+    `* Input Source & Hybrid Multi-Branch Decoupling Bank (Cin)`,
     `V_IN vin_pos 0 DC {VIN}`,
-    `C_IN vin_pos 0 47u Rser=5m`,
+    ...cinUnits.map(
+      (u) => `${u.refDes} vin_pos 0 ${u.cap_uF}u Rser=${u.esr_mOhm}m Lser=${u.esl_nH}n ; ${u.label}`
+    ),
     ``,
     `* Primary Switching Stage (Manufacturer .SUBCKT: ${priModel.subcktName})`,
     `XQ1 vin_pos g_q1 sw_a ${priModel.subcktName}`,
@@ -142,8 +168,10 @@ export function generateDcDcSpiceNetlist(state: DcDcDesignState, res: DcDcResult
 
   header.push(
     ``,
-    `* Output Capacitor Bank & Load`,
-    `C_OUT v_out 0 ${state.Co_uF.toFixed(1)}u Rser=${state.ESR_Co_mOhm.toFixed(2)}m`,
+    `* Hybrid Output Capacitor Bank (Parallel Multi-Technology Branches) & Load`,
+    ...coutUnits.map(
+      (u) => `${u.refDes} v_out 0 ${u.cap_uF}u Rser=${u.esr_mOhm}m Lser=${u.esl_nH}n ; ${u.label}`
+    ),
     `R_LOAD v_out 0 ${Rload_Ohm.toFixed(3)}`,
     ``,
     `* Error Amplifier & Type-II / Type-III Compensator Subcircuit (${state.controlType.toUpperCase()} -- ${res.type2Architecture === 'ota' ? `OTA gm=${res.ota_gm_mS.toFixed(2)}mS` : 'Op-Amp'})`,
@@ -241,10 +269,15 @@ export function generateAcDcSpiceNetlist(state: AcDcDesignState, res: AcDcResult
     );
   }
 
+  const cdcBank = getDefaultHybridCapBank('acdc-cdc', undefined, state);
+  const cdcUnits = expandHybridCapBankForSpice(cdcBank, 'C_DC', state.Vdc_bus_V * 1.04, 4);
+
   lines.push(
     ``,
-    `* DC-Link Hold-Up Bulk Capacitor Bank & Load`,
-    `C_DC v_dc 0 ${state.Cdc_uF.toFixed(0)}u Rser=${state.ESR_Cdc_mOhm.toFixed(1)}m`,
+    `* Hybrid DC-Link Hold-Up Bulk + HF Decoupling Bank & Load`,
+    ...cdcUnits.map(
+      (u) => `${u.refDes} v_dc 0 ${u.cap_uF}u Rser=${u.esr_mOhm}m Lser=${u.esl_nH}n ; ${u.label}`
+    ),
     `R_LOAD v_dc 0 ${Rload_dc.toFixed(2)}`,
     ``,
     `* Manufacturer Semiconductor .SUBCKT Models`,
@@ -256,6 +289,187 @@ export function generateAcDcSpiceNetlist(state: AcDcDesignState, res: AcDcResult
     `.tran 0 ${(2 / state.f_line_Hz * 1e3).toFixed(1)}m 0 250n`,
     `.meas TRAN Vdc_avg AVG V(v_dc)`,
     `.meas TRAN Vdc_pp PP V(v_dc)`,
+    `.end`
+  );
+
+  return lines.join('\n');
+}
+
+/**
+ * Generates a unified 2-stage Combined AC-DC PFC -> DC-DC SPICE netlist where the
+ * PFC Hybrid DC-Link bus (v_dc) directly powers the Isolated DC-DC Primary Bridge.
+ */
+export function generateCombinedSystemSpiceNetlist(
+  acdcState: AcDcDesignState,
+  acdcRes: AcDcResults,
+  dcdcState: DcDcDesignState,
+  dcdcRes: DcDcResults
+): string {
+  const Vac_pk = acdcState.Vac_rms_V * Math.SQRT2;
+  const fswPfcHz = acdcState.fsw_kHz * 1e3;
+  const fswDcHz = dcdcState.fsw_kHz * 1e3;
+  const TswDc = 1 / fswDcHz;
+  const ThalfDc = TswDc / 2;
+  const tDead_ns = Math.max(20, dcdcState.deadTime_ns);
+  const tOnHalf_ns = Math.max(80, Math.round(ThalfDc * 1e9 - tDead_ns));
+  const deff = dcdcRes.isLLC ? 1.0 : Math.max(0.15, Math.min(0.95, dcdcRes.Deff_nom));
+  const phaseShift_ns = Math.round(deff * ThalfDc * 1e9);
+  const TswDc_ns = Math.round(TswDc * 1e9);
+
+  const swModel = generateManufacturerMosfetSubckt(acdcRes.sw, 1);
+  const boostDiode = generatePfcBoostDiodeSubckt(acdcState.Vdc_bus_V);
+  const priModel = generateManufacturerMosfetSubckt(dcdcRes.priDevice, dcdcState.nParallelPri);
+  const secModel = generateManufacturerRectifierSubckt(
+    dcdcRes.secDevice,
+    dcdcState.nParallelSec,
+    dcdcState.rectMode
+  );
+
+  const n = Math.max(0.2, dcdcRes.Np_actual / Math.max(1, dcdcRes.Ns_actual));
+  const Lpri_uH = Math.max(50, dcdcState.Lm_uH);
+  const Lsec_uH = Lpri_uH / (n * n);
+  const Rload_Ohm = (dcdcState.Vout_V * dcdcState.Vout_V) / Math.max(1, dcdcState.Pout_W);
+  const nPh = acdcRes.nPhases;
+
+  const cdcBank = getDefaultHybridCapBank('acdc-cdc', undefined, acdcState);
+  const cdcUnits = expandHybridCapBankForSpice(cdcBank, 'C_DC', acdcState.Vdc_bus_V * 1.04, 4);
+  const coutBank = getDefaultHybridCapBank('dcdc-cout', dcdcState);
+  const coutUnits = expandHybridCapBankForSpice(coutBank, 'C_OUT', dcdcState.Vout_V * 1.05, 4);
+
+  const lines: string[] = [
+    `* ============================================================================`,
+    `* VoltCraft Power Electronics Studio -- COMBINED 2-STAGE SPICE Netlist`,
+    `* Stage 1 (PFC)  : ${acdcState.topology} (${acdcState.Vac_rms_V}Vrms -> ${acdcState.Vdc_bus_V}Vdc)`,
+    `* Stage 2 (DC-DC): ${dcdcState.topology.toUpperCase()} (${dcdcState.Vin_nom_V}Vdc -> ${dcdcState.Vout_V}Vdc @ ${dcdcState.Pout_W}W)`,
+    `* Connected Link : PFC C_DC Bus (v_dc) directly powers DC-DC Primary Bridge`,
+    `* ============================================================================`,
+    `.param FSW_PFC=${fswPfcHz} TSW_PFC={1/FSW_PFC} VAC_PK=${Vac_pk.toFixed(1)} FLINE=${acdcState.f_line_Hz} VDC_REF=${acdcState.Vdc_bus_V}`,
+    `.param FSW_DC=${fswDcHz} TSW_DC={1/FSW_DC} VOUT_REF=${dcdcState.Vout_V}`,
+    ``,
+    `* --- STAGE 1: AC MAINS, EMI FILTER, BRIDGE & ${nPh}-PHASE BOOST PFC ---`,
+    `V_AC ac_in ac_n SIN(0 {VAC_PK} {FLINE})`,
+    `R_AC_GND ac_n 0 10Meg`,
+    `L_DM ac_in ac_dm ${acdcRes.Ldm_uH.toFixed(1)}u Rser=5m`,
+    `C_X ac_dm ac_n ${acdcRes.Cx_each_uF.toFixed(2)}u`,
+    `R_PRE ac_dm ac_bus ${acdcState.prechargeR_Ohm ?? 22}`,
+    `XD_R1 ac_bus v_rect GBJ2510_DIODE`,
+    `XD_R2 0 ac_bus GBJ2510_DIODE`,
+    `XD_R3 ac_n v_rect GBJ2510_DIODE`,
+    `XD_R4 0 ac_n GBJ2510_DIODE`,
+    `L_PFC1 v_rect sw1 ${acdcState.Lpfc_uH.toFixed(1)}u Rser=8m`,
+    `XQ_PFC1 sw1 g_pfc1 0 ${swModel.subcktName}`,
+    `XD_B1 sw1 v_dc ${boostDiode.subcktName}`,
+    `B_DUTY d_cmd 0 V=limit(1-abs(V(v_rect))/max(50,V(v_dc))+0.02*(VDC_REF-V(v_dc)),0.05,0.92)`,
+    `V_SAW1 saw1 0 PULSE(0 1 0 {0.98*TSW_PFC} {0.02*TSW_PFC} 1n {TSW_PFC})`,
+    `B_PWM1 g_pfc1 0 V=if(V(d_cmd)>V(saw1),12,0)`,
+  ];
+
+  if (nPh === 2) {
+    lines.push(
+      `L_PFC2 v_rect sw2 ${acdcState.Lpfc_uH.toFixed(1)}u Rser=8m`,
+      `XQ_PFC2 sw2 g_pfc2 0 ${swModel.subcktName}`,
+      `XD_B2 sw2 v_dc ${boostDiode.subcktName}`,
+      `V_SAW2 saw2 0 PULSE(0 1 {0.5*TSW_PFC} {0.98*TSW_PFC} {0.02*TSW_PFC} 1n {TSW_PFC})`,
+      `B_PWM2 g_pfc2 0 V=if(V(d_cmd)>V(saw2),12,0)`
+    );
+  }
+
+  lines.push(
+    ``,
+    `* Shared Hybrid DC-Link Bus Bank (v_dc -> feeds Stage 2 Primary Bridge)`,
+    ...cdcUnits.map(
+      (u) => `${u.refDes} v_dc 0 ${u.cap_uF}u Rser=${u.esr_mOhm}m Lser=${u.esl_nH}n ; ${u.label}`
+    ),
+    ``,
+    `* --- STAGE 2: ISOLATED DC-DC CONVERTER (FED FROM SHARED v_dc BUS) ---`,
+    `XQ1 v_dc g_q1 sw_a ${priModel.subcktName}`,
+    `XQ2 sw_a g_q2 0 ${priModel.subcktName}`,
+  );
+
+  if (dcdcState.topology === 'llc-hb') {
+    lines.push(`C_HB_TOP v_dc sw_b 22u`, `C_HB_BOT sw_b 0 22u`);
+  } else {
+    lines.push(
+      `XQ3 v_dc g_q3 sw_b ${priModel.subcktName}`,
+      `XQ4 sw_b g_q4 0 ${priModel.subcktName}`
+    );
+  }
+
+  lines.push(
+    `V_G1 g_q1 sw_a PULSE(0 12 0 10n 10n ${tOnHalf_ns}n ${TswDc_ns}n)`,
+    `V_G2 g_q2 0 PULSE(0 12 ${Math.round(ThalfDc * 1e9)}n 10n 10n ${tOnHalf_ns}n ${TswDc_ns}n)`
+  );
+  if (dcdcState.topology !== 'llc-hb') {
+    const tShiftA = dcdcRes.isLLC ? Math.round(ThalfDc * 1e9) : phaseShift_ns;
+    const tShiftB = dcdcRes.isLLC ? 0 : Math.round(phaseShift_ns + ThalfDc * 1e9);
+    lines.push(
+      `V_G3 g_q3 sw_b PULSE(0 12 ${tShiftA}n 10n 10n ${tOnHalf_ns}n ${TswDc_ns}n)`,
+      `V_G4 g_q4 0 PULSE(0 12 ${tShiftB}n 10n 10n ${tOnHalf_ns}n ${TswDc_ns}n)`
+    );
+  }
+
+  lines.push(
+    `L_LK sw_a pri_lk ${dcdcState.Llk_uH.toFixed(2)}u Rser=4m`,
+    dcdcRes.isLLC ? `C_RES pri_lk pri_hot ${dcdcState.Cr_nF.toFixed(1)}n` : `C_BLK pri_lk pri_hot 4.7u`
+  );
+
+  if (dcdcState.txType === 'center-tapped') {
+    lines.push(
+      `L_PRI pri_hot sw_b ${Lpri_uH.toFixed(2)}u Rser=${Math.max(0.002, dcdcRes.Rpri_ac_mOhm * 1e-3).toFixed(4)}`,
+      `L_SEC1 sec_p sec_ct ${Lsec_uH.toFixed(3)}u`,
+      `L_SEC2 sec_ct sec_n ${Lsec_uH.toFixed(3)}u`,
+      `K_TX L_PRI L_SEC1 L_SEC2 0.9995`,
+      `XD_SR1 0 sec_p ${secModel.subcktName}`,
+      `XD_SR2 0 sec_n ${secModel.subcktName}`,
+      `L_OUT sec_ct v_out ${dcdcState.Lo_uH.toFixed(2)}u Rser=1.5m`
+    );
+  } else if (dcdcState.txType === 'current-doubler') {
+    lines.push(
+      `L_PRI pri_hot sw_b ${Lpri_uH.toFixed(2)}u Rser=${Math.max(0.002, dcdcRes.Rpri_ac_mOhm * 1e-3).toFixed(4)}`,
+      `L_SEC1 sec_p sec_n ${Lsec_uH.toFixed(3)}u`,
+      `K_TX L_PRI L_SEC1 0.9995`,
+      `XD_SR1 0 sec_p ${secModel.subcktName}`,
+      `XD_SR2 0 sec_n ${secModel.subcktName}`,
+      `L_OUT1 sec_p v_out ${dcdcState.Lo_uH.toFixed(2)}u Rser=1.5m`,
+      `L_OUT2 sec_n v_out ${dcdcState.Lo_uH.toFixed(2)}u Rser=1.5m`
+    );
+  } else {
+    lines.push(
+      `L_PRI pri_hot sw_b ${Lpri_uH.toFixed(2)}u Rser=${Math.max(0.002, dcdcRes.Rpri_ac_mOhm * 1e-3).toFixed(4)}`,
+      `L_SEC1 sec_p sec_n ${Lsec_uH.toFixed(3)}u`,
+      `K_TX L_PRI L_SEC1 0.9995`,
+      `XD_SR1 sec_p v_rect_sec ${secModel.subcktName}`,
+      `XD_SR2 0 sec_p ${secModel.subcktName}`,
+      `XD_SR3 sec_n v_rect_sec ${secModel.subcktName}`,
+      `XD_SR4 0 sec_n ${secModel.subcktName}`,
+      `L_OUT v_rect_sec v_out ${dcdcState.Lo_uH.toFixed(2)}u Rser=1.5m`
+    );
+  }
+
+  lines.push(
+    ``,
+    `* Hybrid Output Capacitor Bank & Load`,
+    ...coutUnits.map(
+      (u) => `${u.refDes} v_out 0 ${u.cap_uF}u Rser=${u.esr_mOhm}m Lser=${u.esl_nH}n ; ${u.label}`
+    ),
+    `R_LOAD v_out 0 ${Rload_Ohm.toFixed(3)}`,
+    ``,
+    `* Deduplicated Manufacturer Semiconductor .SUBCKT Models`,
+    ...Array.from(
+      new Map<string, string>([
+        [swModel.subcktName, swModel.spiceText],
+        [boostDiode.subcktName, boostDiode.spiceText],
+        [priModel.subcktName, priModel.spiceText],
+        [secModel.subcktName, secModel.spiceText],
+      ]).values()
+    ),
+    ``,
+    `.ic V(v_dc)=${acdcState.Vdc_bus_V.toFixed(1)} V(v_out)=${(dcdcState.Vout_V * 0.94).toFixed(2)}`,
+    `.options reltol=1m`,
+    `.tran 0 ${(1 / acdcState.f_line_Hz * 1e3).toFixed(1)}m 0 100n`,
+    `.meas TRAN Vdc_avg AVG V(v_dc)`,
+    `.meas TRAN Vout_avg AVG V(v_out)`,
+    `.backanno`,
     `.end`
   );
 

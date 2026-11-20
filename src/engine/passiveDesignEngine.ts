@@ -3,7 +3,15 @@
 // Iterative Physical Winding Solver (Powder & Gapped Ferrite) + COTS Matcher
 // ============================================================================
 
-import { AcDcDesignState, CORE_DATABASE, CoreSpec, DcDcDesignState } from '../data/databases';
+import {
+  AcDcDesignState,
+  CapBranchSpec,
+  CapTechnology,
+  CORE_DATABASE,
+  CoreSpec,
+  DcDcDesignState,
+  HybridCapBankConfig,
+} from '../data/databases';
 import { AcDcResults } from './acdcEngine';
 import { DcDcResults, solveDcDcDesign } from './dcdcEngine';
 import {
@@ -1803,4 +1811,838 @@ export function generateCapacitorFixOptions(
   }
 
   return fixes.slice(0, 3);
+}
+
+// ============================================================================
+// HYBRID MULTI-BRANCH CAPACITOR BANK ENGINE (Cin, Cout, Cdc)
+// Supports parallel technology mixes (e.g. 3× Electrolytic + 2× MLCC)
+// Computes complex |Z(f)| admittance matrix, HF/LF ripple sharing,
+// anti-resonance Q-peak detection, DC-bias derating & thermal L10 life.
+// ============================================================================
+
+export type HybridCapRole = 'dcdc-cin' | 'dcdc-cout' | 'acdc-cdc';
+
+export interface HybridCapBranchResult {
+  branch: CapBranchSpec;
+  effCapEach_uF: number;
+  mlccBiasDerate_pct: number;
+  branchCapNominal_uF: number;
+  branchCapEff_uF: number;
+  branchEsr_mOhm: number;
+  branchEsl_nH: number;
+  f_srf_kHz: number;
+  Z_at_fsw_mOhm: number;
+  I_lf_branch_A: number;
+  I_hf_branch_A: number;
+  I_total_branch_A: number;
+  I_per_cap_A: number;
+  rippleShare_pct: number;
+  rippleUtilization_pct: number;
+  voltageDerating_pct: number;
+  P_loss_branch_W: number;
+  P_loss_per_cap_W: number;
+  deltaT_C: number;
+  T_hotspot_C: number;
+  L10_life_hrs: number;
+  status: 'ok' | 'warning' | 'critical';
+}
+
+export interface HybridCapBankSolution {
+  config: HybridCapBankConfig;
+  branches: HybridCapBranchResult[];
+  totalUnits: number;
+  totalCapNominal_uF: number;
+  totalCapEff_uF: number;
+  esrEffAtFsw_mOhm: number;
+  Z_at_fsw_mOhm: number;
+  eslEff_nH: number;
+  minVoltageRating_V: number;
+  worstVoltageDerating_pct: number;
+  worstRippleUtilization_pct: number;
+  worstHotspot_C: number;
+  minL10Life_hrs: number;
+  P_loss_total_W: number;
+  f_antiresonance_kHz: number | null;
+  Z_antiresonance_mOhm: number | null;
+  antiResonanceRisk: 'none' | 'moderate' | 'high';
+  summaryLabel: string;
+  status: 'ok' | 'warning' | 'critical';
+  statusReason: string;
+  impedanceCurve: {
+    freq_kHz: number;
+    Z_total_mOhm: number;
+    branchZ_mOhm: number[];
+  }[];
+}
+
+export interface SpiceCapUnitDescriptor {
+  refDes: string;
+  branchId: string;
+  label: string;
+  technology: CapTechnology;
+  qtyRepresented: number;
+  cap_uF: number;
+  esr_mOhm: number;
+  esl_nH: number;
+  vRated_V: number;
+}
+
+function defaultRthAndLifeForTech(tech: CapTechnology): { rth: number; tmax: number; l0: number } {
+  switch (tech) {
+    case 'electrolytic':
+      return { rth: 14.0, tmax: 105, l0: 5000 };
+    case 'polymer':
+      return { rth: 17.0, tmax: 125, l0: 4000 };
+    case 'film':
+      return { rth: 9.5, tmax: 105, l0: 100000 };
+    case 'mlcc':
+      return { rth: 28.0, tmax: 125, l0: 150000 };
+  }
+}
+
+export function getDefaultHybridCapBank(
+  role: HybridCapRole,
+  dcdcState?: DcDcDesignState,
+  acdcState?: AcDcDesignState
+): HybridCapBankConfig {
+  if (role === 'dcdc-cin') {
+    if (dcdcState?.cinBank && dcdcState.cinBank.branches.length > 0) {
+      return dcdcState.cinBank;
+    }
+    const vinMax = dcdcState?.Vin_max_V ?? 430;
+    const isHV = vinMax > 480;
+    return {
+      branches: [
+        {
+          id: 'cin-bulk-elec',
+          label: isHV ? 'HV Al-Electrolytic (500V)' : 'HV Al-Electrolytic',
+          technology: 'electrolytic',
+          qty: 2,
+          capEach_uF: isHV ? 150 : 220,
+          esrEach_mOhm: isHV ? 210 : 170,
+          eslEach_nH: 18,
+          vRated_V: isHV ? 500 : 450,
+          iRmsEach_A: isHV ? 2.65 : 3.25,
+          mpn: isHV ? 'EKMH501VSN331MA45T' : 'B43644B5477M000',
+        },
+        {
+          id: 'cin-hf-film',
+          label: 'MKP DC-Link Film',
+          technology: 'film',
+          qty: 2,
+          capEach_uF: isHV ? 15 : 20,
+          esrEach_mOhm: 2.8,
+          eslEach_nH: 12,
+          vRated_V: isHV ? 900 : 700,
+          iRmsEach_A: 18,
+          mpn: isHV ? 'B32776G8306K000' : 'C4AQJBW5200A3LJ',
+        },
+        {
+          id: 'cin-hf-mlcc',
+          label: 'HF MLCC Decoupling',
+          technology: 'mlcc',
+          qty: 2,
+          capEach_uF: 0.47,
+          esrEach_mOhm: 2.5,
+          eslEach_nH: 1.0,
+          vRated_V: isHV ? 1000 : 630,
+          iRmsEach_A: 5.5,
+          mpn: 'GRM55D7U2J223JW31L',
+        },
+      ],
+    };
+  }
+
+  if (role === 'dcdc-cout') {
+    if (dcdcState?.coutBank && dcdcState.coutBank.branches.length > 0) {
+      return dcdcState.coutBank;
+    }
+    const vout = dcdcState?.Vout_V ?? 48;
+    const targetCo = Math.max(20, dcdcState?.Co_uF ?? 440);
+    const targetEsr = Math.max(1.5, dcdcState?.ESR_Co_mOhm ?? 7.5);
+    if (vout > 120) {
+      const unitC = Math.max(100, Math.round(targetCo / 3));
+      const vRate = vout > 360 ? 500 : 450;
+      return {
+        branches: [
+          {
+            id: 'cout-bulk-elec',
+            label: 'HV Electrolytic Bulk',
+            technology: 'electrolytic',
+            qty: 3,
+            capEach_uF: unitC,
+            esrEach_mOhm: Math.max(45, Math.round(targetEsr * 3)),
+            eslEach_nH: 18,
+            vRated_V: vRate,
+            iRmsEach_A: 3.1,
+            mpn: vRate >= 500 ? 'EKMH501VSN331MA45T' : 'B43644B5477M000',
+          },
+          {
+            id: 'cout-hf-film',
+            label: 'HF MKP Film / MLCC',
+            technology: 'film',
+            qty: 2,
+            capEach_uF: 10,
+            esrEach_mOhm: 3.2,
+            eslEach_nH: 10,
+            vRated_V: 700,
+            iRmsEach_A: 12.0,
+            mpn: 'C4AQJBW5200A3LJ',
+          },
+        ],
+      };
+    }
+
+    const vRate = vout <= 54 ? 80 : 100;
+    const bulkQty = 3;
+    const mlccQty = 2;
+    const mlccEach = 10;
+    const bulkUnitC = Math.max(47, Math.round((targetCo - mlccQty * mlccEach * 0.75) / bulkQty));
+    const bulkUnitEsr = Math.max(12, Number((targetEsr * bulkQty * 1.15).toFixed(1)));
+    return {
+      branches: [
+        {
+          id: 'cout-bulk-elec',
+          label: 'Bulk Electrolytic',
+          technology: 'electrolytic',
+          qty: bulkQty,
+          capEach_uF: bulkUnitC,
+          esrEach_mOhm: bulkUnitEsr,
+          eslEach_nH: 12,
+          vRated_V: vRate,
+          iRmsEach_A: 3.6,
+          mpn: vRate <= 80 ? 'EEH-ZS1K151P' : 'EKYB101ELL331MK25S',
+        },
+        {
+          id: 'cout-hf-mlcc',
+          label: 'HF X7S MLCC',
+          technology: 'mlcc',
+          qty: mlccQty,
+          capEach_uF: mlccEach,
+          esrEach_mOhm: 2.2,
+          eslEach_nH: 0.9,
+          vRated_V: 100,
+          iRmsEach_A: 6.0,
+          mpn: 'C5750X7S2A106M230KB',
+        },
+      ],
+    };
+  }
+
+  // acdc-cdc
+  if (acdcState?.cdcBank && acdcState.cdcBank.branches.length > 0) {
+    return acdcState.cdcBank;
+  }
+  const vdc = acdcState?.Vdc_bus_V ?? 400;
+  const targetCdc = Math.max(220, acdcState?.Cdc_uF ?? 2240);
+  const bulkQty = vdc > 500 ? 4 : 4;
+  const bulkUnitC = Math.max(220, Math.round((targetCdc - 40) / bulkQty));
+  return {
+    branches: [
+      {
+        id: 'cdc-bulk-elec',
+        label: vdc > 500 ? 'HV Snap-In Elec (500V)' : 'HV Snap-In Elec (450V)',
+        technology: 'electrolytic',
+        qty: bulkQty,
+        capEach_uF: bulkUnitC,
+        esrEach_mOhm: Math.max(60, Math.round((acdcState?.ESR_Cdc_mOhm ?? 18) * bulkQty)),
+        eslEach_nH: 18,
+        vRated_V: vdc > 500 ? 500 : 450,
+        iRmsEach_A: 3.25,
+        mpn: vdc > 500 ? 'EKMH501VSN331MA45T' : 'LGN2W561MELC45',
+      },
+      {
+        id: 'cdc-hf-film',
+        label: 'HF MKP Commutation Film',
+        technology: 'film',
+        qty: 2,
+        capEach_uF: 20,
+        esrEach_mOhm: 2.8,
+        eslEach_nH: 12,
+        vRated_V: vdc > 500 ? 900 : 700,
+        iRmsEach_A: 21.0,
+        mpn: vdc > 500 ? 'B32776G8306K000' : 'C4AQJBW5200A3LJ',
+      },
+    ],
+  };
+}
+
+export type HybridCapPresetId = '3elec-2mlcc' | '4poly-4mlcc' | '2film-4mlcc' | '4elec-2film';
+
+export function buildHybridCapPreset(
+  role: HybridCapRole,
+  presetId: HybridCapPresetId,
+  vOp_V: number
+): HybridCapBankConfig {
+  const isHV = vOp_V > 160;
+  if (role === 'acdc-cdc' || isHV) {
+    const elecV = vOp_V > 440 ? 500 : 450;
+    const filmV = vOp_V > 520 ? 900 : 700;
+    switch (presetId) {
+      case '3elec-2mlcc':
+        return {
+          branches: [
+            {
+              id: 'b1-elec',
+              label: 'HV Bulk Electrolytic',
+              technology: 'electrolytic',
+              qty: 3,
+              capEach_uF: 470,
+              esrEach_mOhm: 170,
+              eslEach_nH: 18,
+              vRated_V: elecV,
+              iRmsEach_A: 3.25,
+              mpn: elecV >= 500 ? 'EKMH501VSN331MA45T' : 'B43644B5477M000',
+            },
+            {
+              id: 'b2-mlcc',
+              label: 'HF HV MLCC',
+              technology: 'mlcc',
+              qty: 2,
+              capEach_uF: 1.0,
+              esrEach_mOhm: 3.5,
+              eslEach_nH: 1.1,
+              vRated_V: 630,
+              iRmsEach_A: 5.0,
+              mpn: 'GRM55D7U2J223JW31L',
+            },
+          ],
+        };
+      case '4poly-4mlcc':
+        return {
+          branches: [
+            {
+              id: 'b1-elec',
+              label: 'Low-ESR Snap-In Bulk',
+              technology: 'electrolytic',
+              qty: 4,
+              capEach_uF: 560,
+              esrEach_mOhm: 150,
+              eslEach_nH: 16,
+              vRated_V: elecV,
+              iRmsEach_A: 3.4,
+              mpn: 'LGN2W561MELC45',
+            },
+            {
+              id: 'b2-mlcc',
+              label: 'HF HV MLCC',
+              technology: 'mlcc',
+              qty: 4,
+              capEach_uF: 0.47,
+              esrEach_mOhm: 2.8,
+              eslEach_nH: 0.9,
+              vRated_V: 1000,
+              iRmsEach_A: 5.5,
+            },
+          ],
+        };
+      case '2film-4mlcc':
+        return {
+          branches: [
+            {
+              id: 'b1-film',
+              label: 'MKP DC-Link Film',
+              technology: 'film',
+              qty: 2,
+              capEach_uF: 30,
+              esrEach_mOhm: 2.5,
+              eslEach_nH: 16,
+              vRated_V: filmV,
+              iRmsEach_A: 23.5,
+              mpn: 'B32776G8306K000',
+            },
+            {
+              id: 'b2-mlcc',
+              label: 'HF HV MLCC',
+              technology: 'mlcc',
+              qty: 4,
+              capEach_uF: 0.47,
+              esrEach_mOhm: 2.5,
+              eslEach_nH: 0.9,
+              vRated_V: 1000,
+              iRmsEach_A: 5.5,
+            },
+          ],
+        };
+      case '4elec-2film':
+      default:
+        return {
+          branches: [
+            {
+              id: 'b1-elec',
+              label: 'HV Bulk Electrolytic',
+              technology: 'electrolytic',
+              qty: 4,
+              capEach_uF: 560,
+              esrEach_mOhm: 195,
+              eslEach_nH: 18,
+              vRated_V: elecV,
+              iRmsEach_A: 3.25,
+              mpn: 'LGN2W561MELC45',
+            },
+            {
+              id: 'b2-film',
+              label: 'MKP Commutation Film',
+              technology: 'film',
+              qty: 2,
+              capEach_uF: 20,
+              esrEach_mOhm: 2.8,
+              eslEach_nH: 12,
+              vRated_V: filmV,
+              iRmsEach_A: 21.0,
+              mpn: 'C4AQJBW5200A3LJ',
+            },
+          ],
+        };
+    }
+  }
+
+  // Low/Medium Voltage DC-DC Cout (e.g. 24V - 100V)
+  const lvRate = vOp_V <= 52 ? 63 : vOp_V <= 66 ? 80 : 100;
+  switch (presetId) {
+    case '3elec-2mlcc':
+      return {
+        branches: [
+          {
+            id: 'b1-elec',
+            label: 'Low-Z Electrolytic',
+            technology: 'electrolytic',
+            qty: 3,
+            capEach_uF: lvRate <= 63 ? 470 : 330,
+            esrEach_mOhm: lvRate <= 63 ? 26 : 32,
+            eslEach_nH: 11,
+            vRated_V: lvRate,
+            iRmsEach_A: 2.65,
+            mpn: lvRate <= 63 ? 'UPW1J471MHD' : 'EKYB101ELL331MK25S',
+          },
+          {
+            id: 'b2-mlcc',
+            label: 'X7S MLCC 2220',
+            technology: 'mlcc',
+            qty: 2,
+            capEach_uF: 10,
+            esrEach_mOhm: 2.2,
+            eslEach_nH: 0.9,
+            vRated_V: 100,
+            iRmsEach_A: 6.0,
+            mpn: 'C5750X7S2A106M230KB',
+          },
+        ],
+      };
+    case '4poly-4mlcc':
+      return {
+        branches: [
+          {
+            id: 'b1-poly',
+            label: 'Hybrid Polymer 125°C',
+            technology: 'polymer',
+            qty: 4,
+            capEach_uF: 150,
+            esrEach_mOhm: 14,
+            eslEach_nH: 4.2,
+            vRated_V: Math.max(80, lvRate),
+            iRmsEach_A: 4.8,
+            mpn: 'EEH-ZS1K151P',
+          },
+          {
+            id: 'b2-mlcc',
+            label: 'X7S MLCC 2220',
+            technology: 'mlcc',
+            qty: 4,
+            capEach_uF: 10,
+            esrEach_mOhm: 2.2,
+            eslEach_nH: 0.9,
+            vRated_V: 100,
+            iRmsEach_A: 6.0,
+            mpn: 'C5750X7S2A106M230KB',
+          },
+        ],
+      };
+    case '2film-4mlcc':
+      return {
+        branches: [
+          {
+            id: 'b1-film',
+            label: 'MKP DC-Link Film',
+            technology: 'film',
+            qty: 2,
+            capEach_uF: 30,
+            esrEach_mOhm: 2.5,
+            eslEach_nH: 14,
+            vRated_V: 400,
+            iRmsEach_A: 20.0,
+            mpn: 'B32776G8306K000',
+          },
+          {
+            id: 'b2-mlcc',
+            label: 'X7S MLCC 2220',
+            technology: 'mlcc',
+            qty: 4,
+            capEach_uF: 10,
+            esrEach_mOhm: 2.2,
+            eslEach_nH: 0.9,
+            vRated_V: 100,
+            iRmsEach_A: 6.0,
+            mpn: 'C5750X7S2A106M230KB',
+          },
+        ],
+      };
+    case '4elec-2film':
+    default:
+      return {
+        branches: [
+          {
+            id: 'b1-elec',
+            label: 'Low-Z Electrolytic',
+            technology: 'electrolytic',
+            qty: 4,
+            capEach_uF: 330,
+            esrEach_mOhm: 32,
+            eslEach_nH: 12,
+            vRated_V: Math.max(80, lvRate),
+            iRmsEach_A: 2.65,
+            mpn: 'EKYB101ELL331MK25S',
+          },
+          {
+            id: 'b2-film',
+            label: 'HF MKP Film',
+            technology: 'film',
+            qty: 2,
+            capEach_uF: 20,
+            esrEach_mOhm: 2.8,
+            eslEach_nH: 12,
+            vRated_V: 400,
+            iRmsEach_A: 18.0,
+            mpn: 'C4AQJBW5200A3LJ',
+          },
+        ],
+      };
+  }
+}
+
+export function solveHybridCapBank(
+  config: HybridCapBankConfig,
+  opts: {
+    fsw_kHz: number;
+    f_lf_Hz?: number;
+    I_hf_rms_A: number;
+    I_lf_rms_A?: number;
+    V_op_pk_V: number;
+    Tamb_C: number;
+  }
+): HybridCapBankSolution {
+  const safeBranches =
+    config.branches && config.branches.length > 0
+      ? config.branches
+      : [
+          {
+            id: 'fallback',
+            label: 'Default Bulk',
+            technology: 'electrolytic' as CapTechnology,
+            qty: 1,
+            capEach_uF: 220,
+            esrEach_mOhm: 20,
+            eslEach_nH: 12,
+            vRated_V: Math.max(100, Math.ceil(opts.V_op_pk_V * 1.3)),
+            iRmsEach_A: 4.0,
+          },
+        ];
+
+  const fsw_Hz = Math.max(1e3, opts.fsw_kHz * 1e3);
+  const wSw = 2 * Math.PI * fsw_Hz;
+  const I_hf_total = Math.max(0, opts.I_hf_rms_A);
+  const I_lf_total = Math.max(0, opts.I_lf_rms_A ?? 0);
+
+  // Per-branch effective parameters & admittance at fsw
+  const preBranches = safeBranches.map((b) => {
+    const qty = Math.max(1, Math.round(b.qty));
+    const isMlcc = b.technology === 'mlcc';
+    const vRatio = isMlcc ? Math.min(1.0, opts.V_op_pk_V / Math.max(10, b.vRated_V)) : 0;
+    const biasFactor = isMlcc ? Math.max(0.32, 1 - 0.8 * Math.pow(vRatio, 1.35)) : 1.0;
+    const effCapEach_uF = b.capEach_uF * biasFactor;
+    const branchCapNominal_uF = b.capEach_uF * qty;
+    const branchCapEff_uF = effCapEach_uF * qty;
+    const branchEsr_mOhm = Math.max(0.1, b.esrEach_mOhm) / qty;
+    const branchEsl_nH = Math.max(0.1, b.eslEach_nH) / qty;
+
+    const R = branchEsr_mOhm * 1e-3;
+    const C = Math.max(1e-12, branchCapEff_uF * 1e-6);
+    const L = Math.max(1e-12, branchEsl_nH * 1e-9);
+    const X = wSw * L - 1 / (wSw * C);
+    const denom = R * R + X * X;
+    const G = R / denom;
+    const B = -X / denom;
+    const Ymag = Math.sqrt(G * G + B * B);
+    const Zmag_mOhm = (1 / Math.max(1e-12, Ymag)) * 1e3;
+    const f_srf_kHz = (1 / (2 * Math.PI * Math.sqrt(L * C))) * 1e-3;
+
+    return {
+      branch: { ...b, qty },
+      effCapEach_uF,
+      mlccBiasDerate_pct: Number(((1 - biasFactor) * 100).toFixed(1)),
+      branchCapNominal_uF,
+      branchCapEff_uF,
+      branchEsr_mOhm,
+      branchEsl_nH,
+      f_srf_kHz,
+      G,
+      B,
+      Ymag,
+      Z_at_fsw_mOhm: Zmag_mOhm,
+    };
+  });
+
+  const G_tot = preBranches.reduce((s, b) => s + b.G, 0);
+  const B_tot = preBranches.reduce((s, b) => s + b.B, 0);
+  const Y_tot_mag = Math.max(1e-9, Math.sqrt(G_tot * G_tot + B_tot * B_tot));
+  const Z_tot_re_Ohm = G_tot / (Y_tot_mag * Y_tot_mag);
+  const Z_at_fsw_mOhm = (1 / Y_tot_mag) * 1e3;
+  const esrEffAtFsw_mOhm = Z_tot_re_Ohm * 1e3;
+
+  const totalCapNominal_uF = preBranches.reduce((s, b) => s + b.branchCapNominal_uF, 0);
+  const totalCapEff_uF = Math.max(1e-6, preBranches.reduce((s, b) => s + b.branchCapEff_uF, 0));
+  const sumInvEsl = preBranches.reduce((s, b) => s + 1 / Math.max(0.05, b.branchEsl_nH), 0);
+  const eslEff_nH = 1 / Math.max(1e-6, sumInvEsl);
+
+  // Sum of individual |Y_k| vs |sum Y_k| gives exact branch RMS current distribution
+  const sumYmag = Math.max(1e-9, preBranches.reduce((s, b) => s + b.Ymag, 0));
+  // Voltage phasor magnitude across bus at fsw = I_hf_total / |Y_tot|
+  const V_bus_hf_V = I_hf_total / Y_tot_mag;
+
+  const branches: HybridCapBranchResult[] = preBranches.map((pb) => {
+    const I_hf_branch_A = V_bus_hf_V * pb.Ymag;
+    const I_lf_branch_A = I_lf_total * (pb.branchCapEff_uF / totalCapEff_uF);
+    const I_total_branch_A = Math.sqrt(I_hf_branch_A * I_hf_branch_A + I_lf_branch_A * I_lf_branch_A);
+    const I_per_cap_A = I_total_branch_A / pb.branch.qty;
+    const rippleShare_pct = (pb.Ymag / sumYmag) * 100;
+    const rippleUtilization_pct = (I_per_cap_A / Math.max(0.1, pb.branch.iRmsEach_A)) * 100;
+    const voltageDerating_pct = (opts.V_op_pk_V / Math.max(1, pb.branch.vRated_V)) * 100;
+
+    const P_loss_branch_W = I_total_branch_A * I_total_branch_A * (pb.branchEsr_mOhm * 1e-3);
+    const P_loss_per_cap_W = P_loss_branch_W / pb.branch.qty;
+
+    const defaults = defaultRthAndLifeForTech(pb.branch.technology);
+    const rth = pb.branch.rthCa_CW ?? defaults.rth;
+    const tmax = pb.branch.tMax_C ?? defaults.tmax;
+    const l0 = pb.branch.l0_hrs ?? defaults.l0;
+
+    const deltaT_C = P_loss_per_cap_W * rth;
+    const T_hotspot_C = opts.Tamb_C + deltaT_C;
+    const L10_life_hrs = Math.min(500000, l0 * Math.pow(2, (tmax - T_hotspot_C) / 10));
+
+    let bStatus: 'ok' | 'warning' | 'critical' = 'ok';
+    if (voltageDerating_pct > 95 || rippleUtilization_pct > 105 || T_hotspot_C > tmax) {
+      bStatus = 'critical';
+    } else if (voltageDerating_pct > 84 || rippleUtilization_pct > 85 || L10_life_hrs < 20000) {
+      bStatus = 'warning';
+    }
+
+    return {
+      branch: pb.branch,
+      effCapEach_uF: pb.effCapEach_uF,
+      mlccBiasDerate_pct: pb.mlccBiasDerate_pct,
+      branchCapNominal_uF: pb.branchCapNominal_uF,
+      branchCapEff_uF: pb.branchCapEff_uF,
+      branchEsr_mOhm: pb.branchEsr_mOhm,
+      branchEsl_nH: pb.branchEsl_nH,
+      f_srf_kHz: pb.f_srf_kHz,
+      Z_at_fsw_mOhm: pb.Z_at_fsw_mOhm,
+      I_lf_branch_A,
+      I_hf_branch_A,
+      I_total_branch_A,
+      I_per_cap_A,
+      rippleShare_pct,
+      rippleUtilization_pct,
+      voltageDerating_pct,
+      P_loss_branch_W,
+      P_loss_per_cap_W,
+      deltaT_C,
+      T_hotspot_C,
+      L10_life_hrs,
+      status: bStatus,
+    };
+  });
+
+  // High-resolution log sweep 100 Hz .. 10 MHz to capture |Z(f)| & anti-resonance peaks
+  const impedanceCurve: HybridCapBankSolution['impedanceCurve'] = [];
+  const nPts = 61;
+  for (let i = 0; i < nPts; i++) {
+    const fk = Math.pow(10, -1 + (5 * i) / (nPts - 1)); // 0.1 kHz to 10,000 kHz
+    const w = 2 * Math.PI * fk * 1e3;
+    let gSum = 0;
+    let bSum = 0;
+    const branchZ_mOhm: number[] = [];
+    for (const pb of preBranches) {
+      const r = pb.branchEsr_mOhm * 1e-3;
+      const c = Math.max(1e-12, pb.branchCapEff_uF * 1e-6);
+      const l = Math.max(1e-12, pb.branchEsl_nH * 1e-9);
+      const x = w * l - 1 / (w * c);
+      const d = r * r + x * x;
+      gSum += r / d;
+      bSum += -x / d;
+      branchZ_mOhm.push(Number((Math.sqrt(d) * 1e3).toFixed(3)));
+    }
+    const zTot = (1 / Math.max(1e-12, Math.sqrt(gSum * gSum + bSum * bSum))) * 1e3;
+    impedanceCurve.push({
+      freq_kHz: Number(fk.toFixed(3)),
+      Z_total_mOhm: Number(zTot.toFixed(3)),
+      branchZ_mOhm,
+    });
+  }
+
+  // Detect parallel anti-resonance peak (local maximum in |Z(f)| between 5 kHz and 5 MHz)
+  let f_antiresonance_kHz: number | null = null;
+  let Z_antiresonance_mOhm: number | null = null;
+  for (let i = 1; i < impedanceCurve.length - 1; i++) {
+    const prev = impedanceCurve[i - 1];
+    const curr = impedanceCurve[i];
+    const next = impedanceCurve[i + 1];
+    if (
+      curr.freq_kHz >= 5 &&
+      curr.freq_kHz <= 5000 &&
+      curr.Z_total_mOhm > prev.Z_total_mOhm * 1.08 &&
+      curr.Z_total_mOhm > next.Z_total_mOhm * 1.08
+    ) {
+      if (Z_antiresonance_mOhm === null || curr.Z_total_mOhm > Z_antiresonance_mOhm) {
+        f_antiresonance_kHz = curr.freq_kHz;
+        Z_antiresonance_mOhm = curr.Z_total_mOhm;
+      }
+    }
+  }
+
+  let antiResonanceRisk: 'none' | 'moderate' | 'high' = 'none';
+  if (f_antiresonance_kHz !== null && Z_antiresonance_mOhm !== null) {
+    const nearSwitchingHarmonic =
+      Math.abs(f_antiresonance_kHz - opts.fsw_kHz) / Math.max(1, opts.fsw_kHz) < 0.25 ||
+      Math.abs(f_antiresonance_kHz - 2 * opts.fsw_kHz) / Math.max(1, 2 * opts.fsw_kHz) < 0.2;
+    if (Z_antiresonance_mOhm > esrEffAtFsw_mOhm * 4 && nearSwitchingHarmonic) {
+      antiResonanceRisk = 'high';
+    } else if (Z_antiresonance_mOhm > esrEffAtFsw_mOhm * 3) {
+      antiResonanceRisk = 'moderate';
+    }
+  }
+
+  const totalUnits = branches.reduce((s, b) => s + b.branch.qty, 0);
+  const minVoltageRating_V = Math.min(...branches.map((b) => b.branch.vRated_V));
+  const worstVoltageDerating_pct = Math.max(...branches.map((b) => b.voltageDerating_pct));
+  const worstRippleUtilization_pct = Math.max(...branches.map((b) => b.rippleUtilization_pct));
+  const worstHotspot_C = Math.max(...branches.map((b) => b.T_hotspot_C));
+  const minL10Life_hrs = Math.min(...branches.map((b) => b.L10_life_hrs));
+  const P_loss_total_W = branches.reduce((s, b) => s + b.P_loss_branch_W, 0);
+
+  let status: 'ok' | 'warning' | 'critical' = 'ok';
+  if (branches.some((b) => b.status === 'critical')) {
+    status = 'critical';
+  } else if (branches.some((b) => b.status === 'warning') || antiResonanceRisk === 'high') {
+    status = 'warning';
+  }
+
+  const shortParts = branches.map((b) => {
+    const techTag =
+      b.branch.technology === 'electrolytic'
+        ? 'Elec'
+        : b.branch.technology === 'polymer'
+        ? 'Poly'
+        : b.branch.technology === 'mlcc'
+        ? 'MLCC'
+        : 'Film';
+    const cStr = b.branch.capEach_uF < 1 ? `${(b.branch.capEach_uF * 1000).toFixed(0)}nF` : `${b.branch.capEach_uF}µF`;
+    return `${b.branch.qty}×${cStr} ${techTag}`;
+  });
+  const summaryLabel = shortParts.join(' + ');
+
+  const statusReason =
+    status === 'critical'
+      ? `One or more branches exceed voltage/ripple/thermal limits (${worstVoltageDerating_pct.toFixed(0)}% V, ${worstRippleUtilization_pct.toFixed(0)}% I_rms, ${worstHotspot_C.toFixed(0)}°C).`
+      : antiResonanceRisk === 'high'
+      ? `Anti-resonance peak (${Z_antiresonance_mOhm?.toFixed(1)} mΩ @ ${f_antiresonance_kHz?.toFixed(0)} kHz) sits near f_sw; add ESR damping or adjust MLCC count.`
+      : status === 'warning'
+      ? `Tight branch margin (${worstVoltageDerating_pct.toFixed(0)}% V, ${worstRippleUtilization_pct.toFixed(0)}% I_rms, L10=${(minL10Life_hrs / 1000).toFixed(0)}k hrs).`
+      : `Balanced parallel bank (${summaryLabel}) · ESR_eff=${esrEffAtFsw_mOhm.toFixed(1)} mΩ @ ${opts.fsw_kHz} kHz.`;
+
+  return {
+    config: { branches: safeBranches },
+    branches,
+    totalUnits,
+    totalCapNominal_uF,
+    totalCapEff_uF,
+    esrEffAtFsw_mOhm,
+    Z_at_fsw_mOhm,
+    eslEff_nH,
+    minVoltageRating_V,
+    worstVoltageDerating_pct,
+    worstRippleUtilization_pct,
+    worstHotspot_C,
+    minL10Life_hrs,
+    P_loss_total_W,
+    f_antiresonance_kHz,
+    Z_antiresonance_mOhm,
+    antiResonanceRisk,
+    summaryLabel,
+    status,
+    statusReason,
+    impedanceCurve,
+  };
+}
+
+/**
+ * Expands a HybridCapBankConfig into concrete parallel unit/branch instances for
+ * CAD schematics, LTspice (.asc), QSPICE (.qsch), SPICE (.cir), and PLECS (.plecs).
+ * Branches with qty <= maxIndividualPerBranch are expanded 1-by-1 (e.g. 3× Elec + 2× MLCC -> 5 symbols);
+ * larger branches (qty > maxIndividualPerBranch) are represented cleanly with scaled parallel Rser/Lser.
+ */
+export function expandHybridCapBankForSpice(
+  config: HybridCapBankConfig,
+  prefix: string,
+  vOpPk_V: number,
+  maxIndividualPerBranch = 4
+): SpiceCapUnitDescriptor[] {
+  const units: SpiceCapUnitDescriptor[] = [];
+  const branches = config.branches && config.branches.length > 0 ? config.branches : [];
+
+  branches.forEach((b, bIdx) => {
+    const qty = Math.max(1, Math.round(b.qty));
+    const isMlcc = b.technology === 'mlcc';
+    const vRatio = isMlcc ? Math.min(1.0, vOpPk_V / Math.max(10, b.vRated_V)) : 0;
+    const biasFactor = isMlcc ? Math.max(0.32, 1 - 0.8 * Math.pow(vRatio, 1.35)) : 1.0;
+    const effEach_uF = Math.max(0.001, b.capEach_uF * biasFactor);
+    const techChar =
+      b.technology === 'electrolytic'
+        ? 'E'
+        : b.technology === 'polymer'
+        ? 'P'
+        : b.technology === 'mlcc'
+        ? 'M'
+        : 'F';
+
+    if (qty <= maxIndividualPerBranch) {
+      for (let i = 1; i <= qty; i++) {
+        units.push({
+          refDes: `${prefix}_${techChar}${bIdx + 1}_${i}`,
+          branchId: b.id,
+          label: b.label,
+          technology: b.technology,
+          qtyRepresented: 1,
+          cap_uF: Number(effEach_uF.toFixed(4)),
+          esr_mOhm: Number(Math.max(0.2, b.esrEach_mOhm).toFixed(3)),
+          esl_nH: Number(Math.max(0.2, b.eslEach_nH).toFixed(2)),
+          vRated_V: b.vRated_V,
+        });
+      }
+    } else {
+      units.push({
+        refDes: `${prefix}_${techChar}${bIdx + 1}_X${qty}`,
+        branchId: b.id,
+        label: `${qty}x ${b.label}`,
+        technology: b.technology,
+        qtyRepresented: qty,
+        cap_uF: Number((effEach_uF * qty).toFixed(4)),
+        esr_mOhm: Number(Math.max(0.1, b.esrEach_mOhm / qty).toFixed(3)),
+        esl_nH: Number(Math.max(0.1, b.eslEach_nH / qty).toFixed(2)),
+        vRated_V: b.vRated_V,
+      });
+    }
+  });
+
+  return units;
 }

@@ -17,12 +17,17 @@
 import { AcDcDesignState, DcDcDesignState } from '../data/databases';
 import { AcDcResults } from './acdcEngine';
 import { DcDcResults } from './dcdcEngine';
+import { expandHybridCapBankForSpice, getDefaultHybridCapBank } from './passiveDesignEngine';
 import {
   generateManufacturerMosfetSubckt,
   generateManufacturerRectifierSubckt,
   generatePfcBoostDiodeSubckt,
 } from './spiceModelLibrary';
-import { generateAcDcSpiceNetlist, generateDcDcSpiceNetlist } from './spiceNetlistExporter';
+import {
+  generateAcDcSpiceNetlist,
+  generateCombinedSystemSpiceNetlist,
+  generateDcDcSpiceNetlist,
+} from './spiceNetlistExporter';
 import { runTransientLoadStep } from './transientOdeSolver';
 import { buildQspiceBinaryFile, buildZipArchive, encodeLatin1, ZipEntry } from './zipBuilder';
 
@@ -788,36 +793,53 @@ function buildDcDcPowerStageLines(
   const Lpri_uH = Math.max(50, state.Lm_uH);
   const Lsec_uH = Lpri_uH / (n * n);
   const Rload = (state.Vout_V * state.Vout_V) / Math.max(1, state.Pout_W);
+  const cinBank = getDefaultHybridCapBank('dcdc-cin', state);
+  const coutBank = getDefaultHybridCapBank('dcdc-cout', state);
+  let cinUnits = expandHybridCapBankForSpice(cinBank, 'C_IN', state.Vin_max_V, 4);
+  if (cinUnits.length > 4) {
+    cinUnits = expandHybridCapBankForSpice(cinBank, 'C_IN', state.Vin_max_V, 2);
+  }
+  const coutUnits = expandHybridCapBankForSpice(coutBank, 'C_OUT', state.Vout_V * 1.05, 4);
 
   const lines: string[] = [
-    // --- ZONE 1: INPUT BUS & BULK CAPACITOR (x=-5400..-4200, y=0..1800) ---
+    // --- ZONE 1: INPUT BUS & HYBRID PARALLEL CAPACITOR BANK (Cin) ---
     ...qsymV('V_IN', `{VIN}`, -5400, 900, 0),
-    ...qsymC('C_IN', '47u', -4200, 900, 0, 'Rser=5m'),
     wire(-5400, 1100, -5400, 1800, 'vin_pos'),
-    wire(-5400, 1800, -4200, 1800, 'vin_pos'),
-    wire(-4200, 1800, -4200, 1100, 'vin_pos'),
     wire(-5400, 700, -5400, 0, 'GND'),
-    wire(-5400, 0, -4200, 0, 'GND'),
-    wire(-4200, 700, -4200, 0, 'GND'),
     netLabel(-5400, 0, 'GND'),
-    netLabel(-4800, 1800, 'vin_pos'),
+    netLabel(-5100, 1800, 'vin_pos'),
+  ];
 
+  let prevCinX = -5400;
+  cinUnits.forEach((u, idx) => {
+    const cx = -4700 + idx * 300;
+    lines.push(
+      ...qsymC(u.refDes, `${u.cap_uF}u`, cx, 900, 0, `Rser=${u.esr_mOhm}m Lser=${u.esl_nH}n`),
+      wire(prevCinX, 1800, cx, 1800, 'vin_pos'),
+      wire(cx, 1800, cx, 1100, 'vin_pos'),
+      wire(prevCinX, 0, cx, 0, 'GND'),
+      wire(cx, 700, cx, 0, 'GND')
+    );
+    prevCinX = cx;
+  });
+
+  lines.push(
     // --- ZONE 2: PRIMARY BRIDGE LEGS (1800-unit horizontal spacing, 1000-unit vertical) ---
     // Leg A (x=-3000): Q1 at y=1400, Q2 at y=400 -> D/S at x=-2900, G at x=-3200
     ...qsymNmosSubckt('Q1', priModel.subcktName, -3000, 1400),
     ...qsymNmosSubckt('Q2', priModel.subcktName, -3000, 400),
-    wire(-4200, 1800, -2900, 1800, 'vin_pos'),
+    wire(prevCinX, 1800, -2900, 1800, 'vin_pos'),
     wire(-2900, 1800, -2900, 1600, 'vin_pos'),
     wire(-2900, 1200, -2900, 900, 'sw_a'),
     wire(-2900, 900, -2900, 600, 'sw_a'),
     wire(-2900, 200, -2900, 0, 'GND'),
-    wire(-4200, 0, -2900, 0, 'GND'),
+    wire(prevCinX, 0, -2900, 0, 'GND'),
     wire(-3200, 1400, -3400, 1400, 'g1'),
     netLabel(-3400, 1400, 'g1'),
     wire(-3200, 400, -3400, 400, 'g2'),
     netLabel(-3400, 400, 'g2'),
-    netLabel(-2900, 900, 'sw_a'),
-  ];
+    netLabel(-2900, 900, 'sw_a')
+  );
 
   // Leg B (x=-1200): 1800 units right of Leg A so MPN names never collide
   if (state.topology === 'llc-hb') {
@@ -947,25 +969,29 @@ function buildDcDcPowerStageLines(
     );
   }
 
-  // --- ZONE 4: OUTPUT FILTER CAPACITOR & LOAD (x=9600..11000) ---
+  // --- ZONE 4: HYBRID OUTPUT CAPACITOR BANK & LOAD (x=9600..) ---
+  let prevCoutX = 9600;
+  coutUnits.forEach((u, idx) => {
+    const cx = 9600 + idx * 500;
+    lines.push(
+      ...qsymC(u.refDes, `${u.cap_uF}u`, cx, 800, 0, `Rser=${u.esr_mOhm}m Lser=${u.esl_nH}n`),
+      wire(cx, 1600, cx, 1000, 'v_out'),
+      wire(cx, 600, cx, 0, 'GND')
+    );
+    if (idx > 0) {
+      lines.push(wire(prevCoutX, 1600, cx, 1600, 'v_out'), wire(prevCoutX, 0, cx, 0, 'GND'));
+    }
+    prevCoutX = cx;
+  });
+  const rloadX = prevCoutX + 600;
   lines.push(
-    ...qsymC(
-      'C_OUT',
-      `${state.Co_uF.toFixed(1)}u`,
-      9600,
-      800,
-      0,
-      `Rser=${state.ESR_Co_mOhm.toFixed(2)}m`
-    ),
-    ...qsymR('R_LOAD', `${Rload.toFixed(3)}`, 11000, 800, 0),
-    wire(9600, 1600, 9600, 1000, 'v_out'),
-    wire(9600, 1600, 11000, 1600, 'v_out'),
-    wire(11000, 1600, 11000, 1000, 'v_out'),
-    wire(9600, 600, 9600, 0, 'GND'),
-    wire(11000, 600, 11000, 0, 'GND'),
-    wire(9600, 0, 11000, 0, 'GND'),
+    ...qsymR('R_LOAD', `${Rload.toFixed(3)}`, rloadX, 800, 0),
+    wire(prevCoutX, 1600, rloadX, 1600, 'v_out'),
+    wire(rloadX, 1600, rloadX, 1000, 'v_out'),
+    wire(rloadX, 600, rloadX, 0, 'GND'),
+    wire(prevCoutX, 0, rloadX, 0, 'GND'),
     netLabel(9600, 0, 'GND'),
-    netLabel(10300, 1600, 'v_out')
+    netLabel(prevCoutX + 300, 1600, 'v_out')
   );
 
   return lines;
@@ -1336,23 +1362,30 @@ function buildAcDcPowerStageLines(
     );
   }
 
-  // --- ZONE 4: DC-LINK BULK CAPACITOR & LOAD (x=4400..5600) ---
+  // --- ZONE 4: HYBRID DC-LINK CAPACITOR BANK & LOAD (x=4400..) ---
+  const cdcBank = getDefaultHybridCapBank('acdc-cdc', undefined, state);
+  const cdcUnits = expandHybridCapBankForSpice(cdcBank, 'C_DC', state.Vdc_bus_V * 1.04, 4);
+  let prevCdcX = 4400;
+  cdcUnits.forEach((u, idx) => {
+    const cx = 4400 + idx * 500;
+    lines.push(
+      ...qsymC(u.refDes, `${u.cap_uF}u`, cx, 800, 0, `Rser=${u.esr_mOhm}m Lser=${u.esl_nH}n`),
+      wire(cx, 1700, cx, 1000, 'v_dc'),
+      wire(cx, 600, cx, 0, 'GND')
+    );
+    if (idx > 0) {
+      lines.push(wire(prevCdcX, 1700, cx, 1700, 'v_dc'), wire(prevCdcX, 0, cx, 0, 'GND'));
+    }
+    prevCdcX = cx;
+  });
+  const acdcRloadX = prevCdcX + 600;
   lines.push(
-    ...qsymC(
-      'C_DC',
-      `${state.Cdc_uF.toFixed(0)}u`,
-      4400,
-      800,
-      0,
-      `Rser=${state.ESR_Cdc_mOhm.toFixed(1)}m`
-    ),
-    ...qsymR('R_LOAD', `${Rload.toFixed(2)}`, 5600, 800, 0),
-    wire(4400, 1700, 4400, 1000, 'v_dc'),
-    wire(4400, 1700, 5600, 1700, 'v_dc'),
-    wire(5600, 1700, 5600, 1000, 'v_dc'),
-    wire(4400, 600, 4400, 0, 'GND'),
-    wire(5600, 600, 5600, 0, 'GND'),
-    netLabel(5000, 1700, 'v_dc')
+    ...qsymR('R_LOAD', `${Rload.toFixed(2)}`, acdcRloadX, 800, 0),
+    wire(prevCdcX, 1700, acdcRloadX, 1700, 'v_dc'),
+    wire(acdcRloadX, 1700, acdcRloadX, 1000, 'v_dc'),
+    wire(acdcRloadX, 600, acdcRloadX, 0, 'GND'),
+    wire(prevCdcX, 0, acdcRloadX, 0, 'GND'),
+    netLabel(prevCdcX + 300, 1700, 'v_dc')
   );
 
   return lines;
@@ -1846,6 +1879,280 @@ export function generateAcDcQspiceBundle(
     baseName,
     qschFileName,
     qschContent,
+    cblockQschFileName,
+    cblockQschContent,
+    qsymFiles,
+    libFileName,
+    libContent,
+    qrawFileName,
+    qrawContent: qrawSummary,
+    qrawBytes,
+    cirFileName,
+    cirContent,
+    cppFileName,
+    cppContent,
+    readmeContent,
+    zipBytes: buildZipArchive(entries),
+  };
+}
+
+function transformQschLinesForCombined(
+  qschText: string,
+  dy: number,
+  options: {
+    dropInstNames: Set<string>;
+    replaceVinPosWithVdc?: boolean;
+    tswParamName: string;
+    dropDirectives: boolean;
+  }
+): string[] {
+  const lines = qschText.split(/\r\n|\n/);
+  const out: string[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (line === '«schematic' || line === '»' || line.trim() === '') {
+      i++;
+      continue;
+    }
+
+    if (line.startsWith('«symbol ')) {
+      const symBlock: string[] = [line];
+      let j = i + 1;
+      let depth = 1;
+      while (j < lines.length && depth > 0) {
+        const l = lines[j];
+        if (l.startsWith('«')) depth++;
+        if (l === '»') depth--;
+        symBlock.push(l);
+        j++;
+      }
+      const joined = symBlock.join('\n');
+      const instMatch = joined.match(/"(V_IN|R_LOAD)"/);
+      if (instMatch && options.dropInstNames.has(instMatch[1])) {
+        i = j;
+        continue;
+      }
+      const headerM = symBlock[0].match(/^«symbol\s+(-?\d+)\s+(-?\d+)\s+(.*)$/);
+      if (headerM) {
+        symBlock[0] = `«symbol ${headerM[1]} ${Math.round(Number(headerM[2]) + dy)} ${headerM[3]}`;
+      }
+      for (let k = 1; k < symBlock.length; k++) {
+        if (symBlock[k].includes('{TSW}')) {
+          symBlock[k] = symBlock[k].replace(/\{TSW\}/g, `{${options.tswParamName}}`);
+        }
+      }
+      out.push(...symBlock);
+      i = j;
+      continue;
+    }
+
+    if (line.startsWith('«wire ')) {
+      const m = line.match(/^«wire\s+(-?\d+)\s+(-?\d+)\s+(-?\d+)\s+(-?\d+)\s+(.*)$/);
+      if (m) {
+        let rest = m[5];
+        if (options.replaceVinPosWithVdc) {
+          rest = rest.replace(/"vin_pos"/g, '"v_dc"');
+        }
+        out.push(
+          `«wire ${m[1]} ${Math.round(Number(m[2]) + dy)} ${m[3]} ${Math.round(Number(m[4]) + dy)} ${rest}`
+        );
+        i++;
+        continue;
+      }
+    }
+
+    if (line.startsWith('«net ')) {
+      const m = line.match(/^«net\s+(-?\d+)\s+(-?\d+)\s+(.*)$/);
+      if (m) {
+        let rest = m[3];
+        if (options.replaceVinPosWithVdc) {
+          rest = rest.replace(/"vin_pos"/g, '"v_dc"');
+        }
+        out.push(`«net ${m[1]} ${Math.round(Number(m[2]) + dy)} ${rest}`);
+        i++;
+        continue;
+      }
+    }
+
+    if (line.startsWith('«text ')) {
+      if (options.dropDirectives) {
+        i++;
+        continue;
+      }
+      const m = line.match(/^«text\s+(-?\d+)\s+(-?\d+)\s+(.*)$/);
+      if (m) {
+        out.push(`«text ${m[1]} ${Math.round(Number(m[2]) + dy)} ${m[3]}`);
+        i++;
+        continue;
+      }
+    }
+
+    out.push(line);
+    i++;
+  }
+  return out;
+}
+
+export function generateCombinedSystemQspiceBundle(
+  acdcState: AcDcDesignState,
+  acdcRes: AcDcResults,
+  dcdcState: DcDcDesignState,
+  dcdcRes: DcDcResults
+): QspiceSimulationBundle {
+  const baseName = sanitizeBase(`voltcraft_combined_${acdcState.topology}_to_${dcdcState.topology}`);
+  const ctrlFn = `${baseName}_ctrl`;
+
+  const qschFileName = `${baseName}.qsch`;
+  const cblockQschFileName = `${baseName}_cblock.qsch`;
+  const cirFileName = `${baseName}.cir`;
+  const cppFileName = `${ctrlFn}.cpp`;
+  const qrawFileName = `${baseName}.qraw`;
+  const libFileName = 'voltcraft_models.lib';
+
+  const swModel = generateManufacturerMosfetSubckt(acdcRes.sw, 1);
+  const boostDiode = generatePfcBoostDiodeSubckt(acdcState.Vdc_bus_V);
+  const priModel = generateManufacturerMosfetSubckt(dcdcRes.priDevice, dcdcState.nParallelPri);
+  const secModel = generateManufacturerRectifierSubckt(
+    dcdcRes.secDevice,
+    dcdcState.nParallelSec,
+    dcdcState.rectMode
+  );
+
+  const uniqueSubckts = Array.from(
+    new Map<string, string>([
+      [swModel.subcktName, swModel.spiceText],
+      [boostDiode.subcktName, boostDiode.spiceText],
+      [priModel.subcktName, priModel.spiceText],
+      [secModel.subcktName, secModel.spiceText],
+    ]).values()
+  );
+  const libContent = toCrlf(
+    [
+      `* VoltCraft Power Electronics Studio -- Combined 2-Stage Manufacturer SPICE Library`,
+      `* Stage 1 Switch : ${swModel.manufacturer} ${acdcRes.sw.id} (.SUBCKT ${swModel.subcktName})`,
+      `* Stage 1 Diode  : ${boostDiode.manufacturer} ${boostDiode.mpn} (.SUBCKT ${boostDiode.subcktName})`,
+      `* Stage 2 Primary: ${priModel.manufacturer} ${dcdcRes.priDevice.id} (.SUBCKT ${priModel.subcktName})`,
+      `* Stage 2 Rect   : ${secModel.manufacturer} ${dcdcRes.secDevice.id} (.SUBCKT ${secModel.subcktName})`,
+      ``,
+      ...uniqueSubckts,
+      ``,
+    ].join('\n')
+  );
+
+  const acdcQschRaw = buildAcDcQsch(baseName, ctrlFn, acdcState, acdcRes);
+  const dcdcQschRaw = buildDcDcQsch(baseName, ctrlFn, dcdcState, dcdcRes);
+
+  const stage1Lines = transformQschLinesForCombined(acdcQschRaw, 0, {
+    dropInstNames: new Set(['R_LOAD']),
+    tswParamName: 'TSW_PFC',
+    dropDirectives: true,
+  });
+  const stage2Lines = transformQschLinesForCombined(dcdcQschRaw, -6800, {
+    dropInstNames: new Set(['V_IN']),
+    replaceVinPosWithVdc: true,
+    tswParamName: 'TSW_DC',
+    dropDirectives: true,
+  });
+
+  const Vac_pk = acdcState.Vac_rms_V * Math.SQRT2;
+  const fswPfcHz = acdcState.fsw_kHz * 1e3;
+  const fswDcHz = dcdcState.fsw_kHz * 1e3;
+  const tDead_ns = Math.max(20, dcdcState.deadTime_ns);
+  const deff = dcdcRes.isLLC ? 1.0 : Math.max(0.15, Math.min(0.95, dcdcRes.Deff_nom));
+
+  const combinedQschContent = toCrlf(
+    [
+      '«schematic',
+      directiveText(
+        -5000,
+        3200,
+        `; VoltCraft Power Electronics Studio -- COMBINED 2-STAGE QSPICE (${acdcState.topology} -> ${dcdcState.topology.toUpperCase()})`,
+        1.25
+      ),
+      directiveText(
+        -5000,
+        2900,
+        `; Shared Hybrid C_DC Bus (v_dc) feeds Stage 2 Primary Bridge directly (Press F5 to simulate)`,
+        1.0
+      ),
+      ...stage1Lines,
+      ...stage2Lines,
+      directiveText(5600, -7900, '.lib voltcraft_models.lib', 1),
+      directiveText(
+        5600,
+        -8220,
+        `.param FSW_PFC=${fswPfcHz} TSW_PFC={1/FSW_PFC} VAC_PK=${Vac_pk.toFixed(2)} FLINE=${acdcState.f_line_Hz} VDC_REF=${acdcState.Vdc_bus_V}`,
+        1
+      ),
+      directiveText(
+        5600,
+        -8540,
+        `.param FSW_DC=${fswDcHz} TSW_DC={1/FSW_DC} VOUT_REF=${dcdcState.Vout_V} DEFF=${deff.toFixed(4)} TDEAD=${tDead_ns}n THALF={0.5*TSW_DC} TON={THALF-TDEAD} TD_B={DEFF*THALF}`,
+        1
+      ),
+      directiveText(
+        5600,
+        -8860,
+        `.ic V(v_dc)=${acdcState.Vdc_bus_V.toFixed(1)} V(v_out)=${(dcdcState.Vout_V * 0.94).toFixed(2)}`,
+        1
+      ),
+      directiveText(5600, -9180, '.options reltol=1m', 1),
+      directiveText(
+        5600,
+        -9500,
+        `.tran 0 ${(1 / acdcState.f_line_Hz * 1e3).toFixed(1)}m 0 100n`,
+        1
+      ),
+      directiveText(5600, -9820, `.meas TRAN Vdc_avg AVG V(v_dc)`, 1),
+      directiveText(5600, -10140, `.meas TRAN Vout_avg AVG V(v_out)`, 1),
+      '»',
+      '',
+    ].join('\n')
+  );
+
+  const cirContent = generateCombinedSystemSpiceNetlist(acdcState, acdcRes, dcdcState, dcdcRes);
+  const cblockQschContent = buildDcDcCblockQsch(baseName, ctrlFn, dcdcState, dcdcRes);
+  const cppContent = buildDcDcControllerCpp(ctrlFn, dcdcState, dcdcRes);
+  const { qrawBytes, qrawSummary } = buildDcDcQraw(dcdcState, dcdcRes);
+  const qsymFiles = [
+    {
+      path: `symbols/${ctrlFn}.qsym`,
+      content: buildDllStandaloneQsym(
+        ctrlFn,
+        `VoltCraft ${dcdcState.controlType.toUpperCase()} Digital Controller`,
+        DCDC_DLL_PINS
+      ),
+    },
+  ];
+
+  const readmeContent = [
+    `VoltCraft Power Electronics Studio -- COMBINED 2-STAGE QSPICE Bundle`,
+    `========================================================================`,
+    `Stage 1 (PFC)  : ${acdcState.topology} (${acdcState.Vac_rms_V}Vac -> ${acdcState.Vdc_bus_V}Vdc)`,
+    `Stage 2 (DC-DC): ${dcdcState.topology} (${dcdcState.Vin_nom_V}Vdc -> ${dcdcState.Vout_V}Vdc @ ${dcdcState.Pout_W}W)`,
+    `Connected Link : Shared Hybrid C_DC Bus (v_dc) directly powers Stage 2 Primary Bridge`,
+    ``,
+    `Included Files:`,
+    `  1. ${qschFileName}          - Unified 2-stage QSPICE schematic (press F5 to simulate!)`,
+    `  2. ${libFileName}          - Deduplicated manufacturer .SUBCKT library`,
+    `  3. ${cirFileName}           - Unified 2-stage SPICE ASCII netlist`,
+    `  4. ${qrawFileName}          - Pre-computed Stage 2 transient waveform file`,
+    ``,
+  ].join('\r\n');
+
+  const entries: ZipEntry[] = [
+    { path: qschFileName, content: buildQspiceBinaryFile(combinedQschContent) },
+    { path: libFileName, content: libContent },
+    { path: cirFileName, content: cirContent },
+    { path: qrawFileName, content: qrawBytes },
+    { path: 'README_QSPICE.txt', content: readmeContent },
+  ];
+
+  return {
+    baseName,
+    qschFileName,
+    qschContent: combinedQschContent,
     cblockQschFileName,
     cblockQschContent,
     qsymFiles,

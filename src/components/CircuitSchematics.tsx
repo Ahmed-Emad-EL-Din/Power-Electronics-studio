@@ -1,14 +1,24 @@
-import React, { useRef, useState } from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import { DcDcResults } from '../engine/dcdcEngine';
 import { AcDcResults } from '../engine/acdcEngine';
-import { AcDcTopologyType } from '../data/databases';
+import { AcDcTopologyType, CapTechnology } from '../data/databases';
 import {
   generateAcDcLtspiceAsc,
+  generateAcDcPlecsBundle,
   generateAcDcQspiceBundle,
+  generateCombinedSystemLtspiceAsc,
+  generateCombinedSystemPlecsBundle,
+  generateCombinedSystemQspiceBundle,
   generateDcDcLtspiceAsc,
+  generateDcDcPlecsBundle,
   generateDcDcQspiceBundle,
 } from '../engine/spiceNetlistExporter';
-import { Download, Image as ImageIcon, ZoomIn, ZoomOut, Maximize2, Archive } from 'lucide-react';
+import {
+  expandHybridCapBankForSpice,
+  getDefaultHybridCapBank,
+  solveHybridCapBank,
+} from '../engine/passiveDesignEngine';
+import { Download, Image as ImageIcon, ZoomIn, ZoomOut, Maximize2, Archive, FileCode } from 'lucide-react';
 
 // ============================================================================
 // STANDARD IEEE / IEC ELECTRICAL CAD SVG PRIMITIVES
@@ -271,7 +281,221 @@ export const GroundSymbol: React.FC<{ x: number; y: number }> = ({ x, y }) => (
   </g>
 );
 
-// Helper to export SVG or 2x PNG
+const TECH_COLORS: Record<CapTechnology, string> = {
+  electrolytic: '#10b981',
+  polymer: '#38bdf8',
+  film: '#f59e0b',
+  mlcc: '#06b6d4',
+};
+
+const HybridCapUnitSymbol: React.FC<{
+  x: number;
+  y: number;
+  tech: CapTechnology;
+  shortRef: string;
+  valLabel: string;
+  color: string;
+}> = ({ x, y, tech, shortRef, valLabel, color }) => {
+  const isPolar = tech === 'electrolytic' || tech === 'polymer';
+  return (
+    <g transform={`translate(${x}, ${y})`}>
+      <line x1="0" y1="-18" x2="0" y2="-3.5" stroke="currentColor" strokeWidth="1.4" />
+      {isPolar ? (
+        <>
+          <text x="-7" y="-7" fill={color} fontSize="7.5" fontWeight="bold">
+            +
+          </text>
+          <line x1="-8" y1="-3.5" x2="8" y2="-3.5" stroke={color} strokeWidth="2.1" />
+          <path d="M -8 5.5 Q 0 1.2 8 5.5" fill="none" stroke={color} strokeWidth="2.0" />
+        </>
+      ) : (
+        <>
+          {tech === 'film' && (
+            <rect
+              x="-9"
+              y="-7"
+              width="18"
+              height="14"
+              rx="1.5"
+              fill="none"
+              stroke={color}
+              strokeWidth="0.7"
+              strokeDasharray="2 1.5"
+              strokeOpacity="0.65"
+            />
+          )}
+          <line x1="-7.5" y1="-3.2" x2="7.5" y2="-3.2" stroke={color} strokeWidth="2.0" />
+          <line x1="-7.5" y1="3.2" x2="7.5" y2="3.2" stroke={color} strokeWidth="2.0" />
+        </>
+      )}
+      <line x1="0" y1="4.5" x2="0" y2="18" stroke="currentColor" strokeWidth="1.4" />
+      <text x="0" y="-21" textAnchor="middle" fill={color} fontSize="7" fontWeight="bold">
+        {shortRef}
+      </text>
+      <text x="0" y="27" textAnchor="middle" fill="#94a3b8" fontSize="6.7">
+        {valLabel}
+      </text>
+    </g>
+  );
+};
+
+interface HybridCapBankSvgProps {
+  units: {
+    refDes: string;
+    technology: CapTechnology;
+    qtyRepresented: number;
+    cap_uF: number;
+    esr_mOhm: number;
+  }[];
+  xStart: number;
+  xEnd: number;
+  yTop: number;
+  yBot: number;
+  summaryText: string;
+  summaryY?: number;
+  accentColor?: string;
+}
+
+const HybridCapBankSvg: React.FC<HybridCapBankSvgProps> = ({
+  units,
+  xStart,
+  xEnd,
+  yTop,
+  yBot,
+  summaryText,
+  summaryY,
+  accentColor = '#10b981',
+}) => {
+  const count = Math.max(1, units.length);
+  const cy = (yTop + yBot) / 2;
+  const step = count === 1 ? 0 : (xEnd - xStart) / (count - 1);
+
+  return (
+    <g>
+      {units.map((u, idx) => {
+        const cx = count === 1 ? (xStart + xEnd) / 2 : xStart + idx * step;
+        const techChar =
+          u.technology === 'electrolytic'
+            ? 'E'
+            : u.technology === 'polymer'
+            ? 'P'
+            : u.technology === 'mlcc'
+            ? 'M'
+            : 'F';
+        const shortRef =
+          u.qtyRepresented > 1 ? `${u.qtyRepresented}×${techChar}` : `${techChar}${idx + 1}`;
+        const unitCap = u.qtyRepresented > 1 ? u.cap_uF / u.qtyRepresented : u.cap_uF;
+        const valLabel =
+          unitCap < 1 ? `${(unitCap * 1000).toFixed(0)}n` : `${unitCap >= 100 ? unitCap.toFixed(0) : unitCap.toFixed(1)}µ`;
+        const col = TECH_COLORS[u.technology] || accentColor;
+
+        return (
+          <g key={`${u.refDes}-${idx}`}>
+            <line x1={cx} y1={yTop} x2={cx} y2={cy - 18} stroke="currentColor" strokeWidth="1.4" />
+            <HybridCapUnitSymbol
+              x={cx}
+              y={cy}
+              tech={u.technology}
+              shortRef={shortRef}
+              valLabel={valLabel}
+              color={col}
+            />
+            <line x1={cx} y1={cy + 18} x2={cx} y2={yBot} stroke="currentColor" strokeWidth="1.4" />
+            <circle cx={cx} cy={yTop} r="2.4" fill={col} />
+            <circle cx={cx} cy={yBot} r="2.4" fill={col} />
+          </g>
+        );
+      })}
+      <text
+        x={(xStart + xEnd) / 2}
+        y={summaryY ?? yBot - 10}
+        textAnchor="middle"
+        fill={accentColor}
+        fontSize="7"
+        fontWeight="bold"
+      >
+        {summaryText}
+      </text>
+    </g>
+  );
+};
+
+// Remaps dark CAD schematic colors inside a cloned SVG to crisp white-paper publication colors
+const WHITE_PAPER_COLOR_MAP: Record<string, string> = {
+  '#090d16': '#ffffff',
+  '#0b0e17': '#ffffff',
+  '#0f172a': '#f8fafc',
+  '#1e293b': '#e2e8f0',
+  '#cbd5e1': '#0f172a',
+  '#e2e8f0': '#0f172a',
+  '#f8fafc': '#0f172a',
+  '#94a3b8': '#475569',
+  '#64748b': '#475569',
+  '#06b6d4': '#0369a1',
+  '#38bdf8': '#0284c7',
+  '#67e8f9': '#0369a1',
+  '#10b981': '#047857',
+  '#6ee7b7': '#047857',
+  '#f59e0b': '#b45309',
+  '#fcd34d': '#92400e',
+  '#a855f7': '#7e22ce',
+  '#fb7185': '#be123c',
+  '#064e3b': '#d1fae5',
+  '#78350f': '#fef3c7',
+};
+
+export function cloneSvgForWhitePaper(svgEl: SVGSVGElement): { clone: SVGSVGElement; vbW: number; vbH: number } {
+  const clone = svgEl.cloneNode(true) as SVGSVGElement;
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  clone.setAttribute('style', 'color: #0f172a; font-family: "IBM Plex Mono", ui-monospace, monospace;');
+
+  let vbW = 1120;
+  let vbH = 510;
+  const vb = clone.getAttribute('viewBox');
+  if (vb) {
+    const parts = vb.trim().split(/[\s,]+/).map(Number);
+    if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
+      vbW = parts[2];
+      vbH = parts[3];
+    }
+  }
+  clone.setAttribute('width', String(vbW));
+  clone.setAttribute('height', String(vbH));
+
+  const mapColor = (val: string | null): string | null => {
+    if (!val) return null;
+    const key = val.trim().toLowerCase();
+    return WHITE_PAPER_COLOR_MAP[key] || null;
+  };
+
+  clone.querySelectorAll<SVGElement>('*').forEach((el) => {
+    const fill = el.getAttribute('fill');
+    const stroke = el.getAttribute('stroke');
+    const mappedFill = mapColor(fill);
+    const mappedStroke = mapColor(stroke);
+    if (mappedFill) el.setAttribute('fill', mappedFill);
+    if (mappedStroke) el.setAttribute('stroke', mappedStroke);
+    if (fill === 'currentColor') el.setAttribute('fill', '#0f172a');
+    if (stroke === 'currentColor') el.setAttribute('stroke', '#0f172a');
+    // Ensure dark enclosure opacity boxes stay light & crisp on paper
+    if (mappedFill === '#f8fafc' && el.getAttribute('fill-opacity')) {
+      el.setAttribute('fill-opacity', '0.7');
+    }
+  });
+
+  // Guarantee crisp solid white backdrop behind everything
+  const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  bgRect.setAttribute('x', '0');
+  bgRect.setAttribute('y', '0');
+  bgRect.setAttribute('width', String(vbW));
+  bgRect.setAttribute('height', String(vbH));
+  bgRect.setAttribute('fill', '#ffffff');
+  clone.insertBefore(bgRect, clone.firstChild);
+
+  return { clone, vbW, vbH };
+}
+
+// Helper to export SVG or White-Background 2x PNG
 function useSchematicExport(svgRef: React.RefObject<SVGSVGElement | null>, baseName: string) {
   const exportSvg = () => {
     if (!svgRef.current) return;
@@ -291,18 +515,21 @@ function useSchematicExport(svgRef: React.RefObject<SVGSVGElement | null>, baseN
 
   const exportPng = () => {
     if (!svgRef.current) return;
+    const { clone, vbW, vbH } = cloneSvgForWhitePaper(svgRef.current);
     const serializer = new XMLSerializer();
-    const source = serializer.serializeToString(svgRef.current);
+    const source = serializer.serializeToString(clone);
     const svgBlob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(svgBlob);
     const img = new Image();
     img.onload = () => {
+      const targetW = 2400;
+      const targetH = Math.round((targetW * vbH) / vbW);
       const canvas = document.createElement('canvas');
-      canvas.width = 2160;
-      canvas.height = 1040;
+      canvas.width = targetW;
+      canvas.height = targetH;
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        ctx.fillStyle = '#0B0E17';
+        ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         const pngUrl = canvas.toDataURL('image/png');
@@ -322,15 +549,11 @@ function useSchematicExport(svgRef: React.RefObject<SVGSVGElement | null>, baseN
 // ============================================================================
 // 1. DC-DC CONVERTER DYNAMIC CIRCUIT SCHEMATIC (PSFB & LLC + ALL VARIANTS)
 // ============================================================================
-export const DcDcSchematicView: React.FC<{ res: DcDcResults }> = ({ res }) => {
+export const DcDcSchematicSvg: React.FC<{
+  res: DcDcResults;
+  svgRef?: React.Ref<SVGSVGElement>;
+}> = ({ res, svgRef }) => {
   const { state } = res;
-  const svgRef = useRef<SVGSVGElement | null>(null);
-  const [zoom, setZoom] = useState<number>(100);
-  const { exportSvg, exportPng } = useSchematicExport(
-    svgRef,
-    `${state.topology}_${state.txType}_${state.rectMode}_${state.controlType}`
-  );
-
   const isLLC = res.isLLC;
   const isHB = state.topology === 'llc-hb';
   const is2Ph = state.topology === 'psfb-2ph';
@@ -339,175 +562,101 @@ export const DcDcSchematicView: React.FC<{ res: DcDcResults }> = ({ res }) => {
   const isSync = state.rectMode === 'sync-fet';
   const lagColor = res.zvsAchieved ? '#10b981' : '#f59e0b';
 
+  const cinBank = getDefaultHybridCapBank('dcdc-cin', state);
+  const coutBank = getDefaultHybridCapBank('dcdc-cout', state);
+  let cinUnits = expandHybridCapBankForSpice(cinBank, 'C_IN', state.Vin_max_V, 3);
+  if (cinUnits.length > 4) cinUnits = expandHybridCapBankForSpice(cinBank, 'C_IN', state.Vin_max_V, 1);
+  let coutUnits = expandHybridCapBankForSpice(coutBank, 'C_OUT', state.Vout_V * 1.05, 4);
+  if (coutUnits.length > 6) coutUnits = expandHybridCapBankForSpice(coutBank, 'C_OUT', state.Vout_V * 1.05, 1);
+
+  const cinSol = solveHybridCapBank(cinBank, {
+    fsw_kHz: state.fsw_kHz * 2,
+    I_hf_rms_A: (state.Pout_W / Math.max(100, state.Vin_min_V)) * 0.55,
+    V_op_pk_V: state.Vin_max_V,
+    Tamb_C: state.Tamb_C,
+  });
+  const coutSol = solveHybridCapBank(coutBank, {
+    fsw_kHz: res.fRipple_out_kHz,
+    I_hf_rms_A: res.ICo_rms_A,
+    V_op_pk_V: state.Vout_V * 1.05,
+    Tamb_C: state.Tamb_C,
+  });
+
   return (
-    <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
-      {/* Compact Header Bar */}
-      <div className="px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 bg-slate-50/70 dark:bg-slate-900/50">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
-            Live CAD Circuit Diagram
-          </span>
-          <span className="text-xs font-mono text-slate-600 dark:text-slate-300">
-            {state.topology.toUpperCase()} · {state.txType.toUpperCase()} ·{' '}
-            {isSync ? 'SYNC MOSFET SR' : 'SCHOTTKY DIODE'} · {state.clampVariant.toUpperCase()} ·{' '}
-            {state.controlType.toUpperCase()}
-          </span>
-        </div>
+    <svg
+      ref={svgRef}
+      viewBox="0 0 1190 510"
+      className="w-full h-auto font-mono select-none text-slate-300"
+    >
+      <defs>
+        <pattern id="dcdc-cad-grid" width="20" height="20" patternUnits="userSpaceOnUse">
+          <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1e293b" strokeWidth="0.7" />
+        </pattern>
+      </defs>
 
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setZoom(100)}
-            className="px-2 py-1 text-[11px] font-mono bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded hover:bg-slate-300 dark:hover:bg-slate-700 inline-flex items-center gap-1 whitespace-nowrap shrink-0"
-          >
-            <Maximize2 className="w-3 h-3" /> Fit
-          </button>
-          <button
-            type="button"
-            onClick={() => setZoom((z) => Math.max(75, z - 15))}
-            className="p-1 text-xs font-mono bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded"
-          >
-            <ZoomOut className="w-3.5 h-3.5" />
-          </button>
-          <span className="text-[11px] font-mono tabular-nums text-slate-600 dark:text-slate-300 px-1">
-            {zoom}%
-          </span>
-          <button
-            type="button"
-            onClick={() => setZoom((z) => Math.min(145, z + 15))}
-            className="p-1 text-xs font-mono bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded"
-          >
-            <ZoomIn className="w-3.5 h-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={exportSvg}
-            className="px-2 py-1 text-[11px] font-mono bg-cyan-600 text-white rounded hover:bg-cyan-500 inline-flex items-center gap-1 whitespace-nowrap shrink-0"
-          >
-            <Download className="w-3 h-3" /> SVG
-          </button>
-          <button
-            type="button"
-            onClick={exportPng}
-            className="px-2 py-1 text-[11px] font-mono bg-slate-700 text-white rounded hover:bg-slate-600 inline-flex items-center gap-1 whitespace-nowrap shrink-0"
-          >
-            <ImageIcon className="w-3 h-3" /> PNG 2x
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              const asc = generateDcDcLtspiceAsc(state, res);
-              const blob = new Blob([asc], { type: 'text/plain;charset=utf-8' });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = `voltcraft_${state.topology}.asc`;
-              a.click();
-              URL.revokeObjectURL(url);
-            }}
-            className="px-2 py-1 text-[11px] font-mono bg-emerald-600 text-white rounded hover:bg-emerald-500 inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
-            title="Download grid-aligned LTspice .asc schematic diagram"
-          >
-            <Download className="w-3 h-3" /> LTspice .asc
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              const bundle = generateDcDcQspiceBundle(state, res);
-              const blob = new Blob([new Uint8Array(bundle.zipBytes)], { type: 'application/zip' });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = `${bundle.baseName}_qspice.zip`;
-              a.click();
-              URL.revokeObjectURL(url);
-            }}
-            className="px-2 py-1 text-[11px] font-mono bg-violet-600 text-white rounded hover:bg-violet-500 inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
-            title="Download QSPICE ZIP bundle (.qsch, .qsym, .qraw, .cir, .cpp)"
-          >
-            <Archive className="w-3 h-3" /> QSPICE .zip
-          </button>
-        </div>
-      </div>
+      <rect width="1190" height="510" fill="#090D16" rx="6" />
+      <rect width="1190" height="510" fill="url(#dcdc-cad-grid)" rx="6" />
 
-      {/* Interactive SVG Canvas */}
-      <div className="p-3 bg-slate-950 text-slate-200 overflow-x-auto">
-        <div style={{ width: `${zoom}%`, minWidth: '860px' }} className="mx-auto transition-[width] duration-150">
-          <svg
-            ref={svgRef}
-            viewBox="0 0 1120 510"
-            className="w-full h-auto font-mono select-none text-slate-300"
-          >
-            <defs>
-              <pattern id="dcdc-cad-grid" width="20" height="20" patternUnits="userSpaceOnUse">
-                <path
-                  d="M 20 0 L 0 0 0 20"
-                  fill="none"
-                  stroke="#1e293b"
-                  strokeWidth="0.7"
-                />
-              </pattern>
-            </defs>
+      {/* Stage Headers */}
+      <text x="30" y="24" fill="#64748b" fontSize="9.5" fontWeight="bold">
+        DC INPUT &amp; HYBRID Cin
+      </text>
+      <text x="175" y="24" fill="#06b6d4" fontSize="9.5" fontWeight="bold">
+        {isHB
+          ? 'HALF-BRIDGE (Q1–Q2)'
+          : is2Ph
+          ? '2-PHASE INTERLEAVED H-BRIDGES (0° & 90°)'
+          : 'PRIMARY FULL-BRIDGE (Q1–Q4)'}
+      </text>
+      <text x="365" y="24" fill="#38bdf8" fontSize="9.5" fontWeight="bold">
+        {isLLC ? 'RESONANT TANK (Cr, Lr, Lm)' : `ZVS TANK & CLAMP (${state.clampVariant.toUpperCase()})`}
+      </text>
+      <text x="545" y="24" fill="#a855f7" fontSize="9.5" fontWeight="bold">
+        HF TRANSFORMER ({res.core.name})
+      </text>
+      <text x="690" y="24" fill="#10b981" fontSize="9.5" fontWeight="bold">
+        {isCT ? 'CENTER-TAPPED' : isCDR ? 'CURRENT-DOUBLER' : 'FULL-BRIDGE'}{' '}
+        {isSync ? 'SYNC FETs' : 'DIODES'}
+      </text>
+      <text x="905" y="24" fill="#f59e0b" fontSize="9.5" fontWeight="bold">
+        HYBRID Cout BANK &amp; LOAD
+      </text>
 
-            <rect width="1120" height="510" fill="#090D16" rx="6" />
-            <rect width="1120" height="510" fill="url(#dcdc-cad-grid)" rx="6" />
+      {/* ============================================================== */}
+      {/* 1. DC INPUT SOURCE & HYBRID PARALLEL INPUT CAPACITOR BANK Cin  */}
+      {/* ============================================================== */}
+      <g stroke="currentColor" strokeWidth="1.7">
+        <line x1="36" y1="60" x2="290" y2="60" />
+        <line x1="36" y1="310" x2="290" y2="310" />
+        <line x1="36" y1="60" x2="36" y2="162" />
+        <line x1="36" y1="206" x2="36" y2="310" />
+        <circle cx="36" cy="184" r="21" fill="#0f172a" stroke="#06b6d4" strokeWidth="2" />
+        <text x="36" y="181" textAnchor="middle" stroke="none" fill="#06b6d4" fontSize="9.5" fontWeight="bold">
+          Vin
+        </text>
+        <text x="36" y="193" textAnchor="middle" stroke="none" fill="#e2e8f0" fontSize="9">
+          {state.Vin_nom_V}V
+        </text>
+        <text x="36" y="48" textAnchor="middle" stroke="none" fill="#94a3b8" fontSize="8">
+          [{state.Vin_min_V}–{state.Vin_max_V}V]
+        </text>
+      </g>
 
-            {/* Stage Headers */}
-            <text x="55" y="24" fill="#64748b" fontSize="9.5" fontWeight="bold">
-              DC INPUT BUS
-            </text>
-            <text x="165" y="24" fill="#06b6d4" fontSize="9.5" fontWeight="bold">
-              {isHB
-                ? 'HALF-BRIDGE (Q1–Q2)'
-                : is2Ph
-                ? '2-PHASE INTERLEAVED H-BRIDGES (0° & 90°)'
-                : 'PRIMARY FULL-BRIDGE (Q1–Q4)'}
-            </text>
-            <text x="365" y="24" fill="#38bdf8" fontSize="9.5" fontWeight="bold">
-              {isLLC ? 'RESONANT TANK (Cr, Lr, Lm)' : `ZVS TANK & CLAMP (${state.clampVariant.toUpperCase()})`}
-            </text>
-            <text x="545" y="24" fill="#a855f7" fontSize="9.5" fontWeight="bold">
-              HF TRANSFORMER ({res.core.name})
-            </text>
-            <text x="690" y="24" fill="#10b981" fontSize="9.5" fontWeight="bold">
-              {isCT ? 'CENTER-TAPPED' : isCDR ? 'CURRENT-DOUBLER' : 'FULL-BRIDGE'}{' '}
-              {isSync ? 'SYNC FETs' : 'DIODES'}
-            </text>
-            <text x="895" y="24" fill="#f59e0b" fontSize="9.5" fontWeight="bold">
-              OUTPUT FILTER & LOAD
-            </text>
+      <HybridCapBankSvg
+        units={cinUnits}
+        xStart={78}
+        xEnd={148}
+        yTop={60}
+        yBot={310}
+        summaryText={`Cin: ${cinSol.summaryLabel}`}
+        summaryY={330}
+        accentColor="#06b6d4"
+      />
+      <GroundSymbol x={112} y={310} />
 
-            {/* ============================================================== */}
-            {/* 1. DC INPUT SOURCE & INPUT CAPACITOR                           */}
-            {/* ============================================================== */}
-            <g stroke="currentColor" strokeWidth="1.7">
-              <line x1="50" y1="60" x2="290" y2="60" />
-              <line x1="50" y1="310" x2="290" y2="310" />
-              <line x1="50" y1="60" x2="50" y2="162" />
-              <line x1="50" y1="206" x2="50" y2="310" />
-              <circle cx="50" cy="184" r="22" fill="#0f172a" stroke="#06b6d4" strokeWidth="2" />
-              <text x="50" y="181" textAnchor="middle" stroke="none" fill="#06b6d4" fontSize="10" fontWeight="bold">
-                Vin
-              </text>
-              <text x="50" y="193" textAnchor="middle" stroke="none" fill="#e2e8f0" fontSize="9.5">
-                {state.Vin_nom_V}V
-              </text>
-              <text x="50" y="48" textAnchor="middle" stroke="none" fill="#94a3b8" fontSize="8.5">
-                [{state.Vin_min_V}–{state.Vin_max_V}V]
-              </text>
-            </g>
-
-            {/* Input Decoupling Cap Cin */}
-            <line x1="105" y1="60" x2="105" y2="163" stroke="currentColor" strokeWidth="1.6" />
-            <CapacitorV x={105} y={185} label="Cin" sublabel="DC Bus" color="#06b6d4" />
-            <line x1="105" y1="207" x2="105" y2="310" stroke="currentColor" strokeWidth="1.6" />
-            <circle cx="105" cy="60" r="3" fill="#06b6d4" />
-            <circle cx="105" cy="310" r="3" fill="#06b6d4" />
-            <GroundSymbol x={105} y={310} />
-
-            {/* ============================================================== */}
-            {/* 2. PRIMARY BRIDGE (FULL-BRIDGE Q1..Q4 OR HALF-BRIDGE Q1..Q2)   */}
-            {/* ============================================================== */}
+      {/* ============================================================== */}
+      {/* 2. PRIMARY BRIDGE (FULL-BRIDGE Q1..Q4 OR HALF-BRIDGE Q1..Q2)   */}
+      {/* ============================================================== */}
             {/* Leading Leg Q1 & Q2 */}
             <line x1="175" y1="60" x2="175" y2="93" stroke="currentColor" strokeWidth="1.7" />
             <MosfetSymbol
@@ -797,7 +946,7 @@ export const DcDcSchematicView: React.FC<{ res: DcDcResults }> = ({ res }) => {
                 )}
                 <line x1="760" y1="287" x2="760" y2="310" stroke="currentColor" strokeWidth="1.7" />
 
-                <line x1="670" y1="310" x2="1055" y2="310" stroke="currentColor" strokeWidth="1.8" />
+                <line x1="670" y1="310" x2="1105" y2="310" stroke="currentColor" strokeWidth="1.8" />
                 <circle cx="695" cy="310" r="3" fill="#10b981" />
                 <circle cx="760" cy="310" r="3" fill="#10b981" />
               </g>
@@ -815,7 +964,7 @@ export const DcDcSchematicView: React.FC<{ res: DcDcResults }> = ({ res }) => {
                 <line x1="685" y1="85" x2="856" y2="85" stroke="#f59e0b" strokeWidth="2" />
                 <line x1="856" y1="85" x2="856" y2="105" stroke="#f59e0b" strokeWidth="2" />
                 {/* Bottom rectifier bus at y=310 */}
-                <line x1="685" y1="310" x2="1055" y2="310" stroke="currentColor" strokeWidth="1.8" />
+                <line x1="685" y1="310" x2="1105" y2="310" stroke="currentColor" strokeWidth="1.8" />
 
                 {/* Leg 1: SR1/D1 (top) & SR2/D2 (bottom) at x=685 */}
                 <line x1="685" y1="85" x2="685" y2="100" stroke="currentColor" strokeWidth="1.6" />
@@ -902,7 +1051,7 @@ export const DcDcSchematicView: React.FC<{ res: DcDcResults }> = ({ res }) => {
                 <line x1="834" y1="135" x2="905" y2="135" stroke="#f59e0b" strokeWidth="1.8" />
                 <line x1="905" y1="135" x2="905" y2="105" stroke="#f59e0b" strokeWidth="1.8" />
 
-                <line x1="670" y1="310" x2="1055" y2="310" stroke="currentColor" strokeWidth="1.8" />
+                <line x1="670" y1="310" x2="1105" y2="310" stroke="currentColor" strokeWidth="1.8" />
               </g>
             )}
 
@@ -969,47 +1118,46 @@ export const DcDcSchematicView: React.FC<{ res: DcDcResults }> = ({ res }) => {
               </>
             )}
 
-            <line x1="904" y1="105" x2="1055" y2="105" stroke="#f59e0b" strokeWidth="2" />
+            <line x1="904" y1="105" x2="1105" y2="105" stroke="#f59e0b" strokeWidth="2" />
 
-            {/* Output Filter Capacitor Co */}
-            <line x1="955" y1="105" x2="955" y2="180" stroke="currentColor" strokeWidth="1.7" />
-            <CapacitorV
-              x={955}
-              y={202}
-              label={`Co=${state.Co_uF}µF`}
-              sublabel={`ESR=${state.ESR_Co_mOhm}mΩ`}
-              color="#10b981"
+            {/* Hybrid Parallel Output Capacitor Bank Cout (e.g. 3× Electrolytic + 2× MLCC) */}
+            <HybridCapBankSvg
+              units={coutUnits}
+              xStart={928}
+              xEnd={1064}
+              yTop={105}
+              yBot={310}
+              summaryText={`Cout: ${coutSol.summaryLabel} (${coutSol.totalCapEff_uF.toFixed(0)}µF, ESR=${coutSol.esrEffAtFsw_mOhm.toFixed(1)}mΩ)`}
+              summaryY={330}
+              accentColor="#10b981"
             />
-            <line x1="955" y1="224" x2="955" y2="310" stroke="currentColor" strokeWidth="1.7" />
-            <circle cx="955" cy="105" r="3" fill="#f59e0b" />
-            <circle cx="955" cy="310" r="3" fill="#10b981" />
-            <GroundSymbol x={955} y={310} />
+            <GroundSymbol x={996} y={310} />
 
             {/* Load Resistor R_load */}
-            <line x1="1035" y1="105" x2="1035" y2="178" stroke="currentColor" strokeWidth="1.7" />
+            <line x1="1105" y1="105" x2="1105" y2="178" stroke="currentColor" strokeWidth="1.7" />
             <ResistorV
-              x={1035}
+              x={1105}
               y={202}
               label={`Vout=${state.Vout_V}V`}
               sublabel={`Iout=${res.Iout_total_A.toFixed(1)}A (${(state.Pout_W / 1e3).toFixed(2)}kW)`}
               color="#f59e0b"
             />
-            <line x1="1035" y1="226" x2="1035" y2="310" stroke="currentColor" strokeWidth="1.7" />
-            <circle cx="1035" cy="105" r="3.5" fill="#f59e0b" />
-            <circle cx="1035" cy="310" r="3" fill="#10b981" />
+            <line x1="1105" y1="226" x2="1105" y2="310" stroke="currentColor" strokeWidth="1.7" />
+            <circle cx="1105" cy="105" r="3.5" fill="#f59e0b" />
+            <circle cx="1105" cy="310" r="3" fill="#10b981" />
 
             {/* ============================================================== */}
             {/* 7. CLOSED-LOOP CONTROL & MODULATION HARDWARE OVERLAY           */}
             {/* ============================================================== */}
             {/* Feedback sense dashed paths from Vout and Current / Charge sensor */}
             <path
-              d="M 1035 105 L 1085 105 L 1085 435 L 785 435"
+              d="M 1105 105 L 1165 105 L 1165 435 L 785 435"
               fill="none"
               stroke="#10b981"
               strokeWidth="1.3"
               strokeDasharray="4 3"
             />
-            <text x="980" y="428" fill="#10b981" fontSize="8.5">
+            <text x="1030" y="428" fill="#10b981" fontSize="8.5">
               Vout Sense ({state.Vout_V}V)
             </text>
 
@@ -1076,7 +1224,160 @@ export const DcDcSchematicView: React.FC<{ res: DcDcResults }> = ({ res }) => {
               η = {res.efficiency_pct.toFixed(2)}% | Ploss = {res.Ptotal_loss_W.toFixed(1)} W | ΔVout ={' '}
               {res.Vout_ripple_mVpp.toFixed(1)} mVpp ({res.fRipple_out_kHz.toFixed(0)} kHz)
             </text>
-          </svg>
+    </svg>
+  );
+};
+
+export const DcDcReportSchematicSvg: React.FC<{ res: DcDcResults }> = ({ res }) => {
+  const srcRef = useRef<SVGSVGElement | null>(null);
+  const [paperHtml, setPaperHtml] = useState<string>('');
+
+  useLayoutEffect(() => {
+    if (!srcRef.current) return;
+    const { clone } = cloneSvgForWhitePaper(srcRef.current);
+    clone.removeAttribute('width');
+    clone.removeAttribute('height');
+    clone.setAttribute('class', 'w-full h-auto');
+    setPaperHtml(clone.outerHTML);
+  }, [res]);
+
+  return (
+    <div className="bg-white border border-slate-300 rounded p-2">
+      <div className="hidden" aria-hidden="true">
+        <DcDcSchematicSvg res={res} svgRef={srcRef} />
+      </div>
+      {paperHtml ? (
+        <div dangerouslySetInnerHTML={{ __html: paperHtml }} />
+      ) : (
+        <DcDcSchematicSvg res={res} />
+      )}
+    </div>
+  );
+};
+
+export const DcDcSchematicView: React.FC<{ res: DcDcResults }> = ({ res }) => {
+  const { state } = res;
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const [zoom, setZoom] = useState<number>(100);
+  const { exportSvg, exportPng } = useSchematicExport(
+    svgRef,
+    `${state.topology}_${state.txType}_${state.rectMode}_${state.controlType}`
+  );
+  const isSync = state.rectMode === 'sync-fet';
+
+  return (
+    <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+      {/* Compact Header Bar */}
+      <div className="px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 bg-slate-50/70 dark:bg-slate-900/50">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
+            Live CAD Circuit Diagram
+          </span>
+          <span className="text-xs font-mono text-slate-600 dark:text-slate-300">
+            {state.topology.toUpperCase()} · {state.txType.toUpperCase()} ·{' '}
+            {isSync ? 'SYNC MOSFET SR' : 'SCHOTTKY DIODE'} · {state.clampVariant.toUpperCase()} ·{' '}
+            {state.controlType.toUpperCase()}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setZoom(100)}
+            className="px-2 py-1 text-[11px] font-mono bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded hover:bg-slate-300 dark:hover:bg-slate-700 inline-flex items-center gap-1 whitespace-nowrap shrink-0"
+          >
+            <Maximize2 className="w-3 h-3" /> Fit
+          </button>
+          <button
+            type="button"
+            onClick={() => setZoom((z) => Math.max(75, z - 15))}
+            className="p-1 text-xs font-mono bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded"
+          >
+            <ZoomOut className="w-3.5 h-3.5" />
+          </button>
+          <span className="text-[11px] font-mono tabular-nums text-slate-600 dark:text-slate-300 px-1">
+            {zoom}%
+          </span>
+          <button
+            type="button"
+            onClick={() => setZoom((z) => Math.min(145, z + 15))}
+            className="p-1 text-xs font-mono bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded"
+          >
+            <ZoomIn className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={exportSvg}
+            className="px-2 py-1 text-[11px] font-mono bg-cyan-600 text-white rounded hover:bg-cyan-500 inline-flex items-center gap-1 whitespace-nowrap shrink-0"
+          >
+            <Download className="w-3 h-3" /> SVG
+          </button>
+          <button
+            type="button"
+            onClick={exportPng}
+            className="px-2 py-1 text-[11px] font-mono bg-slate-700 text-white rounded hover:bg-slate-600 inline-flex items-center gap-1 whitespace-nowrap shrink-0"
+            title="Export white-background high-res PNG"
+          >
+            <ImageIcon className="w-3 h-3" /> PNG (White)
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const asc = generateDcDcLtspiceAsc(state, res);
+              const blob = new Blob([asc], { type: 'text/plain;charset=utf-8' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `voltcraft_${state.topology}.asc`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="px-2 py-1 text-[11px] font-mono bg-emerald-600 text-white rounded hover:bg-emerald-500 inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
+            title="Download grid-aligned LTspice .asc schematic diagram"
+          >
+            <Download className="w-3 h-3" /> LTspice .asc
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const bundle = generateDcDcQspiceBundle(state, res);
+              const blob = new Blob([new Uint8Array(bundle.zipBytes)], { type: 'application/zip' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `${bundle.baseName}_qspice.zip`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="px-2 py-1 text-[11px] font-mono bg-violet-600 text-white rounded hover:bg-violet-500 inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
+            title="Download QSPICE ZIP bundle (.qsch, .qsym, .qraw, .cir, .cpp)"
+          >
+            <Archive className="w-3 h-3" /> QSPICE .zip
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const bundle = generateDcDcPlecsBundle(state, res);
+              const blob = new Blob([new Uint8Array(bundle.zipBytes)], { type: 'application/zip' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `${bundle.baseName}_plecs.zip`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="px-2 py-1 text-[11px] font-mono bg-sky-600 text-white rounded hover:bg-sky-500 inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
+            title="Download Plexim PLECS Standalone ZIP bundle (.plecs, .m, thermal XML)"
+          >
+            <FileCode className="w-3 h-3" /> PLECS .zip
+          </button>
+        </div>
+      </div>
+
+      {/* Interactive SVG Canvas */}
+      <div className="p-2 sm:p-3 bg-slate-950 text-slate-200 overflow-x-auto">
+        <div style={{ width: `${zoom}%`, minWidth: zoom > 100 ? '860px' : undefined }} className="mx-auto transition-[width] duration-150">
+          <DcDcSchematicSvg res={res} svgRef={svgRef} />
         </div>
       </div>
     </div>
@@ -1102,13 +1403,38 @@ interface AcDcConnectionNode {
 export const AcDcSchematicView: React.FC<{
   res: AcDcResults;
   onTopologyChange?: (topo: AcDcTopologyType) => void;
-}> = ({ res, onTopologyChange }) => {
+  reportOnly?: boolean;
+}> = ({ res, onTopologyChange, reportOnly = false }) => {
   const { state } = res;
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [zoom, setZoom] = useState<number>(100);
   const [selectedNodeId, setSelectedNodeId] = useState<string>('N3');
-  const [showPinBadges, setShowPinBadges] = useState<boolean>(true);
+  const [showPinBadges, setShowPinBadges] = useState<boolean>(!reportOnly);
   const [halfCycleMode, setHalfCycleMode] = useState<'both' | 'pos' | 'neg'>('both');
+  const [reportPaperHtml, setReportPaperHtml] = useState<string>('');
+
+  const cdcBank = getDefaultHybridCapBank('acdc-cdc', undefined, state);
+  let cdcUnits = expandHybridCapBankForSpice(cdcBank, 'C_DC', state.Vdc_bus_V * 1.04, 4);
+  if (cdcUnits.length > 6) {
+    cdcUnits = expandHybridCapBankForSpice(cdcBank, 'C_DC', state.Vdc_bus_V * 1.04, 1);
+  }
+  const cdcSol = solveHybridCapBank(cdcBank, {
+    fsw_kHz: res.f_emi_fundamental_kHz,
+    f_lf_Hz: state.f_line_Hz * 2,
+    I_hf_rms_A: res.ICdc_hf_rms_A,
+    I_lf_rms_A: res.ICdc_lf_rms_A,
+    V_op_pk_V: state.Vdc_bus_V * 1.04,
+    Tamb_C: state.capAmbient_C ?? 45,
+  });
+
+  useLayoutEffect(() => {
+    if (!reportOnly || !svgRef.current) return;
+    const { clone } = cloneSvgForWhitePaper(svgRef.current);
+    clone.removeAttribute('width');
+    clone.removeAttribute('height');
+    clone.setAttribute('class', 'w-full h-auto');
+    setReportPaperHtml(clone.outerHTML);
+  }, [reportOnly, res]);
 
   const { exportSvg, exportPng } = useSchematicExport(
     svgRef,
@@ -1352,8 +1678,9 @@ export const AcDcSchematicView: React.FC<{
   };
 
   return (
-    <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+    <div className={reportOnly ? 'bg-white border border-slate-300 rounded p-2' : 'bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden'}>
       {/* Top Toolbar: Live Topology Switcher, Conduction Path & Export */}
+      {!reportOnly && (
       <div className="px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 bg-slate-50/70 dark:bg-slate-900/50">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
@@ -1479,16 +1806,35 @@ export const AcDcSchematicView: React.FC<{
           </button>
           <button
             type="button"
+            onClick={() => {
+              const bundle = generateAcDcPlecsBundle(state, res);
+              const blob = new Blob([new Uint8Array(bundle.zipBytes)], { type: 'application/zip' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `${bundle.baseName}_plecs.zip`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="px-2 py-1 text-[11px] font-mono bg-sky-600 text-white rounded hover:bg-sky-500 inline-flex items-center gap-1 cursor-pointer"
+            title="Download Plexim PLECS Standalone ZIP bundle (.plecs, .m, thermal XML)"
+          >
+            <FileCode className="w-3 h-3" /> PLECS .zip
+          </button>
+          <button
+            type="button"
             onClick={exportPng}
             className="px-2 py-1 text-[11px] font-mono bg-slate-700 text-white rounded hover:bg-slate-600 inline-flex items-center gap-1"
+            title="Export white-background high-res PNG"
           >
-            <ImageIcon className="w-3 h-3" /> PNG 2x
+            <ImageIcon className="w-3 h-3" /> PNG (White)
           </button>
         </div>
       </div>
+      )}
 
       {/* Quick Topology Variant Switcher Bar */}
-      {onTopologyChange && (
+      {!reportOnly && onTopologyChange && (
         <div className="px-3.5 py-2 border-b border-slate-200 dark:border-slate-800 bg-slate-100/60 dark:bg-slate-900/80 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 mr-1">
@@ -1523,8 +1869,11 @@ export const AcDcSchematicView: React.FC<{
       )}
 
       {/* Main CAD SVG Schematic Canvas */}
-      <div className="p-3 bg-slate-950 text-slate-200 overflow-x-auto">
-        <div style={{ width: `${zoom}%`, minWidth: '940px' }} className="mx-auto">
+      {reportOnly && reportPaperHtml && (
+        <div dangerouslySetInnerHTML={{ __html: reportPaperHtml }} />
+      )}
+      <div className={reportOnly ? (reportPaperHtml ? 'hidden' : 'p-1 bg-white') : 'p-2 sm:p-3 bg-slate-950 text-slate-200 overflow-x-auto'}>
+        <div style={{ width: reportOnly ? '100%' : `${zoom}%`, minWidth: !reportOnly && zoom > 100 ? '940px' : undefined }} className="mx-auto">
           <svg
             ref={svgRef}
             viewBox="0 0 1160 490"
@@ -2113,7 +2462,7 @@ export const AcDcSchematicView: React.FC<{
             )}
 
             {/* ============================================================== */}
-            {/* 4. DETAILED DC-LINK BUS CAPACITOR NETWORK & CONNECTION POINTS  */}
+            {/* 4. DETAILED DC-LINK HYBRID CAPACITOR BANK & CONNECTION POINTS  */}
             {/* ============================================================== */}
             {/* Positive Rail Label (+VDC_BUS) & Negative Rail Label (DC_RTN) */}
             <text x="875" y="48" fill="#f59e0b" fontSize="8" fontWeight="bold">
@@ -2123,62 +2472,18 @@ export const AcDcSchematicView: React.FC<{
               DC_RTN / STAR_GND
             </text>
 
-            {/* Branch 4A: High-Frequency Film Decoupling Capacitor C_HF at x=890 */}
-            <line x1="890" y1="55" x2="890" y2="152" stroke="#06b6d4" strokeWidth="1.7" />
-            <CapacitorV
-              x={890}
-              y={174}
-              label="C_HF"
-              sublabel={`1.0µF Film (${res.ICdc_hf_rms_A.toFixed(1)}A)`}
-              color="#06b6d4"
+            {/* Hybrid Multi-Branch DC-Link Bank (e.g. HV Electrolytic + MKP Film / MLCC) */}
+            <HybridCapBankSvg
+              units={cdcUnits}
+              xStart={888}
+              xEnd={1035}
+              yTop={55}
+              yBot={305}
+              summaryText={`ESR=${cdcSol.esrEffAtFsw_mOhm.toFixed(1)}mΩ · Tc=${res.capHotspot_C.toFixed(0)}°C`}
+              summaryY={295}
+              accentColor="#10b981"
             />
-            <line x1="890" y1="196" x2="890" y2="305" stroke="#06b6d4" strokeWidth="1.7" />
-            <circle cx="890" cy="55" r="3.2" fill="#06b6d4" />
-            <circle cx="890" cy="305" r="3.2" fill="#06b6d4" />
-            <text x="882" y="72" textAnchor="end" fill="#67e8f9" fontSize="6.5">
-              C_HF.1
-            </text>
-            <text x="882" y="290" textAnchor="end" fill="#67e8f9" fontSize="6.5">
-              C_HF.2
-            </text>
-
-            {/* Branch 4B: Bulk Electrolytic Hold-Up Capacitor Bank (C_DC1..N) + Series ESR at x=965 */}
-            <line x1="965" y1="55" x2="965" y2="132" stroke="#10b981" strokeWidth="1.9" />
-            <text x="955" y="72" textAnchor="end" fill="#6ee7b7" fontSize="7" fontWeight="bold">
-              +C_DC1..{res.capBankParallelCount}
-            </text>
-            <CapacitorV
-              x={965}
-              y={154}
-              label={`Cdc=${state.Cdc_uF}µF`}
-              sublabel={`${res.capBankParallelCount}× Cans (ΔV=${res.Vdc_ripple_pp_V.toFixed(1)}V)`}
-              color="#10b981"
-            />
-            {/* Internal connection between C_DC ideal capacitance and series ESR_Cdc */}
-            <line x1="965" y1="176" x2="965" y2="212" stroke="#10b981" strokeWidth="1.7" />
-            <circle cx="965" cy="195" r="2.5" fill="#f59e0b" />
-            <text x="974" y="198" fill="#fcd34d" fontSize="6.5">
-              N_ESR (I_2f={res.ICdc_lf_rms_A.toFixed(1)}A)
-            </text>
-            {/* Series ESR resistor block */}
-            <rect
-              x="958"
-              y="212"
-              width="14"
-              height="34"
-              rx="2"
-              fill="#0f172a"
-              stroke="#f59e0b"
-              strokeWidth="1.4"
-            />
-            <text x="977" y="228" fill="#f59e0b" fontSize="7" fontWeight="bold">
-              ESR={state.ESR_Cdc_mOhm}mΩ
-            </text>
-            <text x="977" y="239" fill="#94a3b8" fontSize="6.5">
-              Tc={res.capHotspot_C.toFixed(0)}°C
-            </text>
-            <line x1="965" y1="246" x2="965" y2="305" stroke="#10b981" strokeWidth="1.9" />
-            <GroundSymbol x={965} y={305} />
+            <GroundSymbol x={962} y={305} />
 
             {/* Branch 4C: Output DC Bus Load Terminal (J_OUT) at x=1085 */}
             <line x1="1085" y1="55" x2="1085" y2="156" stroke="currentColor" strokeWidth="1.8" />
@@ -2195,8 +2500,8 @@ export const AcDcSchematicView: React.FC<{
 
             {/* Bus Capacitor Network Summary Box */}
             <rect x="873" y="308" width="259" height="22" rx="3" fill="#090D16" stroke="#1e293b" strokeWidth="1" />
-            <text x="1002" y="322" textAnchor="middle" fill="#6ee7b7" fontSize="7.2" fontWeight="bold">
-              BUS CAPS: C_HF(1µF) + {res.capBankParallelCount}×Bulk({state.Cdc_uF}µF) · t_hold={res.tHold_actual_ms.toFixed(1)}ms
+            <text x="1002" y="322" textAnchor="middle" fill="#6ee7b7" fontSize="6.9" fontWeight="bold">
+              {cdcSol.summaryLabel} · Ceff={cdcSol.totalCapEff_uF.toFixed(0)}µF · t_hold={res.tHold_actual_ms.toFixed(1)}ms
             </text>
 
             {/* ============================================================== */}
@@ -2266,6 +2571,7 @@ export const AcDcSchematicView: React.FC<{
       </div>
 
       {/* Interactive Component Connection Point & Netlist Inspector Panel */}
+      {!reportOnly && (
       <div className="p-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -2356,8 +2662,504 @@ export const AcDcSchematicView: React.FC<{
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 };
+
+export const AcDcReportSchematicSvg: React.FC<{ res: AcDcResults }> = ({ res }) => (
+  <AcDcSchematicView res={res} reportOnly />
+);
+
+// ============================================================================
+// COMBINED 2-STAGE SYSTEM SCHEMATIC (AC-DC PFC -> SHARED DC-LINK -> DC-DC)
+// ============================================================================
+
+export const CombinedSystemSchematicView: React.FC<{
+  acdcRes: AcDcResults;
+  dcdcRes: DcDcResults;
+  isConnected?: boolean;
+  reportOnly?: boolean;
+}> = ({ acdcRes, dcdcRes, isConnected = true, reportOnly = false }) => {
+  const acdcState = acdcRes.state;
+  const dcdcState = dcdcRes.state;
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const [zoom, setZoom] = useState<number>(100);
+  const { exportSvg, exportPng } = useSchematicExport(
+    svgRef,
+    `combined_${acdcState.topology}_to_${dcdcState.topology}`
+  );
+  const [paperHtml, setPaperHtml] = useState<string>('');
+
+  useLayoutEffect(() => {
+    if (!reportOnly || !svgRef.current) return;
+    const { clone } = cloneSvgForWhitePaper(svgRef.current);
+    clone.removeAttribute('width');
+    clone.removeAttribute('height');
+    clone.setAttribute('class', 'w-full h-auto');
+    setPaperHtml(clone.outerHTML);
+  }, [reportOnly, acdcRes, dcdcRes, isConnected]);
+
+  const cdcBank = getDefaultHybridCapBank('acdc-cdc', undefined, acdcState);
+  const cdcSol = solveHybridCapBank(cdcBank, {
+    fsw_kHz: acdcRes.f_emi_fundamental_kHz,
+    f_lf_Hz: acdcState.f_line_Hz * 2,
+    I_hf_rms_A: acdcRes.ICdc_hf_rms_A,
+    I_lf_rms_A: acdcRes.ICdc_lf_rms_A,
+    V_op_pk_V: acdcState.Vdc_bus_V * 1.04,
+    Tamb_C: acdcState.capAmbient_C ?? 45,
+  });
+  const cdcUnits = expandHybridCapBankForSpice(cdcBank, 'C_DC', acdcState.Vdc_bus_V * 1.04, 4);
+
+  const coutBank = getDefaultHybridCapBank('dcdc-cout', dcdcState);
+  const coutSol = solveHybridCapBank(coutBank, {
+    fsw_kHz: dcdcRes.fRipple_out_kHz,
+    f_lf_Hz: 0,
+    I_hf_rms_A: dcdcRes.ICo_rms_A,
+    I_lf_rms_A: 0,
+    V_op_pk_V: dcdcState.Vout_V * 1.05,
+    Tamb_C: dcdcState.Tamb_C ?? 45,
+  });
+  const coutUnits = expandHybridCapBankForSpice(coutBank, 'C_OUT', dcdcState.Vout_V * 1.05, 4);
+  const cinBank = getDefaultHybridCapBank('dcdc-cin', dcdcState);
+  const cinSol = solveHybridCapBank(cinBank, {
+    fsw_kHz: dcdcState.fsw_kHz * 2,
+    f_lf_Hz: 0,
+    I_hf_rms_A: Math.max(1, dcdcRes.I_lead_turnoff_A * 0.45),
+    I_lf_rms_A: 0,
+    V_op_pk_V: dcdcState.Vin_max_V,
+    Tamb_C: dcdcState.Tamb_C ?? 45,
+  });
+
+  const sysEffPct = ((acdcRes.efficiency_pct / 100) * (dcdcRes.efficiency_pct / 100)) * 100;
+  const sysLossW = acdcRes.Ptotal_loss_W + dcdcRes.Ptotal_loss_W;
+  const isSync = dcdcState.rectMode === 'sync-fet';
+  const isLLC = dcdcRes.isLLC;
+  const is2PhPfc = acdcRes.nPhases === 2;
+  const vdcMismatch = Math.abs(acdcState.Vdc_bus_V - dcdcState.Vin_nom_V) > 2;
+
+  return (
+    <div className={reportOnly ? 'bg-white border border-slate-300 rounded p-2' : 'bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden'}>
+      {!reportOnly && (
+        <div className="px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 bg-slate-50/70 dark:bg-slate-900/50">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
+              Unified 2-Stage System Circuit Diagram (AC-DC PFC → DC-DC)
+            </span>
+            <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${isConnected && !vdcMismatch ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border-emerald-500/30' : 'bg-amber-500/10 text-amber-600 dark:text-amber-300 border-amber-500/30'}`}>
+              {isConnected ? 'DC-LINK CONNECTED TOGETHER' : 'LINKED BUS VIEW'} · {acdcState.Vac_rms_V}Vac → {acdcState.Vdc_bus_V}Vdc → {dcdcState.Vout_V}V @ {dcdcState.Pout_W}W
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setZoom(100)}
+              className="px-2 py-1 text-[11px] font-mono bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded hover:bg-slate-300 dark:hover:bg-slate-700 inline-flex items-center gap-1 whitespace-nowrap shrink-0"
+              title="Reset zoom"
+            >
+              <Maximize2 className="w-3 h-3" /> {zoom}%
+            </button>
+            <button
+              type="button"
+              onClick={() => setZoom((z) => Math.max(70, z - 15))}
+              className="p-1 bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded hover:bg-slate-300 dark:hover:bg-slate-700"
+              title="Zoom out"
+            >
+              <ZoomOut className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setZoom((z) => Math.min(180, z + 15))}
+              className="p-1 bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded hover:bg-slate-300 dark:hover:bg-slate-700"
+              title="Zoom in"
+            >
+              <ZoomIn className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={exportPng}
+              className="px-2.5 py-1 text-[11px] font-mono bg-cyan-600 hover:bg-cyan-500 text-white rounded inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <ImageIcon className="w-3 h-3" /> PNG
+            </button>
+            <button
+              type="button"
+              onClick={exportSvg}
+              className="px-2.5 py-1 text-[11px] font-mono bg-slate-700 hover:bg-slate-600 text-white rounded inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <Download className="w-3 h-3" /> SVG
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const asc = generateCombinedSystemLtspiceAsc(acdcState, acdcRes, dcdcState, dcdcRes);
+                const blob = new Blob([asc], { type: 'text/plain;charset=us-ascii' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `voltcraft_combined_${acdcState.topology}_to_${dcdcState.topology}.asc`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="px-2.5 py-1 text-[11px] font-mono bg-emerald-600 hover:bg-emerald-500 text-white rounded inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
+              title="Download Combined 2-Stage LTspice .asc Schematic"
+            >
+              <FileCode className="w-3 h-3" /> LTspice .asc
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const bundle = generateCombinedSystemQspiceBundle(acdcState, acdcRes, dcdcState, dcdcRes);
+                const copy = new Uint8Array(bundle.zipBytes.length);
+                copy.set(bundle.zipBytes);
+                const blob = new Blob([copy.buffer], { type: 'application/zip' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${bundle.baseName}_qspice.zip`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="px-2.5 py-1 text-[11px] font-mono bg-amber-600 hover:bg-amber-500 text-white rounded inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
+              title="Download Combined 2-Stage QSPICE Bundle (.zip)"
+            >
+              <Archive className="w-3 h-3" /> QSPICE .zip
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const bundle = generateCombinedSystemPlecsBundle(acdcState, acdcRes, dcdcState, dcdcRes);
+                const copy = new Uint8Array(bundle.zipBytes.length);
+                copy.set(bundle.zipBytes);
+                const blob = new Blob([copy.buffer], { type: 'application/zip' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${bundle.baseName}_plecs.zip`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="px-2.5 py-1 text-[11px] font-mono bg-indigo-600 hover:bg-indigo-500 text-white rounded inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
+              title="Download Combined 2-Stage PLECS Bundle (.zip)"
+            >
+              <Archive className="w-3 h-3" /> PLECS .zip
+            </button>
+          </div>
+        </div>
+      )}
+
+      {reportOnly && paperHtml && <div dangerouslySetInnerHTML={{ __html: paperHtml }} />}
+
+      <div className={reportOnly ? (paperHtml ? 'hidden' : 'p-1 bg-white') : 'p-2 sm:p-3 bg-slate-950 text-slate-200 overflow-x-auto'}>
+        <div style={{ width: reportOnly ? '100%' : `${zoom}%`, minWidth: !reportOnly && zoom > 100 ? '960px' : undefined }} className="mx-auto">
+          <svg
+            ref={svgRef}
+            viewBox="0 0 1180 730"
+            className="w-full h-auto font-mono select-none text-slate-300"
+          >
+            <defs>
+              <pattern id="comb-cad-grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1e293b" strokeWidth="0.7" />
+              </pattern>
+            </defs>
+            <rect width="1180" height="730" fill="#090D16" rx="6" />
+            <rect width="1180" height="730" fill="url(#comb-cad-grid)" rx="6" />
+
+            {/* STAGE 1 ENCLOSURE (TOP ROW: AC-DC PFC FRONT-END) */}
+            <rect
+              x="20"
+              y="26"
+              width="1140"
+              height="276"
+              rx="6"
+              fill="#0f172a"
+              fillOpacity="0.32"
+              stroke="#06b6d4"
+              strokeWidth="1.2"
+              strokeDasharray="5 3"
+              strokeOpacity="0.6"
+            />
+            <text x="32" y="19" fill="#06b6d4" fontSize="9.5" fontWeight="bold">
+              STAGE 1: AC-DC PFC FRONT-END ({acdcState.topology.toUpperCase()}) · {acdcState.Vac_rms_V}Vrms → {acdcState.Vdc_bus_V}Vdc · η1={acdcRes.efficiency_pct.toFixed(2)}%
+            </text>
+
+            {/* AC Mains Source */}
+            <circle cx="62" cy="145" r="21" fill="#0f172a" stroke="#06b6d4" strokeWidth="1.8" />
+            <path d="M 52 145 Q 57 134 62 145 T 72 145" fill="none" stroke="#06b6d4" strokeWidth="1.8" />
+            <text x="62" y="182" textAnchor="middle" fill="#06b6d4" fontSize="8.5" fontWeight="bold">
+              {acdcState.Vac_rms_V}Vrms
+            </text>
+            <text x="62" y="194" textAnchor="middle" fill="#94a3b8" fontSize="7.5">
+              {acdcState.f_line_Hz}Hz
+            </text>
+
+            {/* AC Top/Bottom Rails through EMI Filter */}
+            <line x1="62" y1="124" x2="62" y2="75" stroke="#06b6d4" strokeWidth="1.8" />
+            <line x1="62" y1="75" x2="122" y2="75" stroke="#06b6d4" strokeWidth="1.8" />
+            <InductorH x={146} y={75} label={`Ldm=${acdcRes.Ldm_uH.toFixed(0)}µH`} color="#38bdf8" />
+            <line x1="170" y1="75" x2="215" y2="75" stroke="#06b6d4" strokeWidth="1.8" />
+            <line x1="215" y1="75" x2="215" y2="123" stroke="currentColor" strokeWidth="1.5" />
+            <CapacitorV x={215} y={145} label={`Cx=${acdcRes.Cx_each_uF.toFixed(1)}µF`} color="#06b6d4" />
+            <line x1="215" y1="167" x2="215" y2="220" stroke="currentColor" strokeWidth="1.5" />
+            <line x1="62" y1="166" x2="62" y2="220" stroke="#94a3b8" strokeWidth="1.6" />
+            <line x1="62" y1="220" x2="310" y2="220" stroke="#94a3b8" strokeWidth="1.6" />
+
+            {/* Input Bridge / Bridgeless Legs */}
+            <line x1="215" y1="75" x2="310" y2="75" stroke="#06b6d4" strokeWidth="1.8" />
+            <rect x="305" y="54" width="120" height="195" rx="5" fill="#0f172a" stroke="#38bdf8" strokeWidth="1.3" />
+            <text x="365" y="72" textAnchor="middle" fill="#38bdf8" fontSize="8.5" fontWeight="bold">
+              {acdcState.topology.includes('totem') ? 'TOTEM-POLE' : 'RECTIFIER'}
+            </text>
+            <DiodeSymbol x={340} y={110} dir="up" label="D1" color="#38bdf8" />
+            <DiodeSymbol x={340} y={190} dir="up" label="D2" color="#38bdf8" />
+            <DiodeSymbol x={390} y={110} dir="up" label="D3" color="#38bdf8" />
+            <DiodeSymbol x={390} y={190} dir="up" label="D4" color="#38bdf8" />
+
+            {/* Rectified Rail -> Boost Inductors + Fast Switches */}
+            <line x1="425" y1="75" x2="500" y2="75" stroke="#f59e0b" strokeWidth="1.8" />
+            <InductorH
+              x={524}
+              y={75}
+              label={`Lpfc1=${acdcState.Lpfc_uH.toFixed(0)}µH`}
+              sublabel={is2PhPfc ? 'Phase 1' : undefined}
+              color="#a855f7"
+            />
+            <line x1="548" y1="75" x2="630" y2="75" stroke="#f59e0b" strokeWidth="1.8" />
+            <line x1="630" y1="75" x2="630" y2="178" stroke="currentColor" strokeWidth="1.6" />
+            <MosfetSymbol x={630} y={200} label="Q_PFC1" sublabel={`${acdcRes.sw.Rds_on_25C_mOhm}mΩ`} color="#a855f7" scale={0.85} />
+            <line x1="630" y1="222" x2="630" y2="270" stroke="currentColor" strokeWidth="1.6" />
+            <DiodeSymbol x={715} y={75} dir="right" isSchottky label="D_B1" sublabel="SiC" color="#f59e0b" />
+            <line x1="630" y1="75" x2="695" y2="75" stroke="#f59e0b" strokeWidth="1.8" />
+            <line x1="735" y1="75" x2="860" y2="75" stroke="#f59e0b" strokeWidth="2.2" />
+
+            {is2PhPfc && (
+              <g>
+                <line x1="465" y1="75" x2="465" y2="140" stroke="#f59e0b" strokeWidth="1.5" />
+                <line x1="465" y1="140" x2="500" y2="140" stroke="#f59e0b" strokeWidth="1.5" />
+                <InductorH x={524} y={140} label={`Lpfc2=${acdcState.Lpfc_uH.toFixed(0)}µH`} sublabel="180°" color="#a855f7" />
+                <line x1="548" y1="140" x2="775" y2="140" stroke="#f59e0b" strokeWidth="1.5" />
+                <line x1="775" y1="140" x2="775" y2="178" stroke="currentColor" strokeWidth="1.5" />
+                <MosfetSymbol x={775} y={200} label="Q_PFC2" color="#a855f7" scale={0.85} />
+                <line x1="775" y1="222" x2="775" y2="270" stroke="currentColor" strokeWidth="1.5" />
+                <DiodeSymbol x={825} y={140} dir="right" isSchottky label="D_B2" color="#f59e0b" />
+                <line x1="775" y1="140" x2="805" y2="140" stroke="#f59e0b" strokeWidth="1.5" />
+                <line x1="845" y1="140" x2="860" y2="140" stroke="#f59e0b" strokeWidth="1.5" />
+                <line x1="860" y1="140" x2="860" y2="75" stroke="#f59e0b" strokeWidth="1.8" />
+              </g>
+            )}
+
+            {/* PFC Return Ground Bus */}
+            <line x1="425" y1="270" x2="1080" y2="270" stroke="#10b981" strokeWidth="2.0" />
+            <line x1="425" y1="249" x2="425" y2="270" stroke="#10b981" strokeWidth="1.6" />
+
+            {/* Shared Hybrid DC-Link Capacitor Bank (C_DC) */}
+            <text x="975" y="48" textAnchor="middle" fill="#f59e0b" fontSize="8.5" fontWeight="bold">
+              SHARED +VDC_BUS ({acdcState.Vdc_bus_V}V)
+            </text>
+            <HybridCapBankSvg
+              units={cdcUnits}
+              xStart={885}
+              xEnd={1055}
+              yTop={75}
+              yBot={270}
+              summaryText={`${cdcSol.summaryLabel} · Ceff=${cdcSol.totalCapEff_uF.toFixed(0)}µF`}
+              summaryY={290}
+              accentColor="#10b981"
+            />
+            <line x1="860" y1="75" x2="1080" y2="75" stroke="#f59e0b" strokeWidth="2.4" />
+
+            {/* ================================================================= */}
+            {/* PHYSICAL INTER-STAGE COPPER DC-LINK BUS ROUTING (STAGE 1 -> 2)   */}
+            {/* ================================================================= */}
+            <path
+              d="M 1080 75 L 1132 75 L 1132 332 L 70 332 L 70 400"
+              fill="none"
+              stroke="#f59e0b"
+              strokeWidth="2.8"
+            />
+            <path
+              d="M 1080 270 L 1112 270 L 1112 352 L 50 352 L 50 618 L 195 618"
+              fill="none"
+              stroke="#10b981"
+              strokeWidth="2.4"
+            />
+            <circle cx="1080" cy="75" r="4" fill="#f59e0b" />
+            <circle cx="1080" cy="270" r="4" fill="#10b981" />
+
+            {/* Inter-Stage Handshake Telemetry Pill */}
+            <rect x="405" y="314" width="380" height="32" rx="16" fill="#0f172a" stroke="#f59e0b" strokeWidth="1.5" />
+            <text x="595" y="334" textAnchor="middle" fill="#fde68a" fontSize="9.2" fontWeight="bold">
+              SHARED DC-LINK BUS: {acdcState.Vdc_bus_V} Vdc · ΔVdc = {acdcRes.Vdc_ripple_pp_V.toFixed(1)} Vpp · t_hold = {acdcRes.tHold_actual_ms.toFixed(1)} ms
+            </text>
+
+            {/* STAGE 2 ENCLOSURE (BOTTOM ROW: ISOLATED DC-DC CONVERTER) */}
+            <rect
+              x="20"
+              y="374"
+              width="1140"
+              height="276"
+              rx="6"
+              fill="#0f172a"
+              fillOpacity="0.32"
+              stroke="#10b981"
+              strokeWidth="1.2"
+              strokeDasharray="5 3"
+              strokeOpacity="0.6"
+            />
+            <text x="32" y="367" fill="#10b981" fontSize="9.5" fontWeight="bold">
+              STAGE 2: ISOLATED DC-DC CONVERTER ({dcdcState.topology.toUpperCase()} · {dcdcState.txType.toUpperCase()}) · {dcdcState.Vin_nom_V}Vdc → {dcdcState.Vout_V}Vdc @ {dcdcState.Pout_W}W · η2={dcdcRes.efficiency_pct.toFixed(2)}%
+            </text>
+
+            {/* Primary Bus & Cin Decoupling */}
+            <line x1="70" y1="400" x2="295" y2="400" stroke="#f59e0b" strokeWidth="2.4" />
+            <line x1="125" y1="400" x2="125" y2="485" stroke="currentColor" strokeWidth="1.5" />
+            <CapacitorV x={125} y={507} label="Cin_hf" sublabel={`${cinSol.totalCapEff_uF.toFixed(0)}µF`} color="#06b6d4" />
+            <line x1="125" y1="529" x2="125" y2="618" stroke="currentColor" strokeWidth="1.5" />
+            <circle cx="70" cy="400" r="3.5" fill="#f59e0b" />
+
+            {/* Primary Full-Bridge / Half-Bridge Legs */}
+            <line x1="195" y1="400" x2="195" y2="430" stroke="currentColor" strokeWidth="1.6" />
+            <MosfetSymbol x={195} y={452} label="Q1" color="#06b6d4" scale={0.85} />
+            <line x1="195" y1="474" x2="195" y2="540" stroke="currentColor" strokeWidth="1.6" />
+            <MosfetSymbol x={195} y={562} label="Q2" color="#06b6d4" scale={0.85} />
+            <line x1="195" y1="584" x2="195" y2="618" stroke="currentColor" strokeWidth="1.6" />
+
+            <line x1="195" y1="618" x2="295" y2="618" stroke="#10b981" strokeWidth="2.0" />
+            <GroundSymbol x={245} y={618} />
+
+            {dcdcState.topology !== 'llc-hb' ? (
+              <g>
+                <line x1="295" y1="400" x2="295" y2="430" stroke="currentColor" strokeWidth="1.6" />
+                <MosfetSymbol x={295} y={452} label="Q3" color="#38bdf8" scale={0.85} />
+                <line x1="295" y1="474" x2="295" y2="540" stroke="currentColor" strokeWidth="1.6" />
+                <MosfetSymbol x={295} y={562} label="Q4" color="#38bdf8" scale={0.85} />
+                <line x1="295" y1="584" x2="295" y2="618" stroke="currentColor" strokeWidth="1.6" />
+              </g>
+            ) : (
+              <g>
+                <line x1="295" y1="400" x2="295" y2="440" stroke="currentColor" strokeWidth="1.6" />
+                <CapacitorV x={295} y={462} label="Cb1" color="#f59e0b" />
+                <line x1="295" y1="484" x2="295" y2="540" stroke="currentColor" strokeWidth="1.6" />
+                <CapacitorV x={295} y={562} label="Cb2" color="#f59e0b" />
+                <line x1="295" y1="584" x2="295" y2="618" stroke="currentColor" strokeWidth="1.6" />
+              </g>
+            )}
+
+            {/* Resonant / Leakage Tank */}
+            <line x1="195" y1="495" x2="355" y2="495" stroke="#38bdf8" strokeWidth="1.8" />
+            <InductorH x={380} y={495} label={`Llk=${dcdcState.Llk_uH}µH`} color="#38bdf8" />
+            <line x1="405" y1="495" x2="435" y2="495" stroke="#38bdf8" strokeWidth="1.8" />
+            {isLLC ? (
+              <>
+                <CapacitorH x={452} y={495} label={`Cr=${dcdcState.Cr_nF}nF`} color="#f59e0b" />
+                <line x1="468" y1="495" x2="520" y2="495" stroke="#38bdf8" strokeWidth="1.8" />
+              </>
+            ) : (
+              <line x1="435" y1="495" x2="520" y2="495" stroke="#38bdf8" strokeWidth="1.8" />
+            )}
+            <line x1="295" y1="535" x2="520" y2="535" stroke="#a855f7" strokeWidth="1.8" />
+
+            {/* Isolation Transformer */}
+            <rect x="515" y="458" width="95" height="108" rx="5" fill="#090D16" stroke="#475569" strokeWidth="1.3" />
+            <line x1="556" y1="470" x2="556" y2="554" stroke="#94a3b8" strokeWidth="2.2" />
+            <line x1="564" y1="470" x2="564" y2="554" stroke="#94a3b8" strokeWidth="2.2" />
+            <path d="M 538 488 A 7 7 0 0 1 538 502 A 7 7 0 0 1 538 516 A 7 7 0 0 1 538 530" fill="none" stroke="#38bdf8" strokeWidth="2" />
+            <path d="M 584 488 A 7 7 0 0 0 584 502 A 7 7 0 0 0 584 516 A 7 7 0 0 0 584 530" fill="none" stroke="#10b981" strokeWidth="2" />
+            <text x="562" y="451" textAnchor="middle" fill="#cbd5e1" fontSize="8.5" fontWeight="bold">
+              TX {dcdcRes.Np_actual}:{dcdcRes.Ns_actual}T
+            </text>
+            <text x="562" y="578" textAnchor="middle" fill="#94a3b8" fontSize="7.8">
+              {dcdcRes.core.name}
+            </text>
+
+            {/* Secondary Rectifier -> Output Filter Lo */}
+            <line x1="610" y1="488" x2="675" y2="488" stroke="#10b981" strokeWidth="1.8" />
+            <line x1="610" y1="530" x2="735" y2="530" stroke="#10b981" strokeWidth="1.8" />
+            <line x1="675" y1="425" x2="785" y2="425" stroke="#f59e0b" strokeWidth="2.0" />
+            <line x1="675" y1="425" x2="675" y2="440" stroke="currentColor" strokeWidth="1.5" />
+            {isSync ? (
+              <MosfetSymbol x={675} y={458} label="SR1" color="#10b981" scale={0.78} />
+            ) : (
+              <DiodeSymbol x={675} y={458} dir="up" isSchottky label="D1" color="#10b981" />
+            )}
+            <line x1="675" y1="476" x2="675" y2="554" stroke="currentColor" strokeWidth="1.5" />
+            {isSync ? (
+              <MosfetSymbol x={675} y={572} label="SR2" color="#10b981" scale={0.78} />
+            ) : (
+              <DiodeSymbol x={675} y={572} dir="up" isSchottky label="D2" color="#10b981" />
+            )}
+            <line x1="675" y1="590" x2="675" y2="618" stroke="currentColor" strokeWidth="1.5" />
+
+            <line x1="735" y1="425" x2="735" y2="440" stroke="currentColor" strokeWidth="1.5" />
+            {isSync ? (
+              <MosfetSymbol x={735} y={458} label="SR3" color="#10b981" scale={0.78} />
+            ) : (
+              <DiodeSymbol x={735} y={458} dir="up" isSchottky label="D3" color="#10b981" />
+            )}
+            <line x1="735" y1="476" x2="735" y2="554" stroke="currentColor" strokeWidth="1.5" />
+            {isSync ? (
+              <MosfetSymbol x={735} y={572} label="SR4" color="#10b981" scale={0.78} />
+            ) : (
+              <DiodeSymbol x={735} y={572} dir="up" isSchottky label="D4" color="#10b981" />
+            )}
+            <line x1="735" y1="590" x2="735" y2="618" stroke="currentColor" strokeWidth="1.5" />
+
+            <line x1="675" y1="618" x2="1125" y2="618" stroke="currentColor" strokeWidth="1.8" />
+            <GroundSymbol x={795} y={618} />
+
+            {/* Output Filter Inductor Lo */}
+            <InductorH x={810} y={425} label={`Lo=${dcdcState.Lo_uH}µH`} color="#38bdf8" />
+            <line x1="835" y1="425" x2="1125" y2="425" stroke="#f59e0b" strokeWidth="2.2" />
+
+            {/* Hybrid Output Capacitor Bank (C_OUT) */}
+            <text x="975" y="405" textAnchor="middle" fill="#f59e0b" fontSize="8.5" fontWeight="bold">
+              +VOUT ({dcdcState.Vout_V}V @ {dcdcRes.Iout_total_A.toFixed(1)}A)
+            </text>
+            <HybridCapBankSvg
+              units={coutUnits}
+              xStart={885}
+              xEnd={1055}
+              yTop={425}
+              yBot={618}
+              summaryText={`${coutSol.summaryLabel} · ESR=${coutSol.esrEffAtFsw_mOhm.toFixed(1)}mΩ`}
+              summaryY={638}
+              accentColor="#38bdf8"
+            />
+
+            {/* System Output Load Resistor */}
+            <line x1="1108" y1="425" x2="1108" y2="495" stroke="currentColor" strokeWidth="1.8" />
+            <ResistorV
+              x={1108}
+              y={519}
+              label={`R_LOAD`}
+              sublabel={`${dcdcState.Pout_W}W`}
+              color="#f59e0b"
+            />
+            <line x1="1108" y1="543" x2="1108" y2="618" stroke="currentColor" strokeWidth="1.8" />
+            <circle cx="1108" cy="425" r="3.5" fill="#f59e0b" />
+            <circle cx="1108" cy="618" r="3.5" fill="#10b981" />
+
+            {/* SYSTEM-WIDE TELEMETRY FOOTER BAR */}
+            <rect x="20" y="666" width="1140" height="46" rx="6" fill="#0f172a" stroke="#06b6d4" strokeWidth="1.5" />
+            <text x="590" y="685" textAnchor="middle" fill="#06b6d4" fontSize="10" fontWeight="bold">
+              COMBINED 2-STAGE POWER SYSTEM: {acdcState.Vac_rms_V}Vrms AC → {acdcState.Vdc_bus_V}V DC-LINK → {dcdcState.Vout_V}Vdc ({dcdcState.Pout_W}W)
+            </text>
+            <text x="590" y="702" textAnchor="middle" fill="#e2e8f0" fontSize="9">
+              Overall Efficiency η_sys = {sysEffPct.toFixed(2)}% | Total Loss = {sysLossW.toFixed(1)} W | PF = {acdcRes.powerFactor_true.toFixed(4)} | ΔVout = {dcdcRes.Vout_ripple_mVpp.toFixed(1)} mVpp
+            </text>
+          </svg>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export const CombinedReportSchematicSvg: React.FC<{
+  acdcRes: AcDcResults;
+  dcdcRes: DcDcResults;
+}> = ({ acdcRes, dcdcRes }) => (
+  <CombinedSystemSchematicView acdcRes={acdcRes} dcdcRes={dcdcRes} isConnected reportOnly />
+);
 
 

@@ -2,7 +2,10 @@ import { AcDcDesignState, DcDcDesignState } from '../data/databases';
 import { AcDcResults } from './acdcEngine';
 import { DcDcResults } from './dcdcEngine';
 
+export type ProjectOutputMode = 'dcdc-only' | 'acdc-only' | 'combined';
+
 export interface SystemLinkConfig {
+  outputMode?: ProjectOutputMode;
   linkBusVoltage: boolean;
   linkLoadPower: boolean;
 }

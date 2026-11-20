@@ -16,6 +16,7 @@
 import { AcDcDesignState, DcDcDesignState } from '../data/databases';
 import { AcDcResults } from './acdcEngine';
 import { DcDcResults } from './dcdcEngine';
+import { expandHybridCapBankForSpice, getDefaultHybridCapBank } from './passiveDesignEngine';
 import {
   generateManufacturerMosfetSubckt,
   generateManufacturerRectifierSubckt,
@@ -268,18 +269,29 @@ export function generateDcDcLtspiceAsc(state: DcDcDesignState, res: DcDcResults)
     `Vin=${state.Vin_nom_V}V (${state.Vin_min_V}..${state.Vin_max_V}V) -> Vout=${state.Vout_V}V @ ${state.Pout_W}W | fsw=${state.fsw_kHz}kHz | Core=${res.core.name} (${res.Np_actual}:${res.Ns_actual}T)`
   );
 
-  // Top Row Zones (Power Path)
-  asc.graphicRect(64, 112, 352, 624);
-  asc.comment(80, 120, '1. INPUT BUS');
+  const cinBank = getDefaultHybridCapBank('dcdc-cin', state);
+  const coutBank = getDefaultHybridCapBank('dcdc-cout', state);
+  let cinUnits = expandHybridCapBankForSpice(cinBank, 'C_IN', state.Vin_max_V, 4);
+  if (cinUnits.length > 5) {
+    cinUnits = expandHybridCapBankForSpice(cinBank, 'C_IN', state.Vin_max_V, 2);
+  }
+  const coutUnits = expandHybridCapBankForSpice(coutBank, 'C_OUT', state.Vout_V * 1.05, 4);
+  const coutBaseX = 2464;
+  const rloadX = coutBaseX + Math.max(1, coutUnits.length) * 96;
+  const zone4Right = Math.max(2752, rloadX + 128);
 
-  asc.graphicRect(384, 112, 928, 624);
-  asc.comment(400, 120, `2. PRIMARY ${state.topology === 'llc-hb' ? 'HALF-BRIDGE' : 'FULL-BRIDGE'} (${priModel.subcktName})`);
+  // Top Row Zones (Power Path)
+  asc.graphicRect(64, 112, 416, 624);
+  asc.comment(80, 120, '1. INPUT BUS & HYBRID Cin BANK');
+
+  asc.graphicRect(432, 112, 928, 624);
+  asc.comment(448, 120, `2. PRIMARY ${state.topology === 'llc-hb' ? 'HALF-BRIDGE' : 'FULL-BRIDGE'} (${priModel.subcktName})`);
 
   asc.graphicRect(960, 112, 1632, 624);
   asc.comment(976, 120, '3. TANK & ISOLATION TRANSFORMER');
 
-  asc.graphicRect(1664, 112, 2752, 624);
-  asc.comment(1680, 120, `4. ${state.txType.toUpperCase()} RECTIFIER (${secModel.subcktName}), OUTPUT FILTER & LOAD`);
+  asc.graphicRect(1664, 112, zone4Right, 624);
+  asc.comment(1680, 120, `4. ${state.txType.toUpperCase()} RECTIFIER (${secModel.subcktName}), HYBRID Cout BANK & LOAD`);
 
   // Middle Row Zones (Gate Drives, Control Loop, Directives)
   asc.graphicRect(64, 672, 928, 1200);
@@ -292,15 +304,15 @@ export function generateDcDcLtspiceAsc(state: DcDcDesignState, res: DcDcResults)
     `5B. CONTROL & COMPENSATOR (${state.controlType.toUpperCase()} | ${res.type2Architecture === 'ota' ? `OTA gm=${res.ota_gm_mS.toFixed(2)}mS` : 'Op-Amp'})`
   );
 
-  asc.graphicRect(1968, 672, 2752, 1200);
+  asc.graphicRect(1968, 672, zone4Right, 1200);
   asc.comment(1984, 680, '6A. SPICE PARAMETERS & SIMULATION COMMANDS');
 
   // Bottom Row Zone (Manufacturer .SUBCKT SPICE Models)
-  asc.graphicRect(64, 1232, 2752, 1808);
+  asc.graphicRect(64, 1232, zone4Right, 1808);
   asc.comment(80, 1244, `6B. MANUFACTURER SPICE SUBCIRCUITS (${priModel.manufacturer} ${res.priDevice.id} & ${secModel.manufacturer} ${res.secDevice.id})`);
 
   // --------------------------------------------------------------------------
-  // ZONE 1: INPUT DC SOURCE & BULK CAPACITOR
+  // ZONE 1: INPUT DC SOURCE & HYBRID PARALLEL CAPACITOR BANK (Cin)
   // --------------------------------------------------------------------------
   const Y_BUS_TOP = 192;
   const Y_BUS_BOT = 560;
@@ -311,9 +323,20 @@ export function generateDcDcLtspiceAsc(state: DcDcDesignState, res: DcDcResults)
   asc.gnd(144, Y_BUS_BOT);
   asc.flag(144, Y_BUS_TOP, 'vin_pos');
 
-  const cin = asc.placeVerticalCap(272, 352, 'C_IN', '47u', 'Rser=5m');
-  asc.wirePath([[144, Y_BUS_TOP], [272, Y_BUS_TOP], cin.top]);
-  asc.wirePath([[144, Y_BUS_BOT], [272, Y_BUS_BOT], cin.bot]);
+  let lastCinX = 144;
+  cinUnits.forEach((u, idx) => {
+    const cx = 208 + idx * 48;
+    const cinCap = asc.placeVerticalCap(
+      cx,
+      352,
+      u.refDes,
+      `${u.cap_uF}u`,
+      `Rser=${u.esr_mOhm}m Lser=${u.esl_nH}n`
+    );
+    asc.wirePath([[lastCinX, Y_BUS_TOP], [cx, Y_BUS_TOP], cinCap.top]);
+    asc.wirePath([[lastCinX, Y_BUS_BOT], [cx, Y_BUS_BOT], cinCap.bot]);
+    lastCinX = cx;
+  });
 
   // --------------------------------------------------------------------------
   // ZONE 2: PRIMARY BRIDGE LEGS (REAL MANUFACTURER .SUBCKT WITH PREFIX X)
@@ -322,8 +345,8 @@ export function generateDcDcLtspiceAsc(state: DcDcDesignState, res: DcDcResults)
   const X_LEG_B = 784;
   const Y_MID = 384;
 
-  asc.wirePath([[272, Y_BUS_TOP], [X_LEG_A, Y_BUS_TOP]]);
-  asc.wirePath([[272, Y_BUS_BOT], [X_LEG_A, Y_BUS_BOT]]);
+  asc.wirePath([[lastCinX, Y_BUS_TOP], [X_LEG_A, Y_BUS_TOP]]);
+  asc.wirePath([[lastCinX, Y_BUS_BOT], [X_LEG_A, Y_BUS_BOT]]);
 
   // Leg A: Q1 (high) + Q2 (low)
   const q1 = asc.placeMosfet(X_LEG_A, 224, 'Q1', priModel.subcktName, true);
@@ -498,22 +521,31 @@ export function generateDcDcLtspiceAsc(state: DcDcDesignState, res: DcDcResults)
     asc.flag(2320, Y_OUT_RAIL, 'v_out');
   }
 
-  // Output Capacitor Bank & Load Resistor
-  const cout = asc.placeVerticalCap(
-    2416,
-    336,
-    'C_OUT',
-    `${state.Co_uF.toFixed(1)}u`,
-    `Rser=${state.ESR_Co_mOhm.toFixed(2)}m`
-  );
-  asc.wirePath([[2416, Y_OUT_RAIL], cout.top]);
-  asc.wirePath([cout.bot, [2416, Y_SEC_GND]]);
-  asc.gnd(2416, Y_SEC_GND);
+  // Hybrid Output Capacitor Bank (parallel Multi-Technology Branches) & Load Resistor
+  let lastCoutX = coutBaseX;
+  coutUnits.forEach((u, idx) => {
+    const cx = coutBaseX + idx * 96;
+    const cap = asc.placeVerticalCap(
+      cx,
+      336,
+      u.refDes,
+      `${u.cap_uF}u`,
+      `Rser=${u.esr_mOhm}m Lser=${u.esl_nH}n`
+    );
+    asc.wirePath([[lastCoutX, Y_OUT_RAIL], [cx, Y_OUT_RAIL], cap.top]);
+    asc.wirePath([cap.bot, [cx, Y_SEC_GND]]);
+    if (idx > 0) {
+      asc.wirePath([[lastCoutX, Y_SEC_GND], [cx, Y_SEC_GND]]);
+    } else {
+      asc.gnd(cx, Y_SEC_GND);
+    }
+    lastCoutX = cx;
+  });
 
-  const rload = asc.placeVerticalRes(2608, 336, 'R_LOAD', `${Rload_Ohm.toFixed(3)}`);
-  asc.wirePath([[2464, Y_OUT_RAIL], [2608, Y_OUT_RAIL], rload.top]);
-  asc.wirePath([rload.bot, [2608, Y_SEC_GND]]);
-  asc.gnd(2608, Y_SEC_GND);
+  const rload = asc.placeVerticalRes(rloadX, 336, 'R_LOAD', `${Rload_Ohm.toFixed(3)}`);
+  asc.wirePath([[lastCoutX, Y_OUT_RAIL], [rloadX, Y_OUT_RAIL], rload.top]);
+  asc.wirePath([rload.bot, [rloadX, Y_SEC_GND]]);
+  asc.gnd(rloadX, Y_SEC_GND);
 
   // --------------------------------------------------------------------------
   // ZONE 5A: ISOLATED GATE DRIVE SOURCES (400+ PX CLEAR SPACE PER SOURCE)
@@ -721,6 +753,12 @@ export function generateAcDcLtspiceAsc(state: AcDcDesignState, res: AcDcResults)
     `Vac=${state.Vac_rms_V}Vrms @ ${state.f_line_Hz}Hz -> Vdc=${state.Vdc_bus_V}V @ ${state.Pout_W}W | fsw=${state.fsw_kHz}kHz | Switch=${swModel.subcktName} | Diode=${boostDiode.subcktName}`
   );
 
+  const cdcBank = getDefaultHybridCapBank('acdc-cdc', undefined, state);
+  const cdcUnits = expandHybridCapBankForSpice(cdcBank, 'C_DC', state.Vdc_bus_V * 1.04, 4);
+  const cdcBaseX = 2352;
+  const acdcRloadX = cdcBaseX + Math.max(1, cdcUnits.length) * 96;
+  const acdcZone4Right = Math.max(2688, acdcRloadX + 128);
+
   asc.graphicRect(64, 112, 624, 592);
   asc.comment(80, 120, '1. AC MAINS & DM EMI FILTER');
 
@@ -730,16 +768,16 @@ export function generateAcDcLtspiceAsc(state: AcDcDesignState, res: AcDcResults)
   asc.graphicRect(1184, 112, 2176, 592);
   asc.comment(1200, 120, `3. ${nPh}-PHASE BOOST STAGE (${swModel.subcktName} + ${boostDiode.mpn})`);
 
-  asc.graphicRect(2208, 112, 2688, 592);
-  asc.comment(2224, 120, '4. DC-LINK BULK & LOAD');
+  asc.graphicRect(2208, 112, acdcZone4Right, 592);
+  asc.comment(2224, 120, '4. HYBRID DC-LINK CAPACITOR BANK & LOAD');
 
   asc.graphicRect(64, 640, 1296, 1088);
   asc.comment(80, 648, '5A. CLOSED-LOOP PFC PWM MODULATOR');
 
-  asc.graphicRect(1328, 640, 2688, 1088);
+  asc.graphicRect(1328, 640, acdcZone4Right, 1088);
   asc.comment(1344, 648, '5B. SPICE PARAMETERS & DIRECTIVES');
 
-  asc.graphicRect(64, 1120, 2688, 1648);
+  asc.graphicRect(64, 1120, acdcZone4Right, 1648);
   asc.comment(80, 1132, `5C. MANUFACTURER SPICE SUBCIRCUITS (${swModel.manufacturer} ${res.sw.id} & ${boostDiode.manufacturer} ${boostDiode.mpn})`);
 
   const Y_TOP = 240;
@@ -785,7 +823,7 @@ export function generateAcDcLtspiceAsc(state: AcDcDesignState, res: AcDcResults)
   asc.flag(1120, Y_VRECT, 'v_rect');
   asc.wirePath([dr2.anode, [768, Y_GND], [880, Y_GND]]);
   asc.wirePath([[880, Y_GND], [992, Y_GND], dr4.anode]);
-  asc.wirePath([[992, Y_GND], [2544, Y_GND]]);
+  asc.wirePath([[992, Y_GND], [acdcRloadX, Y_GND]]);
   asc.gnd(880, Y_GND);
 
   // 3. 1-Phase or 2-Phase Interleaved Boost Stage (Manufacturer .SUBCKT)
@@ -820,21 +858,26 @@ export function generateAcDcLtspiceAsc(state: AcDcDesignState, res: AcDcResults)
     asc.wirePath([db1.cathode, [2352, Y_VRECT]]);
   }
 
-  // 4. DC-Link Capacitor Bank & Load
+  // 4. Hybrid DC-Link Capacitor Bank & Load
   asc.flag(2256, Y_VRECT, 'v_dc');
-  const cdc = asc.placeVerticalCap(
-    2352,
-    320,
-    'C_DC',
-    `${state.Cdc_uF.toFixed(0)}u`,
-    `Rser=${state.ESR_Cdc_mOhm.toFixed(1)}m`
-  );
-  asc.wirePath([[2352, Y_VRECT], cdc.top]);
-  asc.wirePath([cdc.bot, [2352, Y_GND]]);
+  let lastCdcX = cdcBaseX;
+  cdcUnits.forEach((u, idx) => {
+    const cx = cdcBaseX + idx * 96;
+    const cap = asc.placeVerticalCap(
+      cx,
+      320,
+      u.refDes,
+      `${u.cap_uF}u`,
+      `Rser=${u.esr_mOhm}m Lser=${u.esl_nH}n`
+    );
+    asc.wirePath([[lastCdcX, Y_VRECT], [cx, Y_VRECT], cap.top]);
+    asc.wirePath([cap.bot, [cx, Y_GND]]);
+    lastCdcX = cx;
+  });
 
-  const rload = asc.placeVerticalRes(2544, 320, 'R_LOAD', `${Rload_dc.toFixed(2)}`);
-  asc.wirePath([[2352, Y_VRECT], [2544, Y_VRECT], rload.top]);
-  asc.wirePath([rload.bot, [2544, Y_GND]]);
+  const rload = asc.placeVerticalRes(acdcRloadX, 320, 'R_LOAD', `${Rload_dc.toFixed(2)}`);
+  asc.wirePath([[lastCdcX, Y_VRECT], [acdcRloadX, Y_VRECT], rload.top]);
+  asc.wirePath([rload.bot, [acdcRloadX, Y_GND]]);
 
   // 5A. Closed-Loop PFC PWM Modulator (B_DUTY + V_SAW + B_PWM)
   const bDuty = asc.placeVerticalSource(
@@ -901,4 +944,224 @@ export function generateAcDcLtspiceAsc(state: AcDcDesignState, res: AcDcResults)
   asc.placeSpiceBlock(1360, 1168, boostDiode.spiceText, 24);
 
   return asc.build();
+}
+
+/**
+ * Generates a unified 2-stage Combined AC-DC PFC -> DC-DC LTspice .asc schematic.
+ * Stage 1 (AC-DC PFC) sits at the top feeding the shared `v_dc` bus (without a
+ * dummy resistor load); Stage 2 (Isolated DC-DC) sits cleanly below, powered directly
+ * from the shared `v_dc` bus (no separate V_IN source) with unified directives and
+ * deduplicated manufacturer .SUBCKT models.
+ */
+export function generateCombinedSystemLtspiceAsc(
+  acdcState: AcDcDesignState,
+  acdcRes: AcDcResults,
+  dcdcState: DcDcDesignState,
+  dcdcRes: DcDcResults
+): string {
+  const acdcRaw = generateAcDcLtspiceAsc(acdcState, acdcRes);
+  const dcdcRaw = generateDcDcLtspiceAsc(dcdcState, dcdcRes);
+
+  const filterAndShiftAsc = (
+    raw: string,
+    dy: number,
+    options: {
+      dropInstNames: Set<string>;
+      replaceFlagVinPos?: boolean;
+      tswParamName: string;
+      maxRawYBeforeDirectives: number;
+    }
+  ): string[] => {
+    const rawLines = raw.split(/\r?\n/);
+    const out: string[] = [];
+    let i = 0;
+    while (i < rawLines.length) {
+      const line = rawLines[i];
+      if (
+        line.startsWith('Version ') ||
+        line.startsWith('SHEET ') ||
+        line.trim() === ''
+      ) {
+        i++;
+        continue;
+      }
+      // Drop standalone header banners and bottom .SUBCKT / directive blocks
+      if (line.startsWith('SYMBOL ')) {
+        const parts = line.split(/\s+/);
+        const symY = Number(parts[3]);
+        // Collect full symbol block (WINDOW + SYMATTR lines)
+        const symBlock: string[] = [
+          `SYMBOL ${parts[1]} ${parts[2]} ${Math.round(symY + dy)} ${parts[4]}`,
+        ];
+        let instName = '';
+        let j = i + 1;
+        while (j < rawLines.length && (rawLines[j].startsWith('WINDOW ') || rawLines[j].startsWith('SYMATTR '))) {
+          let attrLine = rawLines[j];
+          if (attrLine.startsWith('SYMATTR InstName ')) {
+            instName = attrLine.slice('SYMATTR InstName '.length).trim();
+          }
+          if (attrLine.includes('{TSW}')) {
+            attrLine = attrLine.replace(/\{TSW\}/g, `{${options.tswParamName}}`);
+          }
+          symBlock.push(attrLine);
+          j++;
+        }
+        if (!options.dropInstNames.has(instName)) {
+          out.push(...symBlock);
+        }
+        i = j;
+        continue;
+      }
+
+      if (line.startsWith('WIRE ')) {
+        const parts = line.split(/\s+/);
+        const y1 = Number(parts[2]);
+        const y2 = Number(parts[4]);
+        if (y1 <= options.maxRawYBeforeDirectives && y2 <= options.maxRawYBeforeDirectives) {
+          out.push(`WIRE ${parts[1]} ${Math.round(y1 + dy)} ${parts[3]} ${Math.round(y2 + dy)}`);
+        }
+        i++;
+        continue;
+      }
+
+      if (line.startsWith('FLAG ')) {
+        const parts = line.split(/\s+/);
+        const y = Number(parts[2]);
+        if (y <= options.maxRawYBeforeDirectives) {
+          let name = parts.slice(3).join(' ');
+          if (options.replaceFlagVinPos && name === 'vin_pos') name = 'v_dc';
+          out.push(`FLAG ${parts[1]} ${Math.round(y + dy)} ${name}`);
+        }
+        i++;
+        continue;
+      }
+
+      if (line.startsWith('LINE Normal ') || line.startsWith('RECTANGLE Normal ')) {
+        const parts = line.split(/\s+/);
+        const y1 = Number(parts[3]);
+        const y2 = Number(parts[5]);
+        if (y1 <= options.maxRawYBeforeDirectives && y2 <= options.maxRawYBeforeDirectives) {
+          out.push(`${parts[0]} ${parts[1]} ${parts[2]} ${Math.round(y1 + dy)} ${parts[4]} ${Math.round(y2 + dy)}`);
+        }
+        i++;
+        continue;
+      }
+
+      if (line.startsWith('TEXT ')) {
+        const m = line.match(/^TEXT\s+(-?\d+)\s+(-?\d+)\s+(\S+)\s+(\d+)\s+(.*)$/);
+        if (m) {
+          const x = Number(m[1]);
+          const y = Number(m[2]);
+          const align = m[3];
+          const size = m[4];
+          const body = m[5];
+          // Skip top banner, SPICE directives, and .SUBCKT blocks (re-emitted unified below)
+          if (
+            y >= 112 &&
+            y <= options.maxRawYBeforeDirectives &&
+            !body.startsWith('!') &&
+            !(y >= 640 && x >= 1300)
+          ) {
+            out.push(`TEXT ${x} ${Math.round(y + dy)} ${align} ${size} ${body}`);
+          }
+        }
+        i++;
+        continue;
+      }
+
+      i++;
+    }
+    return out;
+  };
+
+  // Stage 1 sits at dy = 64; Stage 2 sits cleanly below at dy = 1168
+  const stage1Lines = filterAndShiftAsc(acdcRaw, 64, {
+    dropInstNames: new Set(['R_LOAD']),
+    tswParamName: 'TSW_PFC',
+    maxRawYBeforeDirectives: 1096,
+  });
+
+  const stage2Lines = filterAndShiftAsc(dcdcRaw, 1168, {
+    dropInstNames: new Set(['V_IN']),
+    replaceFlagVinPos: true,
+    tswParamName: 'TSW_DC',
+    maxRawYBeforeDirectives: 1216,
+  });
+
+  const Vac_pk = acdcState.Vac_rms_V * Math.SQRT2;
+  const fswPfcHz = acdcState.fsw_kHz * 1e3;
+  const fswDcHz = dcdcState.fsw_kHz * 1e3;
+  const TswDc = 1 / fswDcHz;
+  const ThalfDc = TswDc / 2;
+  const half_ns = Math.round(ThalfDc * 1e9);
+  const tOnHalf_ns = Math.max(80, Math.round(half_ns - Math.max(20, dcdcState.deadTime_ns)));
+  const deff = dcdcRes.isLLC ? 1.0 : Math.max(0.15, Math.min(0.95, dcdcRes.Deff_nom));
+  const phaseShift_ns = Math.round(deff * half_ns);
+  const tShiftA = dcdcRes.isLLC ? half_ns : phaseShift_ns;
+  const tShiftB = dcdcRes.isLLC ? 0 : Math.round(phaseShift_ns + half_ns);
+
+  const swModel = generateManufacturerMosfetSubckt(acdcRes.sw, 1);
+  const boostDiode = generatePfcBoostDiodeSubckt(acdcState.Vdc_bus_V);
+  const priModel = generateManufacturerMosfetSubckt(dcdcRes.priDevice, dcdcState.nParallelPri);
+  const secModel = generateManufacturerRectifierSubckt(
+    dcdcRes.secDevice,
+    dcdcState.nParallelSec,
+    dcdcState.rectMode
+  );
+
+  const asc = new AscSchematicBuilder(2960, 3260);
+  asc.comment(64, 32, `VoltCraft Power Electronics Studio -- COMBINED 2-STAGE (${acdcState.topology} -> ${dcdcState.topology.toUpperCase()})`);
+  asc.comment(
+    64,
+    60,
+    `Stage 1: ${acdcState.Vac_rms_V}Vrms -> ${acdcState.Vdc_bus_V}Vdc | Stage 2: ${dcdcState.Vin_nom_V}Vdc -> ${dcdcState.Vout_V}V @ ${dcdcState.Pout_W}W | Shared v_dc Bus`
+  );
+
+  // Unified Directives Panel (Right-side clear zone in Stage 2 row)
+  const Y_DIR = 2464;
+  asc.graphicRect(64, Y_DIR - 48, 2864, Y_DIR + 280);
+  asc.comment(80, Y_DIR - 36, '7. COMBINED SYSTEM PARAMETERS & SIMULATION DIRECTIVES');
+  asc.directive(
+    80,
+    Y_DIR,
+    `.param FSW_PFC=${fswPfcHz} TSW_PFC={1/FSW_PFC} VAC_PK=${Vac_pk.toFixed(2)} FLINE=${acdcState.f_line_Hz} VDC_REF=${acdcState.Vdc_bus_V}`
+  );
+  asc.directive(
+    80,
+    Y_DIR + 40,
+    `.param FSW_DC=${fswDcHz} TSW_DC={1/FSW_DC} VOUT_REF=${dcdcState.Vout_V} TON=${tOnHalf_ns}n THALF=${half_ns}n TD_A=${tShiftA}n TD_B=${tShiftB}n`
+  );
+  asc.directive(
+    80,
+    Y_DIR + 80,
+    `.ic V(v_dc)=${acdcState.Vdc_bus_V.toFixed(1)} V(v_out)=${(dcdcState.Vout_V * 0.94).toFixed(2)}`
+  );
+  asc.directive(80, Y_DIR + 120, '.options reltol=1m');
+  asc.directive(80, Y_DIR + 160, `.tran 0 ${(1 / acdcState.f_line_Hz * 1e3).toFixed(1)}m 0 100n`);
+  asc.directive(80, Y_DIR + 200, `.meas TRAN Vdc_avg AVG V(v_dc)`);
+  asc.directive(80, Y_DIR + 240, `.meas TRAN Vout_avg AVG V(v_out)`);
+
+  // Deduplicated Manufacturer .SUBCKT Blocks
+  const subckts = Array.from(
+    new Map<string, string>([
+      [swModel.subcktName, swModel.spiceText],
+      [boostDiode.subcktName, boostDiode.spiceText],
+      [priModel.subcktName, priModel.spiceText],
+      [secModel.subcktName, secModel.spiceText],
+    ]).values()
+  );
+  asc.graphicRect(64, Y_DIR + 304, 2864, Y_DIR + 760);
+  asc.comment(80, Y_DIR + 316, '8. MANUFACTURER SPICE .SUBCKT MODELS (DEDUPLICATED)');
+  subckts.forEach((txt, idx) => {
+    asc.placeSpiceBlock(80 + idx * 680, Y_DIR + 356, txt, 24);
+  });
+
+  const combinedHeader = asc.build().split('\n');
+  return [
+    combinedHeader[0],
+    combinedHeader[1],
+    ...stage1Lines,
+    ...stage2Lines,
+    ...combinedHeader.slice(2),
+  ].join('\n');
 }

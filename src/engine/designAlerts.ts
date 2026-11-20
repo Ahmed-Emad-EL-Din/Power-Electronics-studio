@@ -11,6 +11,7 @@ import {
 } from '../data/databases';
 import { AcDcResults } from './acdcEngine';
 import { DcDcResults } from './dcdcEngine';
+import type { ProjectOutputMode } from './systemCascadeEngine';
 import {
   CustomCapBankLocks,
   CustomInductorLocks,
@@ -95,6 +96,7 @@ export function evaluateDesignAlerts(params: {
   acdcRes: AcDcResults;
   inductorConfigs?: Record<string, PerInductorConfig>;
   capacitorConfigs?: Record<string, PerCapConfig>;
+  outputMode?: ProjectOutputMode;
 }): DesignAlertSummary {
   const {
     dcdcState,
@@ -103,6 +105,7 @@ export function evaluateDesignAlerts(params: {
     acdcRes,
     inductorConfigs = {},
     capacitorConfigs = {},
+    outputMode = 'combined',
   } = params;
   const alerts: DesignAlertItem[] = [];
 
@@ -1014,8 +1017,15 @@ export function evaluateDesignAlerts(params: {
     }
   }
 
-  const danger = alerts.filter((a) => a.severity === 'danger');
-  const warning = alerts.filter((a) => a.severity === 'warning');
+  const scopedAlerts =
+    outputMode === 'dcdc-only'
+      ? alerts.filter((a) => a.domain === 'dcdc')
+      : outputMode === 'acdc-only'
+      ? alerts.filter((a) => a.domain === 'acdc')
+      : alerts;
+
+  const danger = scopedAlerts.filter((a) => a.severity === 'danger');
+  const warning = scopedAlerts.filter((a) => a.severity === 'warning');
 
   return {
     all: [...danger, ...warning],

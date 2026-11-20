@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
 import {
   ACDC_PRESETS,
   DCDC_PRESETS,
@@ -19,6 +19,7 @@ import { extractCircuitCapacitors, solveCapacitorBank } from './engine/passiveDe
 import { AcDcSubTab, AcDcWorkbench } from './components/AcDcWorkbench';
 import { DcDcSubTab, DcDcWorkbench } from './components/DcDcWorkbench';
 import { SmallSignalDashboard } from './components/SmallSignalDashboard';
+import { CombinedSystemSchematicView } from './components/CircuitSchematics';
 import { ComponentSearchDrawer } from './components/ComponentSearchDrawer';
 import { DesignReportModal } from './components/DesignReportModal';
 import { AiChatMessage, AiEngineerDrawer } from './components/AiEngineerDrawer';
@@ -49,6 +50,7 @@ import {
   useDesignSolver,
 } from './components/DesignSolverContext';
 import {
+  ProjectOutputMode,
   SystemLinkConfig,
   computeCoupledStagePatches,
   solveSystemCascade,
@@ -69,10 +71,16 @@ import {
 } from './engine/projectStorage';
 import {
   generateAcDcLtspiceAsc,
+  generateAcDcPlecsBundle,
   generateAcDcQspiceBundle,
   generateAcDcSpiceNetlist,
+  generateCombinedSystemLtspiceAsc,
+  generateCombinedSystemPlecsBundle,
+  generateCombinedSystemQspiceBundle,
+  generateCombinedSystemSpiceNetlist,
   generateControlFirmwareHeader,
   generateDcDcLtspiceAsc,
+  generateDcDcPlecsBundle,
   generateDcDcQspiceBundle,
   generateDcDcSpiceNetlist,
 } from './engine/spiceNetlistExporter';
@@ -98,6 +106,7 @@ import {
   Redo2,
   FolderOpen,
   Link2,
+  Layers,
   Upload,
   Save,
   Trash2,
@@ -151,7 +160,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
     resetCapacitorConfigs,
   } = useDesignSolver();
 
-  const [domainTab, setDomainTab] = useState<'dcdc' | 'acdc' | 'small-signal'>('dcdc');
+  const [domainTab, setDomainTab] = useState<'dcdc' | 'acdc' | 'combined' | 'small-signal'>('dcdc');
   const [dcdcSubTab, setDcdcSubTab] = useState<DcDcSubTab>('schematic');
   const [acdcSubTab, setAcdcSubTab] = useState<AcDcSubTab>('schematic');
   const [jumpState, setJumpState] = useState<{ targetItemId?: string | null; nonce: number }>({
@@ -161,6 +170,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
   const [openAlertFilter, setOpenAlertFilter] = useState<'danger' | 'warning' | 'all' | null>(null);
   const [alertStageScope, setAlertStageScope] = useState<'all' | 'active'>('all');
   const alertPopoverRef = useRef<HTMLDivElement | null>(null);
+  const [alertPopoverStyle, setAlertPopoverStyle] = useState<React.CSSProperties>({});
 
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     try {
@@ -215,9 +225,11 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
 
   // 2-Stage System Cascade Coupling & Project Persistence / Undo-Redo
   const [systemLink, setSystemLink] = useState<SystemLinkConfig>({
+    outputMode: 'combined',
     linkBusVoltage: false,
     linkLoadPower: false,
   });
+  const outputMode: ProjectOutputMode = systemLink.outputMode ?? 'combined';
   const [projectsModalOpen, setProjectsModalOpen] = useState<boolean>(false);
   const [savedProjects, setSavedProjects] = useState<SavedProjectEntry[]>(() => loadSavedProjects());
   const [projectNameInput, setProjectNameInput] = useState<string>('');
@@ -230,7 +242,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
       acdcState,
       inductorConfigs,
       capacitorConfigs,
-      systemLink: { linkBusVoltage: false, linkLoadPower: false },
+      systemLink: { outputMode: 'combined', linkBusVoltage: false, linkLoadPower: false },
     })
   );
   const isApplyingHistoryRef = useRef<boolean>(false);
@@ -371,8 +383,9 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
         acdcRes,
         inductorConfigs,
         capacitorConfigs,
+        outputMode,
       }),
-    [dcdcState, dcdcRes, acdcState, acdcRes, inductorConfigs, capacitorConfigs]
+    [dcdcState, dcdcRes, acdcState, acdcRes, inductorConfigs, capacitorConfigs, outputMode]
   );
 
   const aiContextInputs: AiContextInputs = useMemo(
@@ -754,9 +767,85 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
     };
   }, [openAlertFilter]);
 
+  // Keep Danger / Warning popover strictly clamped inside the visible viewport on all screen sizes
+  useLayoutEffect(() => {
+    if (!openAlertFilter) return;
+    const updatePosition = () => {
+      const anchor = alertPopoverRef.current;
+      if (!anchor) return;
+      const rect = anchor.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const margin = 8;
+      const width = Math.min(440, vw - margin * 2);
+      const top = Math.max(margin, Math.min(rect.bottom + 8, vh - 220));
+      const left = Math.max(margin, Math.min(rect.right - width, vw - width - margin));
+      const maxHeight = Math.max(200, vh - top - 12);
+      setAlertPopoverStyle({
+        position: 'fixed',
+        top: `${Math.round(top)}px`,
+        left: `${Math.round(left)}px`,
+        width: `${Math.round(width)}px`,
+        maxHeight: `${Math.round(maxHeight)}px`,
+      });
+    };
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [openAlertFilter]);
+
   const toggleAlertPopover = (filter: 'danger' | 'warning') => {
     setAlertStageScope('all');
     setOpenAlertFilter((prev) => (prev === filter ? null : filter));
+  };
+
+  const handleChangeOutputMode = (nextMode: ProjectOutputMode) => {
+    if (nextMode === 'dcdc-only') {
+      setSystemLink((s) => ({
+        ...s,
+        outputMode: 'dcdc-only',
+        linkBusVoltage: false,
+        linkLoadPower: false,
+      }));
+      if (domainTab === 'acdc' || domainTab === 'combined') {
+        setDomainTab('dcdc');
+      }
+    } else if (nextMode === 'acdc-only') {
+      setSystemLink((s) => ({
+        ...s,
+        outputMode: 'acdc-only',
+        linkBusVoltage: false,
+        linkLoadPower: false,
+      }));
+      if (domainTab === 'dcdc' || domainTab === 'combined') {
+        setDomainTab('acdc');
+      }
+    } else {
+      setSystemLink((s) => ({ ...s, outputMode: 'combined' }));
+    }
+  };
+
+  const handleConnectTogether = () => {
+    const bothOn = outputMode === 'combined' && systemLink.linkBusVoltage && systemLink.linkLoadPower;
+    if (bothOn) {
+      setSystemLink((s) => ({
+        ...s,
+        outputMode: 'combined',
+        linkBusVoltage: false,
+        linkLoadPower: false,
+      }));
+    } else {
+      setSystemLink({
+        outputMode: 'combined',
+        linkBusVoltage: true,
+        linkLoadPower: true,
+      });
+      setDomainTab('combined');
+    }
   };
 
   const handleJumpToAlert = (alert: DesignAlertItem) => {
@@ -868,14 +957,14 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
         ? designAlerts.warning
         : designAlerts.all;
     const scoped =
-      alertStageScope === 'active' && domainTab !== 'small-signal'
+      alertStageScope === 'active' && domainTab !== 'small-signal' && domainTab !== 'combined'
         ? base.filter((a) => a.domain === domainTab)
         : base;
 
     // Sort active stage alerts first while preserving Danger before Warning
     return [...scoped].sort((a, b) => {
       if (a.severity !== b.severity) return a.severity === 'danger' ? -1 : 1;
-      if (domainTab !== 'small-signal') {
+      if (domainTab === 'dcdc' || domainTab === 'acdc') {
         if (a.domain === domainTab && b.domain !== domainTab) return -1;
         if (b.domain === domainTab && a.domain !== domainTab) return 1;
       }
@@ -939,49 +1028,73 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
   };
 
   const handleExportActiveSpice = () => {
-    const text =
-      domainTab === 'acdc'
-        ? generateAcDcSpiceNetlist(acdcState, acdcRes)
-        : generateDcDcSpiceNetlist(dcdcState, dcdcRes);
+    const isCombined = domainTab === 'combined' || (outputMode === 'combined' && domainTab === 'small-signal');
+    const text = isCombined
+      ? generateCombinedSystemSpiceNetlist(acdcState, acdcRes, dcdcState, dcdcRes)
+      : domainTab === 'acdc'
+      ? generateAcDcSpiceNetlist(acdcState, acdcRes)
+      : generateDcDcSpiceNetlist(dcdcState, dcdcRes);
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download =
-      domainTab === 'acdc'
-        ? `voltcraft_${acdcState.topology}.cir`
-        : `voltcraft_${dcdcState.topology}.cir`;
+    a.download = isCombined
+      ? `voltcraft_combined_${acdcState.topology}_to_${dcdcState.topology}.cir`
+      : domainTab === 'acdc'
+      ? `voltcraft_${acdcState.topology}.cir`
+      : `voltcraft_${dcdcState.topology}.cir`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
   const handleExportActiveLtspiceAsc = () => {
-    const text =
-      domainTab === 'acdc'
-        ? generateAcDcLtspiceAsc(acdcState, acdcRes)
-        : generateDcDcLtspiceAsc(dcdcState, dcdcRes);
+    const isCombined = domainTab === 'combined' || (outputMode === 'combined' && domainTab === 'small-signal');
+    const text = isCombined
+      ? generateCombinedSystemLtspiceAsc(acdcState, acdcRes, dcdcState, dcdcRes)
+      : domainTab === 'acdc'
+      ? generateAcDcLtspiceAsc(acdcState, acdcRes)
+      : generateDcDcLtspiceAsc(dcdcState, dcdcRes);
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download =
-      domainTab === 'acdc'
-        ? `voltcraft_${acdcState.topology}.asc`
-        : `voltcraft_${dcdcState.topology}.asc`;
+    a.download = isCombined
+      ? `voltcraft_combined_${acdcState.topology}_to_${dcdcState.topology}.asc`
+      : domainTab === 'acdc'
+      ? `voltcraft_${acdcState.topology}.asc`
+      : `voltcraft_${dcdcState.topology}.asc`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
   const handleExportActiveQspiceZip = () => {
-    const bundle =
-      domainTab === 'acdc'
-        ? generateAcDcQspiceBundle(acdcState, acdcRes)
-        : generateDcDcQspiceBundle(dcdcState, dcdcRes);
+    const isCombined = domainTab === 'combined' || (outputMode === 'combined' && domainTab === 'small-signal');
+    const bundle = isCombined
+      ? generateCombinedSystemQspiceBundle(acdcState, acdcRes, dcdcState, dcdcRes)
+      : domainTab === 'acdc'
+      ? generateAcDcQspiceBundle(acdcState, acdcRes)
+      : generateDcDcQspiceBundle(dcdcState, dcdcRes);
     const blob = new Blob([new Uint8Array(bundle.zipBytes)], { type: 'application/zip' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `${bundle.baseName}_qspice.zip`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportActivePlecsZip = () => {
+    const isCombined = domainTab === 'combined' || (outputMode === 'combined' && domainTab === 'small-signal');
+    const bundle = isCombined
+      ? generateCombinedSystemPlecsBundle(acdcState, acdcRes, dcdcState, dcdcRes)
+      : domainTab === 'acdc'
+      ? generateAcDcPlecsBundle(acdcState, acdcRes)
+      : generateDcDcPlecsBundle(dcdcState, dcdcRes);
+    const blob = new Blob([new Uint8Array(bundle.zipBytes)], { type: 'application/zip' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${bundle.baseName}_plecs.zip`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -1087,10 +1200,10 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
     <div className="min-h-screen bg-[#f5f7fa] dark:bg-[#0b0d14] text-[#111827] dark:text-[#eef0f5] flex flex-col transition-colors duration-150">
       <div className={reportOpen ? 'no-print flex-1 flex flex-col' : 'flex-1 flex flex-col'}>
       {/* 3-ZONE TOP HEADER BAR */}
-      <header className="sticky top-0 z-30 min-h-14 py-2 px-4 lg:px-6 bg-white dark:bg-[#11141c] border-b border-slate-200/90 dark:border-white/[0.08] flex flex-wrap items-center justify-between gap-3 lg:gap-6">
+      <header className="sticky top-0 z-30 min-h-14 py-2 px-3 sm:px-4 lg:px-6 bg-white dark:bg-[#11141c] border-b border-slate-200/90 dark:border-white/[0.08] flex flex-wrap items-center justify-between gap-2 sm:gap-3 lg:gap-6">
         {/* Zone 1: Brand Title */}
-        <div className="shrink-0">
-          <div className="text-[15px] font-medium tracking-tight text-slate-900 dark:text-[#eef0f5] leading-tight whitespace-nowrap">
+        <div className="shrink-0 min-w-0">
+          <div className="text-[14px] sm:text-[15px] font-medium tracking-tight text-slate-900 dark:text-[#eef0f5] leading-tight truncate">
             Power Converter Design Studio
           </div>
           <div className="text-[11px] text-slate-500 dark:text-[#7a8296] leading-tight mt-0.5 whitespace-nowrap">
@@ -1101,36 +1214,54 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
         {/* Zone 2: Primary Domain Switcher */}
         <nav
           aria-label="Workbench domains"
-          className="flex items-center gap-1 bg-[#eceff4] dark:bg-[#07080d] p-1 rounded-lg border border-slate-200/80 dark:border-white/[0.07] overflow-x-auto"
+          className="flex items-center gap-1 bg-[#eceff4] dark:bg-[#07080d] p-1 rounded-lg border border-slate-200/80 dark:border-white/[0.07] overflow-x-auto max-w-full"
         >
-          <button
-            type="button"
-            onClick={() => setDomainTab('acdc')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
-              domainTab === 'acdc'
-                ? 'bg-white dark:bg-[#1a1e28] text-cyan-700 dark:text-cyan-300 border border-slate-200/90 dark:border-white/[0.12] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
-                : 'text-slate-600 dark:text-[#a3a9b8] hover:text-slate-900 dark:hover:text-[#eef0f5] border border-transparent'
-            }`}
-          >
-            <Zap className="w-3.5 h-3.5" />
-            AC-DC PFC
-          </button>
-          <button
-            type="button"
-            onClick={() => setDomainTab('dcdc')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
-              domainTab === 'dcdc'
-                ? 'bg-white dark:bg-[#1a1e28] text-cyan-700 dark:text-cyan-300 border border-slate-200/90 dark:border-white/[0.12] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
-                : 'text-slate-600 dark:text-[#a3a9b8] hover:text-slate-900 dark:hover:text-[#eef0f5] border border-transparent'
-            }`}
-          >
-            <Cpu className="w-3.5 h-3.5" />
-            DC-DC Converter
-          </button>
+          {(outputMode === 'acdc-only' || outputMode === 'combined') && (
+            <button
+              type="button"
+              onClick={() => setDomainTab('acdc')}
+              className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-md transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+                domainTab === 'acdc'
+                  ? 'bg-white dark:bg-[#1a1e28] text-cyan-700 dark:text-cyan-300 border border-slate-200/90 dark:border-white/[0.12] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
+                  : 'text-slate-600 dark:text-[#a3a9b8] hover:text-slate-900 dark:hover:text-[#eef0f5] border border-transparent'
+              }`}
+            >
+              <Zap className="w-3.5 h-3.5" />
+              AC-DC PFC
+            </button>
+          )}
+          {(outputMode === 'dcdc-only' || outputMode === 'combined') && (
+            <button
+              type="button"
+              onClick={() => setDomainTab('dcdc')}
+              className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-md transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+                domainTab === 'dcdc'
+                  ? 'bg-white dark:bg-[#1a1e28] text-cyan-700 dark:text-cyan-300 border border-slate-200/90 dark:border-white/[0.12] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
+                  : 'text-slate-600 dark:text-[#a3a9b8] hover:text-slate-900 dark:hover:text-[#eef0f5] border border-transparent'
+              }`}
+            >
+              <Cpu className="w-3.5 h-3.5" />
+              DC-DC Converter
+            </button>
+          )}
+          {outputMode === 'combined' && (
+            <button
+              type="button"
+              onClick={() => setDomainTab('combined')}
+              className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-md transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+                domainTab === 'combined'
+                  ? 'bg-white dark:bg-[#1a1e28] text-emerald-700 dark:text-emerald-300 border border-emerald-500/40 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
+                  : 'text-slate-600 dark:text-[#a3a9b8] hover:text-slate-900 dark:hover:text-[#eef0f5] border border-transparent'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              Combined Circuit
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setDomainTab('small-signal')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+            className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-md transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
               domainTab === 'small-signal'
                 ? 'bg-white dark:bg-[#1a1e28] text-cyan-700 dark:text-cyan-300 border border-slate-200/90 dark:border-white/[0.12] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
                 : 'text-slate-600 dark:text-[#a3a9b8] hover:text-slate-900 dark:hover:text-[#eef0f5] border border-transparent'
@@ -1142,7 +1273,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
         </nav>
 
         {/* Zone 3: Alert Center + Global Utility Actions */}
-        <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+        <div className="flex flex-wrap items-center gap-1.5 w-full lg:w-auto min-w-0">
           {/* Danger & Warning Header Counters + Direct Jump Dropdown */}
           <div ref={alertPopoverRef} className="relative flex items-center gap-1.5 mr-1">
             <button
@@ -1189,7 +1320,8 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
               <div
                 role="dialog"
                 aria-label="Design alerts list"
-                className="fixed sm:absolute left-3 right-3 sm:left-auto sm:right-0 top-16 sm:top-full sm:mt-2 sm:w-[440px] max-h-[75vh] flex flex-col bg-white dark:bg-[#11141c] border border-slate-200 dark:border-white/[0.12] rounded-xl shadow-lg z-50 overflow-hidden overscroll-contain"
+                style={alertPopoverStyle}
+                className="flex flex-col bg-white dark:bg-[#11141c] border border-slate-200 dark:border-white/[0.12] rounded-xl shadow-2xl z-50 overflow-hidden overscroll-contain"
               >
                 {/* Popover Header */}
                 <div className="px-3.5 py-2.5 border-b border-slate-200 dark:border-white/[0.08] flex items-center justify-between gap-2 bg-[#f5f7fa] dark:bg-[#0b0d14]">
@@ -1255,7 +1387,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
                     </button>
                   </div>
 
-                  {domainTab !== 'small-signal' && (
+                  {(domainTab === 'dcdc' || domainTab === 'acdc') && outputMode === 'combined' && (
                     <div className="inline-flex items-center gap-1 text-[10px] font-mono">
                       <button
                         type="button"
@@ -1562,72 +1694,123 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
         </div>
       </header>
 
-      {/* 2-STAGE SYSTEM CASCADE LINK & EFFICIENCY STRIP */}
-      <div className="no-print bg-[#eceff4]/75 dark:bg-[#07080d] border-b border-slate-200 dark:border-white/[0.07] px-4 lg:px-6 py-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 font-medium text-slate-700 dark:text-[#a3a9b8]">
-            <Link2 className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
-            2-Stage Cascade
-          </span>
-          <button
-            type="button"
-            onClick={() =>
-              setSystemLink((s) => ({ ...s, linkBusVoltage: !s.linkBusVoltage }))
-            }
-            className={`px-2 py-0.5 rounded-md border cursor-pointer transition-colors inline-flex items-center gap-1.5 ${
-              systemLink.linkBusVoltage
-                ? 'bg-white dark:bg-[#1a1e28] border-cyan-500/50 text-cyan-700 dark:text-cyan-300 font-medium'
-                : 'bg-white/70 dark:bg-[#11141c] border-slate-300 dark:border-white/[0.08] text-slate-600 dark:text-[#7a8296]'
-            }`}
-            title="Propagate AC-DC Vdc_bus & ripple directly into DC-DC Vin_nom/min/max"
-          >
-            <span className={`w-1.5 h-1.5 rounded-full ${systemLink.linkBusVoltage ? 'bg-cyan-500' : 'bg-slate-400 dark:bg-slate-600'}`} />
-            Link Bus V ({acdcState.Vdc_bus_V}V → {dcdcState.Vin_nom_V}V)
-          </button>
-          <button
-            type="button"
-            onClick={() =>
-              setSystemLink((s) => ({ ...s, linkLoadPower: !s.linkLoadPower }))
-            }
-            className={`px-2 py-0.5 rounded-md border cursor-pointer transition-colors inline-flex items-center gap-1.5 ${
-              systemLink.linkLoadPower
-                ? 'bg-white dark:bg-[#1a1e28] border-emerald-500/50 text-emerald-700 dark:text-emerald-300 font-medium'
-                : 'bg-white/70 dark:bg-[#11141c] border-slate-300 dark:border-white/[0.08] text-slate-600 dark:text-[#7a8296]'
-            }`}
-            title="Propagate DC-DC Pout / η_dcdc back into AC-DC PFC output power"
-          >
-            <span className={`w-1.5 h-1.5 rounded-full ${systemLink.linkLoadPower ? 'bg-emerald-500' : 'bg-slate-400 dark:bg-slate-600'}`} />
-            Link Load P ({systemCascade.P_pfc_required_W.toFixed(0)}W)
-          </button>
-          {!systemLink.linkBusVoltage && systemCascade.busVoltageMismatch_V > 5 && (
-            <span className="text-amber-600 dark:text-amber-400">
-              ΔBus = {systemCascade.busVoltageMismatch_V}V
-            </span>
+      {/* PROJECT OUTPUT MODE & 2-STAGE SYSTEM CASCADE LINK STRIP */}
+      <div className="no-print bg-[#eceff4]/75 dark:bg-[#07080d] border-b border-slate-200 dark:border-white/[0.07] px-3 sm:px-4 lg:px-6 py-1.5 flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
+          {/* Project Output Scope Selector */}
+          <div className="inline-flex items-center bg-white/80 dark:bg-[#11141c] p-0.5 rounded-lg border border-slate-300/80 dark:border-white/[0.08] max-w-full overflow-x-auto">
+            {(
+              [
+                { id: 'dcdc-only', label: 'DC-DC Only' },
+                { id: 'acdc-only', label: 'AC-DC Only' },
+                { id: 'combined', label: 'Combined (AC-DC + DC-DC)' },
+              ] as { id: ProjectOutputMode; label: string }[]
+            ).map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => handleChangeOutputMode(m.id)}
+                className={`px-2 py-0.5 rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  outputMode === m.id
+                    ? 'bg-cyan-600 text-white font-semibold shadow-xs'
+                    : 'text-slate-600 dark:text-[#a3a9b8] hover:text-slate-900 dark:hover:text-[#eef0f5]'
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+
+          {outputMode === 'combined' && (
+            <>
+              <button
+                type="button"
+                onClick={handleConnectTogether}
+                className={`px-2.5 py-0.5 rounded-md border cursor-pointer transition-colors inline-flex items-center gap-1.5 whitespace-nowrap ${
+                  systemLink.linkBusVoltage && systemLink.linkLoadPower
+                    ? 'bg-emerald-600 border-emerald-500 text-white font-semibold shadow-xs'
+                    : 'bg-cyan-600/10 hover:bg-cyan-600/20 border-cyan-500/50 text-cyan-700 dark:text-cyan-300 font-medium'
+                }`}
+                title="Connect AC-DC PFC output bus & DC-DC load power together and open unified circuit view"
+              >
+                <Link2 className="w-3.5 h-3.5" />
+                {systemLink.linkBusVoltage && systemLink.linkLoadPower
+                  ? 'Connected Together'
+                  : 'Connect Together'}
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setSystemLink((s) => ({ ...s, linkBusVoltage: !s.linkBusVoltage }))
+                }
+                className={`px-2 py-0.5 rounded-md border cursor-pointer transition-colors inline-flex items-center gap-1.5 whitespace-nowrap ${
+                  systemLink.linkBusVoltage
+                    ? 'bg-white dark:bg-[#1a1e28] border-cyan-500/50 text-cyan-700 dark:text-cyan-300 font-medium'
+                    : 'bg-white/70 dark:bg-[#11141c] border-slate-300 dark:border-white/[0.08] text-slate-600 dark:text-[#7a8296]'
+                }`}
+                title="Propagate AC-DC Vdc_bus & ripple directly into DC-DC Vin_nom/min/max"
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${systemLink.linkBusVoltage ? 'bg-cyan-500' : 'bg-slate-400 dark:bg-slate-600'}`} />
+                Link Bus V ({acdcState.Vdc_bus_V}V → {dcdcState.Vin_nom_V}V)
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setSystemLink((s) => ({ ...s, linkLoadPower: !s.linkLoadPower }))
+                }
+                className={`px-2 py-0.5 rounded-md border cursor-pointer transition-colors inline-flex items-center gap-1.5 whitespace-nowrap ${
+                  systemLink.linkLoadPower
+                    ? 'bg-white dark:bg-[#1a1e28] border-emerald-500/50 text-emerald-700 dark:text-emerald-300 font-medium'
+                    : 'bg-white/70 dark:bg-[#11141c] border-slate-300 dark:border-white/[0.08] text-slate-600 dark:text-[#7a8296]'
+                }`}
+                title="Propagate DC-DC Pout / η_dcdc back into AC-DC PFC output power"
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${systemLink.linkLoadPower ? 'bg-emerald-500' : 'bg-slate-400 dark:bg-slate-600'}`} />
+                Link Load P ({systemCascade.P_pfc_required_W.toFixed(0)}W)
+              </button>
+              {!systemLink.linkBusVoltage && systemCascade.busVoltageMismatch_V > 5 && (
+                <span className="text-amber-600 dark:text-amber-400">
+                  ΔBus = {systemCascade.busVoltageMismatch_V}V
+                </span>
+              )}
+            </>
           )}
         </div>
 
         <div className="flex flex-wrap items-center gap-3 tabular-nums text-slate-600 dark:text-[#a3a9b8]">
-          <span>
-            η_sys: <strong className="font-medium text-emerald-600 dark:text-emerald-400">{systemCascade.eta_system_pct}%</strong>
-          </span>
-          <span>
-            P_in(AC): <strong className="font-medium text-slate-900 dark:text-[#eef0f5]">{systemCascade.Pin_ac_system_W.toFixed(0)}W</strong>
-          </span>
-          <span>
-            P_loss(Total): <strong className="font-medium text-amber-600 dark:text-amber-400">{systemCascade.Ploss_system_W.toFixed(1)}W</strong>{' '}
-            <span className="text-slate-400 dark:text-[#7a8296]">
-              (PFC {systemCascade.acdcLossShare_pct}% / DC-DC {systemCascade.dcdcLossShare_pct}%)
+          {outputMode === 'combined' ? (
+            <>
+              <span>
+                η_sys: <strong className="font-medium text-emerald-600 dark:text-emerald-400">{systemCascade.eta_system_pct}%</strong>
+              </span>
+              <span>
+                P_in(AC): <strong className="font-medium text-slate-900 dark:text-[#eef0f5]">{systemCascade.Pin_ac_system_W.toFixed(0)}W</strong>
+              </span>
+              <span>
+                P_loss(Total): <strong className="font-medium text-amber-600 dark:text-amber-400">{systemCascade.Ploss_system_W.toFixed(1)}W</strong>{' '}
+                <span className="text-slate-400 dark:text-[#7a8296]">
+                  (PFC {systemCascade.acdcLossShare_pct}% / DC-DC {systemCascade.dcdcLossShare_pct}%)
+                </span>
+              </span>
+              <span>
+                I_AC(nom): <strong className="font-medium text-slate-900 dark:text-[#eef0f5]">{systemCascade.Iac_system_rms_nom_A}A</strong>
+              </span>
+            </>
+          ) : outputMode === 'dcdc-only' ? (
+            <span>
+              Standalone DC-DC Scope: <strong className="text-cyan-600 dark:text-cyan-400">{dcdcState.Vin_nom_V}V → {dcdcState.Vout_V}V @ {dcdcState.Pout_W}W</strong> · η={dcdcRes.efficiency_pct.toFixed(2)}%
             </span>
-          </span>
-          <span>
-            I_AC(nom): <strong className="font-medium text-slate-900 dark:text-[#eef0f5]">{systemCascade.Iac_system_rms_nom_A}A</strong>
-          </span>
+          ) : (
+            <span>
+              Standalone AC-DC PFC Scope: <strong className="text-cyan-600 dark:text-cyan-400">{acdcState.Vac_rms_V}Vac → {acdcState.Vdc_bus_V}Vdc @ {acdcState.Pout_W}W</strong> · η={acdcRes.efficiency_pct.toFixed(2)}%
+            </span>
+          )}
         </div>
       </div>
 
       {/* WORKBENCH + COLLAPSIBLE RIGHT-SIDE AI ENGINEER DRAWER */}
       <div className="flex-1 flex items-start min-w-0">
-        <main className="flex-1 min-w-0 max-w-[1640px] w-full mx-auto p-4 lg:p-5">
+        <main className="flex-1 min-w-0 max-w-[1640px] w-full mx-auto p-3 sm:p-4 lg:p-5">
           {domainTab === 'acdc' ? (
             <AcDcWorkbench
               state={acdcState}
@@ -1655,7 +1838,62 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
               onChangeSubTab={setDcdcSubTab}
               jumpTargetId={jumpState.targetItemId}
               jumpNonce={jumpState.nonce}
+              outputMode={outputMode}
             />
+          ) : domainTab === 'combined' ? (
+            <div className="space-y-4">
+              <CombinedSystemSchematicView
+                acdcRes={acdcRes}
+                dcdcRes={dcdcRes}
+                isConnected={systemLink.linkBusVoltage && systemLink.linkLoadPower}
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs font-mono">
+                <div className="bg-white dark:bg-[#11141c] border border-slate-200 dark:border-slate-800 rounded-lg p-3">
+                  <div className="text-[10px] uppercase text-slate-500">Stage 1 AC-DC PFC</div>
+                  <div className="font-bold text-slate-900 dark:text-white mt-0.5">
+                    {acdcState.Vac_rms_V}Vac → {acdcState.Vdc_bus_V}Vdc ({acdcRes.efficiency_pct.toFixed(2)}%)
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDomainTab('acdc')}
+                    className="mt-2 text-[11px] text-cyan-600 dark:text-cyan-400 hover:underline cursor-pointer"
+                  >
+                    Open AC-DC PFC Parameters →
+                  </button>
+                </div>
+                <div className="bg-white dark:bg-[#11141c] border border-slate-200 dark:border-slate-800 rounded-lg p-3">
+                  <div className="text-[10px] uppercase text-slate-500">Shared DC-Link Bus</div>
+                  <div className="font-bold text-amber-600 dark:text-amber-400 mt-0.5">
+                    {acdcState.Vdc_bus_V}V · ΔV={acdcRes.Vdc_ripple_pp_V.toFixed(1)}Vpp · t_hold={acdcRes.tHold_actual_ms.toFixed(1)}ms
+                  </div>
+                  <div className="mt-1 text-[10px] text-slate-500">
+                    {systemLink.linkBusVoltage ? 'Bus Voltage Synchronized' : 'Click Connect Together to sync'}
+                  </div>
+                </div>
+                <div className="bg-white dark:bg-[#11141c] border border-slate-200 dark:border-slate-800 rounded-lg p-3">
+                  <div className="text-[10px] uppercase text-slate-500">Stage 2 Isolated DC-DC</div>
+                  <div className="font-bold text-slate-900 dark:text-white mt-0.5">
+                    {dcdcState.Vin_nom_V}Vdc → {dcdcState.Vout_V}V @ {dcdcState.Pout_W}W ({dcdcRes.efficiency_pct.toFixed(2)}%)
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDomainTab('dcdc')}
+                    className="mt-2 text-[11px] text-cyan-600 dark:text-cyan-400 hover:underline cursor-pointer"
+                  >
+                    Open DC-DC Parameters →
+                  </button>
+                </div>
+                <div className="bg-white dark:bg-[#11141c] border border-slate-200 dark:border-slate-800 rounded-lg p-3">
+                  <div className="text-[10px] uppercase text-slate-500">Cascade End-to-End</div>
+                  <div className="font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                    η_sys = {systemCascade.eta_system_pct}% · Loss = {systemCascade.Ploss_system_W.toFixed(1)}W
+                  </div>
+                  <div className="mt-1 text-[10px] text-slate-500">
+                    P_in(AC)={systemCascade.Pin_ac_system_W.toFixed(0)}W · I_ac={systemCascade.Iac_system_rms_nom_A}A
+                  </div>
+                </div>
+              </div>
+            </div>
           ) : (
             <SmallSignalDashboard
               dcdcState={dcdcState}
@@ -1738,7 +1976,17 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
       <DesignReportModal
         isOpen={reportOpen}
         onClose={() => setReportOpen(false)}
-        initialScope={domainTab === 'acdc' ? 'acdc' : domainTab === 'dcdc' ? 'dcdc' : 'both'}
+        initialScope={
+          outputMode === 'acdc-only'
+            ? 'acdc'
+            : outputMode === 'dcdc-only'
+            ? 'dcdc'
+            : domainTab === 'acdc'
+            ? 'acdc'
+            : domainTab === 'dcdc'
+            ? 'dcdc'
+            : 'both'
+        }
         dcdcState={dcdcState}
         dcdcRes={dcdcRes}
         acdcState={acdcState}
@@ -1800,13 +2048,13 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
               </button>
             </div>
 
-            <div className="p-4 space-y-4 max-h-[78vh] overflow-y-auto overscroll-contain">
+            <div className="p-3 sm:p-4 space-y-4 max-h-[82vh] overflow-y-auto overscroll-contain">
               {/* Save Current Workspace */}
               <div className="space-y-2">
                 <div className="text-xs font-medium text-slate-700 dark:text-[#eef0f5]">
                   Save current 2-stage workspace
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
                   <input
                     type="text"
                     value={projectNameInput}
@@ -1866,6 +2114,15 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
                 >
                   <Download className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
                   QSPICE .zip
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportActivePlecsZip}
+                  className="px-2.5 py-2 text-xs font-mono rounded-lg border border-slate-200 dark:border-white/[0.1] bg-[#f5f7fa] dark:bg-[#1a1e28] hover:border-sky-500/60 text-sky-700 dark:text-sky-300 inline-flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                  title="Download Plexim PLECS Standalone ZIP (.plecs, init_params.m, hybrid_cap_verification.m, thermal_descriptions.xml)"
+                >
+                  <Download className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+                  PLECS .zip
                 </button>
                 <button
                   type="button"

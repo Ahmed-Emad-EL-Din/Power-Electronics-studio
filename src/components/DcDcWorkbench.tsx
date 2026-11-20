@@ -15,6 +15,7 @@ import {
 } from '../data/databases';
 import { AcDcResults, solveAcDcDesign } from '../engine/acdcEngine';
 import { DcDcResults } from '../engine/dcdcEngine';
+import type { ProjectOutputMode } from '../engine/systemCascadeEngine';
 import { TransientAndMonteCarloLab } from './TransientAndMonteCarloLab';
 import { DcDcSchematicView } from './CircuitSchematics';
 import { InteractiveChart } from './InteractiveChart';
@@ -30,6 +31,7 @@ import { ProtectionCurrentSensePanel } from './ProtectionCurrentSensePanel';
 import { CapacitorBankAnalyzer } from './CapacitorBankAnalyzer';
 import { AllInductorsDesigner } from './AllInductorsDesigner';
 import { AllCapacitorsDesigner } from './AllCapacitorsDesigner';
+import { getDefaultHybridCapBank } from '../engine/passiveDesignEngine';
 import { MathFormula } from './MathFormula';
 import { ResizableSidebarWindow } from './ResizableSidebarWindow';
 import { SaturationCheckAlert } from './SaturationCheckAlert';
@@ -67,6 +69,7 @@ interface DcDcWorkbenchProps {
   onChangeSubTab?: (tab: DcDcSubTab) => void;
   jumpTargetId?: string | null;
   jumpNonce?: number;
+  outputMode?: ProjectOutputMode;
 }
 
 export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
@@ -82,6 +85,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
   onChangeSubTab,
   jumpTargetId,
   jumpNonce,
+  outputMode = 'combined',
 }) => {
   const [localSubTab, setLocalSubTab] = useState<DcDcSubTab>('schematic');
   const subTab = activeSubTab ?? localSubTab;
@@ -888,6 +892,20 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                     : 'border-slate-300 dark:border-slate-700'
                 }`}
               />
+              {(() => {
+                const bank = getDefaultHybridCapBank('dcdc-cout', state);
+                const lbl = bank.branches.map((b) => `${b.qty}×${b.technology}`).join('+');
+                return (
+                  <button
+                    type="button"
+                    onClick={() => setSubTab('capacitors')}
+                    title="Open Hybrid Capacitor Bank Composer"
+                    className="mt-1 w-full text-left px-1.5 py-0.5 text-[9.5px] font-mono rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 hover:bg-emerald-500/20 truncate cursor-pointer"
+                  >
+                    Mix: {lbl}
+                  </button>
+                );
+              })()}
             </div>
             <div>
               <div className="flex items-center justify-between gap-1">
@@ -1654,6 +1672,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
             pinnedDcdcRes={pinnedRes}
             acdcState={acdcState ?? ACDC_PRESETS[0].state}
             acdcRes={acdcRes ?? solveAcDcDesign(ACDC_PRESETS[0].state)}
+            outputMode={outputMode}
           />
         )}
 
