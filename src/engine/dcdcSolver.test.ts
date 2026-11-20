@@ -1773,6 +1773,39 @@ test('User-configurable simulation stop time propagates across SPICE, LTspice, Q
   }
 });
 
+test('QSPICE PSFB closes voltage regulation loop (V_REF=2.5V, B_COMP/C_COMP, B_G3/B_G4), includes secondary RC snubber, and fixes SR gate threshold', () => {
+  const dcState = DCDC_PRESETS[0].state;
+  const dcRes = solveDcDcDesign(dcState);
+  const bundle = generateDcDcQspiceBundle(dcState, dcRes);
+
+  // 1. Feedback divider & closed-loop integrator
+  assert.ok(bundle.qschContent.includes('"182.00k"'), 'Expected 182.00k R_FB_TOP for 48V -> 2.5V divider');
+  assert.ok(bundle.qschContent.includes('"10.00k"'), 'Expected 10.00k R_FB_BOT / R_COMP');
+  assert.ok(bundle.qschContent.includes('"2.5"'), 'Expected 2.5V V_REF matching divider');
+  assert.ok(bundle.qschContent.includes('C_COMP') && bundle.qschContent.includes('B_DCMD'));
+  assert.ok(bundle.qschContent.includes('B_G3') && bundle.qschContent.includes('B_G4'));
+  assert.ok(bundle.qschContent.includes('.ic V(v_out)={VOUT_REF*0.98} V(comp_node)={D_INIT*4.0}'));
+
+  // 2. Secondary RC snubber in QSPICE & SPICE .cir
+  assert.ok(bundle.qschContent.includes('R_SNUB') && bundle.qschContent.includes('C_SNUB'));
+  assert.ok(bundle.qschContent.includes('"snub_mid"»'));
+  assert.ok(bundle.cirContent.includes('R_SNUB') && bundle.cirContent.includes('C_SNUB'));
+
+  // 3. Smooth 15mV self-driven SR threshold (no 120mV gate starvation)
+  assert.ok(bundle.libContent.includes('tanh((V(a)-V(k)-0.015)*180)'));
+  assert.ok(!bundle.libContent.includes('V(a)-V(k)-0.12'));
+
+  // 4. Combined QSPICE preserves TSW_DC in B_G3/B_G4 and D_INIT .ic
+  const acState = ACDC_PRESETS[0].state;
+  const acRes = solveAcDcDesign(acState);
+  const comb = generateCombinedSystemQspiceBundle(acState, acRes, dcState, dcRes, true);
+  assert.ok(comb.qschContent.includes('TDEAD/TSW_DC'), 'Expected Combined Stage 2 B_G3/B_G4 to reference TSW_DC');
+  assert.ok(comb.qschContent.includes('D_INIT='), 'Expected Combined .param D_INIT');
+  assert.deepEqual(findQspiceComponentOverlaps(comb.qschContent), []);
+  assert.deepEqual(findQspiceWirePinCollisions(comb.qschContent), []);
+  assert.deepEqual(findQspiceUnnamedWireNets(comb.qschContent), []);
+});
+
 
 
 

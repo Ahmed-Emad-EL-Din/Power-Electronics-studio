@@ -246,7 +246,9 @@ export function generateDcDcLtspiceAsc(
   const tDead_ns = Math.max(20, state.deadTime_ns);
   const tOnHalf_ns = Math.max(80, Math.round(Thalf * 1e9 - tDead_ns));
   const half_ns = Math.round(Thalf * 1e9);
-  const deff = res.isLLC ? 1.0 : Math.max(0.15, Math.min(0.95, res.Deff_nom));
+  const deff = res.isLLC
+    ? 1.0
+    : Math.max(0.15, Math.min(0.95, res.D_applied_nom + (tDead_ns * 1e-9) / Thalf));
   const phaseShift_ns = Math.round(deff * Thalf * 1e9);
 
   const priModel = generateManufacturerMosfetSubckt(res.priDevice, state.nParallelPri);
@@ -1118,7 +1120,12 @@ export function generateCombinedSystemLtspiceAsc(
   const ThalfDc = TswDc / 2;
   const half_ns = Math.round(ThalfDc * 1e9);
   const tOnHalf_ns = Math.max(80, Math.round(half_ns - Math.max(20, dcdcState.deadTime_ns)));
-  const deff = dcdcRes.isLLC ? 1.0 : Math.max(0.15, Math.min(0.95, dcdcRes.Deff_nom));
+  const deff = dcdcRes.isLLC
+    ? 1.0
+    : Math.max(
+        0.15,
+        Math.min(0.95, dcdcRes.D_applied_nom + (Math.max(20, dcdcState.deadTime_ns) * 1e-9) / ThalfDc)
+      );
   const phaseShift_ns = Math.round(deff * half_ns);
   const tShiftA = dcdcRes.isLLC ? half_ns : phaseShift_ns;
   const tShiftB = dcdcRes.isLLC ? 0 : Math.round(phaseShift_ns + half_ns);
