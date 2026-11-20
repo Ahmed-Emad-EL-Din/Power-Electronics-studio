@@ -33,6 +33,26 @@ function encodeUtf8(str: string): Uint8Array {
   return new TextEncoder().encode(str);
 }
 
+/** Encodes a single-byte Latin-1 (ISO-8859-1) string directly to raw bytes. */
+export function encodeLatin1(str: string): Uint8Array {
+  const bytes = new Uint8Array(str.length);
+  for (let i = 0; i < str.length; i++) {
+    const code = str.charCodeAt(i);
+    bytes[i] = code <= 0xff ? code : 0x3f;
+  }
+  return bytes;
+}
+
+/** Prepends a raw binary header (e.g. QSPICE \xff\xd8\xff\xdb) to a Latin-1 payload. */
+export function buildQspiceBinaryFile(latin1Body: string): Uint8Array {
+  const prefix = new Uint8Array([0xff, 0xd8, 0xff, 0xdb]);
+  const body = encodeLatin1(latin1Body);
+  const out = new Uint8Array(prefix.length + body.length);
+  out.set(prefix, 0);
+  out.set(body, prefix.length);
+  return out;
+}
+
 function writeU16LE(buf: Uint8Array, offset: number, val: number) {
   buf[offset] = val & 0xff;
   buf[offset + 1] = (val >>> 8) & 0xff;

@@ -13,6 +13,7 @@ import {
   generateDcDcQspiceBundle,
   generateDcDcSpiceNetlist,
 } from '../engine/spiceNetlistExporter';
+import { buildQspiceBinaryFile } from '../engine/zipBuilder';
 import { OscilloscopeViewer } from './OscilloscopeViewer';
 import { InteractiveChart } from './InteractiveChart';
 import {
@@ -135,7 +136,12 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
         : exportTab === 'acdc-cir'
         ? `voltcraft_${acdcState.topology}.cir`
         : 'powerstage_control_cfg.h';
-    const blob = new Blob([codePreview], { type: 'text/plain;charset=utf-8' });
+    const blob =
+      exportTab === 'dcdc-qsch'
+        ? new Blob([new Uint8Array(buildQspiceBinaryFile(dcdcQspiceBundle.qschContent))], {
+            type: 'application/octet-stream',
+          })
+        : new Blob([codePreview], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
