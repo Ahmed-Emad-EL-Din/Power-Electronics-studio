@@ -2,8 +2,13 @@ import React, { useRef, useState } from 'react';
 import { DcDcResults } from '../engine/dcdcEngine';
 import { AcDcResults } from '../engine/acdcEngine';
 import { AcDcTopologyType } from '../data/databases';
-import { generateAcDcLtspiceAsc, generateDcDcLtspiceAsc } from '../engine/spiceNetlistExporter';
-import { Download, Image as ImageIcon, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
+import {
+  generateAcDcLtspiceAsc,
+  generateAcDcQspiceBundle,
+  generateDcDcLtspiceAsc,
+  generateDcDcQspiceBundle,
+} from '../engine/spiceNetlistExporter';
+import { Download, Image as ImageIcon, ZoomIn, ZoomOut, Maximize2, Archive } from 'lucide-react';
 
 // ============================================================================
 // STANDARD IEEE / IEC ELECTRICAL CAD SVG PRIMITIVES
@@ -404,6 +409,23 @@ export const DcDcSchematicView: React.FC<{ res: DcDcResults }> = ({ res }) => {
             title="Download grid-aligned LTspice .asc schematic diagram"
           >
             <Download className="w-3 h-3" /> LTspice .asc
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const bundle = generateDcDcQspiceBundle(state, res);
+              const blob = new Blob([new Uint8Array(bundle.zipBytes)], { type: 'application/zip' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `${bundle.baseName}_qspice.zip`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="px-2 py-1 text-[11px] font-mono bg-violet-600 text-white rounded hover:bg-violet-500 inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
+            title="Download QSPICE ZIP bundle (.qsch, .qsym, .qraw, .cir, .cpp)"
+          >
+            <Archive className="w-3 h-3" /> QSPICE .zip
           </button>
         </div>
       </div>
@@ -1437,6 +1459,23 @@ export const AcDcSchematicView: React.FC<{
             title="Download grid-aligned LTspice .asc schematic diagram"
           >
             <Download className="w-3 h-3" /> LTspice .asc
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const bundle = generateAcDcQspiceBundle(state, res);
+              const blob = new Blob([new Uint8Array(bundle.zipBytes)], { type: 'application/zip' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `${bundle.baseName}_qspice.zip`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="px-2 py-1 text-[11px] font-mono bg-violet-600 text-white rounded hover:bg-violet-500 inline-flex items-center gap-1 cursor-pointer"
+            title="Download QSPICE ZIP bundle (.qsch, .qsym, .qraw, .cir, .cpp)"
+          >
+            <Archive className="w-3 h-3" /> QSPICE .zip
           </button>
           <button
             type="button"
