@@ -13,6 +13,8 @@ import {
   CircuitCapacitorRequirement,
   CircuitInductorRequirement,
   CustomInductorSolution,
+  getDefaultHybridCapBank,
+  solveHybridCapBank,
 } from '../engine/passiveDesignEngine';
 
 export type ReportStageScope = 'both' | 'dcdc' | 'acdc';
@@ -185,6 +187,20 @@ export function buildDesignReportModel(params: {
             status: acdcRes.powerFactor_true >= 0.98 ? 'pass' : 'warn',
             label: acdcRes.powerFactor_true >= 0.98 ? 'Meets >0.98 PF Target' : 'PF Below 0.98',
           },
+        },
+      ],
+      figures: [
+        ...(scope === 'both'
+          ? [
+              {
+                figId: 'combined-schematic',
+                caption: `Figure ${cA1}.0: Complete 2-stage connected system schematic (${acdcState.topology} PFC -> Shared Hybrid C_DC Bus -> ${dcdcState.topology.toUpperCase()} DC-DC Converter).`,
+              },
+            ]
+          : []),
+        {
+          figId: 'acdc-schematic',
+          caption: `Figure ${cA1}.1: Complete AC-DC PFC power stage schematic (${acdcState.topology}) including EMI filter, boost magnetics, hybrid DC-link capacitor bank, and SOGI-PLL control.`,
         },
       ],
     });
@@ -391,6 +407,41 @@ export function buildDesignReportModel(params: {
         title: `Table ${cA4}.2 — AC-DC Stage Capacitor Bank & Arrhenius Life Schedule`,
         rows: acdcCapRows,
       },
+      paramTables: (() => {
+        const cdcBank = getDefaultHybridCapBank('acdc-cdc', undefined, acdcState);
+        const cdcSol = solveHybridCapBank(cdcBank, {
+          fsw_kHz: acdcRes.f_emi_fundamental_kHz,
+          f_lf_Hz: acdcState.f_line_Hz * 2,
+          I_hf_rms_A: acdcRes.ICdc_hf_rms_A,
+          I_lf_rms_A: acdcRes.ICdc_lf_rms_A,
+          V_op_pk_V: acdcState.Vdc_bus_V * 1.04,
+          Tamb_C: acdcState.capAmbient_C ?? 45,
+        });
+        return [
+          {
+            title: `Table ${cA4}.3 — Hybrid DC-Link Multi-Branch Ripple Sharing & Anti-Resonance (${cdcSol.summaryLabel})`,
+            headers: ['Branch (Tech)', 'Qty × Nom', 'C_eff(Vdc)', 'ESR(fsw) / ESL', 'I_HF / I_LF Share', 'Hotspot / L10'],
+            rows: [
+              ...cdcSol.branches.map((b) => [
+                `${b.branch.label} (${b.branch.technology})`,
+                `${b.branch.qty} × ${b.branch.capEach_uF} µF`,
+                `${b.branchCapEff_uF.toFixed(1)} µF`,
+                `${b.branchEsr_mOhm.toFixed(2)} mΩ / ${b.branchEsl_nH.toFixed(1)} nH`,
+                `${b.I_hf_branch_A.toFixed(2)} A / ${b.I_lf_branch_A.toFixed(2)} A`,
+                `${b.T_hotspot_C.toFixed(1)}°C / ${(b.L10_life_hrs / 1000).toFixed(0)}k h`,
+              ]),
+              [
+                'Bank Total / Anti-Res',
+                `${cdcSol.totalUnits} units`,
+                `${cdcSol.totalCapEff_uF.toFixed(1)} µF`,
+                `ESR=${cdcSol.esrEffAtFsw_mOhm.toFixed(2)} mΩ`,
+                `Z_peak=${cdcSol.Z_antiresonance_mOhm !== null ? (cdcSol.Z_antiresonance_mOhm / 1000).toFixed(3) : '—'} Ω @ ${cdcSol.f_antiresonance_kHz !== null ? cdcSol.f_antiresonance_kHz.toFixed(0) : '—'} kHz`,
+                cdcSol.antiResonanceRisk === 'high' ? 'WARN (Damp)' : cdcSol.antiResonanceRisk === 'moderate' ? 'Moderate' : 'Damped OK',
+              ],
+            ],
+          },
+        ];
+      })(),
     });
 
     // CHAPTER A5
@@ -616,8 +667,12 @@ export function buildDesignReportModel(params: {
       ],
       figures: [
         {
+          figId: 'dcdc-schematic',
+          caption: `Figure ${cD1}.1: Complete isolated DC-DC converter CAD schematic (${dcdcState.topology.toUpperCase()} / ${dcdcState.txType} / ${dcdcState.rectMode}) showing hybrid parallel Cin and Cout capacitor banks.`,
+        },
+        {
           figId: 'dcdc-waveforms',
-          caption: `Figure ${cD1}.1: Steady-state primary voltage V_pri(t), tank current I_pri(t), and output inductor current I_Lo(t) at ${Vin_nom} V / ${Pout} W.`,
+          caption: `Figure ${cD1}.2: Steady-state primary voltage V_pri(t), tank current I_pri(t), and output inductor current I_Lo(t) at ${Vin_nom} V / ${Pout} W.`,
         },
       ],
     });
@@ -917,6 +972,58 @@ export function buildDesignReportModel(params: {
         title: `Table ${cD5}.2 — DC-DC Stage Complete Capacitor Bank & Safety Schedule`,
         rows: dcdcCapRows,
       },
+      paramTables: (() => {
+        const cinBank = getDefaultHybridCapBank('dcdc-cin', dcdcState);
+        const cinSol = solveHybridCapBank(cinBank, {
+          fsw_kHz: dcdcState.fsw_kHz * 2,
+          f_lf_Hz: 120,
+          I_hf_rms_A: (dcdcState.Pout_W / Math.max(10, dcdcState.Vin_nom_V)) * 0.55,
+          I_lf_rms_A: 0,
+          V_op_pk_V: dcdcState.Vin_max_V,
+          Tamb_C: dcdcState.Tamb_C,
+        });
+        const coutBank = getDefaultHybridCapBank('dcdc-cout', dcdcState);
+        const coutSol = solveHybridCapBank(coutBank, {
+          fsw_kHz: dcdcRes.fRipple_out_kHz,
+          f_lf_Hz: 120,
+          I_hf_rms_A: dcdcRes.ICo_rms_A,
+          I_lf_rms_A: 0,
+          V_op_pk_V: dcdcState.Vout_V * 1.05,
+          Tamb_C: dcdcState.Tamb_C,
+        });
+        return [
+          {
+            title: `Table ${cD5}.3 — Hybrid Multi-Branch Input & Output Capacitor Ripple Sharing`,
+            headers: ['Bank / Branch', 'Qty × Nom', 'C_eff(Vdc)', 'ESR(fsw) / ESL', 'I_HF Share', 'Hotspot / Anti-Res'],
+            rows: [
+              ...cinSol.branches.map((b) => [
+                `Cin · ${b.branch.label}`,
+                `${b.branch.qty} × ${b.branch.capEach_uF} µF`,
+                `${b.branchCapEff_uF.toFixed(1)} µF`,
+                `${b.branchEsr_mOhm.toFixed(2)} mΩ / ${b.branchEsl_nH.toFixed(1)} nH`,
+                `${b.I_hf_branch_A.toFixed(2)} A`,
+                `${b.T_hotspot_C.toFixed(1)}°C`,
+              ]),
+              ...coutSol.branches.map((b) => [
+                `Cout · ${b.branch.label}`,
+                `${b.branch.qty} × ${b.branch.capEach_uF} µF`,
+                `${b.branchCapEff_uF.toFixed(1)} µF`,
+                `${b.branchEsr_mOhm.toFixed(2)} mΩ / ${b.branchEsl_nH.toFixed(1)} nH`,
+                `${b.I_hf_branch_A.toFixed(2)} A`,
+                `${b.T_hotspot_C.toFixed(1)}°C`,
+              ]),
+              [
+                'Cout Bank Summary',
+                `${coutSol.totalUnits} units (${coutSol.summaryLabel})`,
+                `${coutSol.totalCapEff_uF.toFixed(1)} µF`,
+                `ESR=${coutSol.esrEffAtFsw_mOhm.toFixed(2)} mΩ`,
+                `${dcdcRes.ICo_rms_A.toFixed(2)} A tot`,
+                `Zpk=${coutSol.Z_antiresonance_mOhm !== null ? (coutSol.Z_antiresonance_mOhm / 1000).toFixed(3) : '—'}Ω @ ${coutSol.f_antiresonance_kHz !== null ? coutSol.f_antiresonance_kHz.toFixed(0) : '—'}kHz`,
+              ],
+            ],
+          },
+        ];
+      })(),
     });
 
     // CHAPTER D6

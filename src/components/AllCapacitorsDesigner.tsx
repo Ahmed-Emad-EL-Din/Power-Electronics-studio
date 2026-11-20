@@ -1,5 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AcDcDesignState, DcDcDesignState } from '../data/databases';
+import {
+  AcDcDesignState,
+  CapBranchSpec,
+  CapTechnology,
+  DcDcDesignState,
+  HybridCapBankConfig,
+} from '../data/databases';
 import { AcDcResults } from '../engine/acdcEngine';
 import { DcDcResults } from '../engine/dcdcEngine';
 import { READY_COTS_CAPACITORS } from '../data/passiveDatabase';
@@ -8,11 +14,16 @@ import {
   CapacitorBankSolution,
   CustomCapBankLocks,
   CustomCapBankOverrides,
+  HybridCapPresetId,
+  HybridCapRole,
   PerCapConfig,
+  buildHybridCapPreset,
   extractCircuitCapacitors,
   generateCapacitorFixOptions,
+  getDefaultHybridCapBank,
   rankReadyCotsCapacitors,
   solveCapacitorBank,
+  solveHybridCapBank,
 } from '../engine/passiveDesignEngine';
 import { InteractiveChart } from './InteractiveChart';
 import { LockToggleButton } from './AutoSolverControls';
@@ -28,6 +39,9 @@ import {
   Check,
   Search,
   Wrench,
+  Layers,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 
 interface AllCapacitorsDesignerProps {
@@ -239,8 +253,538 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
     }
   };
 
+  // ==========================================================================
+  // HYBRID MULTI-BRANCH CAPACITOR BANK COMPOSER (Cin, Cout, Cdc)
+  // ==========================================================================
+  const [hybridRole, setHybridRole] = useState<HybridCapRole>(() =>
+    mode === 'acdc' ? 'acdc-cdc' : 'dcdc-cout'
+  );
+
+  useEffect(() => {
+    if (mode === 'acdc') {
+      setHybridRole('acdc-cdc');
+    } else if (hybridRole === 'acdc-cdc') {
+      setHybridRole('dcdc-cout');
+    }
+  }, [mode, hybridRole]);
+
+  const activeHybridConfig: HybridCapBankConfig = useMemo(
+    () => getDefaultHybridCapBank(hybridRole, dcdcState, acdcState),
+    [hybridRole, dcdcState, acdcState]
+  );
+
+  const hybridConditions = useMemo(() => {
+    if (hybridRole === 'acdc-cdc' && acdcState && acdcRes) {
+      return {
+        fsw_kHz: acdcRes.f_emi_fundamental_kHz,
+        f_lf_Hz: acdcState.f_line_Hz * 2,
+        I_hf_rms_A: acdcRes.ICdc_hf_rms_A,
+        I_lf_rms_A: acdcRes.ICdc_lf_rms_A,
+        V_op_pk_V: acdcState.Vdc_bus_V * 1.04,
+        Tamb_C: acdcState.capAmbient_C ?? 45,
+      };
+    }
+    if (hybridRole === 'dcdc-cin' && dcdcState && dcdcRes) {
+      const iInRip = (dcdcState.Pout_W / Math.max(100, dcdcState.Vin_min_V)) * 0.55;
+      return {
+        fsw_kHz: dcdcState.fsw_kHz * 2,
+        f_lf_Hz: 0,
+        I_hf_rms_A: iInRip,
+        I_lf_rms_A: 0,
+        V_op_pk_V: dcdcState.Vin_max_V,
+        Tamb_C: dcdcState.Tamb_C,
+      };
+    }
+    return {
+      fsw_kHz: dcdcRes?.fRipple_out_kHz ?? (dcdcState?.fsw_kHz ?? 100) * 2,
+      f_lf_Hz: 0,
+      I_hf_rms_A: dcdcRes?.ICo_rms_A ?? 12,
+      I_lf_rms_A: 0,
+      V_op_pk_V: (dcdcState?.Vout_V ?? 48) * 1.05,
+      Tamb_C: dcdcState?.Tamb_C ?? 45,
+    };
+  }, [hybridRole, dcdcState, dcdcRes, acdcState, acdcRes]);
+
+  const hybridSol = useMemo(
+    () => solveHybridCapBank(activeHybridConfig, hybridConditions),
+    [activeHybridConfig, hybridConditions]
+  );
+
+  const commitHybridConfig = (nextCfg: HybridCapBankConfig, noticeText?: string) => {
+    const solved = solveHybridCapBank(nextCfg, hybridConditions);
+    const cEff = Number(Math.max(1, solved.totalCapEff_uF).toFixed(1));
+    const esrEff = Number(Math.max(0.5, solved.esrEffAtFsw_mOhm).toFixed(2));
+    if (hybridRole === 'dcdc-cin') {
+      applyDcdcPatch({ cinBank: nextCfg }, 'cinBank');
+    } else if (hybridRole === 'dcdc-cout') {
+      applyDcdcPatch(
+        { coutBank: nextCfg, Co_uF: cEff, ESR_Co_mOhm: esrEff },
+        'coutBank'
+      );
+    } else {
+      applyAcdcPatch(
+        { cdcBank: nextCfg, Cdc_uF: cEff, ESR_Cdc_mOhm: esrEff },
+        'cdcBank'
+      );
+    }
+    if (noticeText) {
+      setSyncedNotice(noticeText);
+      setTimeout(() => setSyncedNotice(null), 2600);
+    }
+  };
+
+  const applyHybridPreset = (presetId: HybridCapPresetId) => {
+    const cfg = buildHybridCapPreset(hybridRole, presetId, hybridConditions.V_op_pk_V);
+    const solved = solveHybridCapBank(cfg, hybridConditions);
+    commitHybridConfig(cfg, `Loaded hybrid bank: ${solved.summaryLabel}`);
+  };
+
+  const updateBranchField = <K extends keyof CapBranchSpec>(
+    branchIdx: number,
+    key: K,
+    value: CapBranchSpec[K]
+  ) => {
+    const nextBranches = activeHybridConfig.branches.map((b, i) =>
+      i === branchIdx ? { ...b, [key]: value } : b
+    );
+    commitHybridConfig({ branches: nextBranches });
+  };
+
+  const assignCotsPartToBranch = (branchIdx: number, partId: string) => {
+    const part = READY_COTS_CAPACITORS.find((p) => p.id === partId);
+    if (!part) return;
+    const tech: CapTechnology =
+      part.dielectric === 'mlcc-x7r' || part.dielectric === 'mlcc-c0g'
+        ? 'mlcc'
+        : part.dielectric === 'polymer-hybrid'
+        ? 'polymer'
+        : part.dielectric === 'mkp-dc-link' || part.dielectric === 'mkp-resonant' || part.dielectric === 'x2-film'
+        ? 'film'
+        : 'electrolytic';
+    const nextBranches = activeHybridConfig.branches.map((b, i) =>
+      i === branchIdx
+        ? {
+            ...b,
+            label: part.mpn,
+            technology: tech,
+            capEach_uF: part.C_uF,
+            esrEach_mOhm: part.ESR_mOhm,
+            eslEach_nH: part.ESL_nH,
+            vRated_V: part.V_dc_rated_V ?? part.V_rated_V,
+            iRmsEach_A: part.I_rms_A,
+            rthCa_CW: part.Rth_ca_CW,
+            tMax_C: part.Tmax_C,
+            l0_hrs: part.L0_hrs,
+            mpn: part.mpn,
+          }
+        : b
+    );
+    commitHybridConfig({ branches: nextBranches }, `Assigned ${part.mpn} to branch ${branchIdx + 1}`);
+  };
+
+  const addHybridBranch = () => {
+    if (activeHybridConfig.branches.length >= 4) return;
+    const vOp = hybridConditions.V_op_pk_V;
+    const isHV = vOp > 160;
+    const newBranch: CapBranchSpec = isHV
+      ? {
+          id: `branch-${Date.now()}`,
+          label: 'HF MLCC Decoupling',
+          technology: 'mlcc',
+          qty: 2,
+          capEach_uF: 0.47,
+          esrEach_mOhm: 2.5,
+          eslEach_nH: 1.0,
+          vRated_V: Math.max(630, Math.ceil(vOp * 1.4)),
+          iRmsEach_A: 5.0,
+        }
+      : {
+          id: `branch-${Date.now()}`,
+          label: 'X7S MLCC 2220',
+          technology: 'mlcc',
+          qty: 2,
+          capEach_uF: 10,
+          esrEach_mOhm: 2.2,
+          eslEach_nH: 0.9,
+          vRated_V: Math.max(100, Math.ceil(vOp * 1.5)),
+          iRmsEach_A: 6.0,
+          mpn: 'C5750X7S2A106M230KB',
+        };
+    commitHybridConfig({ branches: [...activeHybridConfig.branches, newBranch] });
+  };
+
+  const removeHybridBranch = (branchIdx: number) => {
+    if (activeHybridConfig.branches.length <= 1) return;
+    commitHybridConfig({
+      branches: activeHybridConfig.branches.filter((_, i) => i !== branchIdx),
+    });
+  };
+
+  const hybridImpedanceChartData = useMemo(() => {
+    return hybridSol.impedanceCurve.map((pt) => {
+      const row: Record<string, number> = {
+        freq_kHz: pt.freq_kHz,
+        Z_total_mOhm: pt.Z_total_mOhm,
+      };
+      pt.branchZ_mOhm.forEach((bz, idx) => {
+        row[`b${idx}`] = bz;
+      });
+      return row;
+    });
+  }, [hybridSol]);
+
   return (
     <div className="space-y-4">
+      {/* 0. HYBRID MULTI-BRANCH CAPACITOR BANK COMPOSER (Cin / Cout / Cdc) */}
+      <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Layers className="w-4 h-4 text-cyan-500 shrink-0" />
+            <div>
+              <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
+                Hardware Hybrid Capacitor Bank Composer (Parallel Multi-Technology Matrix)
+              </div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                Combine Bulk Electrolytic / Polymer / MKP Film + HF MLCC branches — synced directly to Schematic, LTspice (.asc), QSPICE (.qsch), SPICE (.cir) &amp; PLECS (.plecs)
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            {mode === 'dcdc' ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setHybridRole('dcdc-cin')}
+                  className={`px-2.5 py-1 rounded text-xs font-mono border cursor-pointer ${
+                    hybridRole === 'dcdc-cin'
+                      ? 'bg-cyan-600 border-cyan-600 text-white font-semibold'
+                      : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  C_in (Primary DC Bus)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHybridRole('dcdc-cout')}
+                  className={`px-2.5 py-1 rounded text-xs font-mono border cursor-pointer ${
+                    hybridRole === 'dcdc-cout'
+                      ? 'bg-cyan-600 border-cyan-600 text-white font-semibold'
+                      : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                  }`}
+                >
+                  C_out (Secondary Output)
+                </button>
+              </>
+            ) : (
+              <span className="px-2.5 py-1 rounded text-xs font-mono bg-cyan-600 text-white font-semibold">
+                C_DC (HV DC-Link Bank)
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="p-4 space-y-4">
+          {/* Quick Presets + Add Branch */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-mono uppercase text-slate-500 mr-1">Quick Combinations:</span>
+              {(
+                [
+                  { id: '3elec-2mlcc', label: '3× Electrolytic + 2× MLCC' },
+                  { id: '4poly-4mlcc', label: '4× Polymer + 4× MLCC' },
+                  { id: '2film-4mlcc', label: '2× MKP Film + 4× MLCC' },
+                  { id: '4elec-2film', label: '4× Electrolytic + 2× Film' },
+                ] as { id: HybridCapPresetId; label: string }[]
+              ).map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => applyHybridPreset(p.id)}
+                  className="px-2.5 py-1 rounded text-[11px] font-mono bg-slate-100 hover:bg-cyan-50 dark:bg-slate-900 dark:hover:bg-cyan-950/40 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 hover:border-cyan-500 cursor-pointer"
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            {activeHybridConfig.branches.length < 4 && (
+              <button
+                type="button"
+                onClick={addHybridBranch}
+                className="px-2.5 py-1 rounded text-xs font-mono bg-emerald-600 hover:bg-emerald-500 text-white inline-flex items-center gap-1 cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" /> Add Parallel Branch
+              </button>
+            )}
+          </div>
+
+          {/* KPI Summary Strip */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2.5 text-xs font-mono">
+            <div className="p-2.5 rounded border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50">
+              <div className="text-[10px] text-slate-500 uppercase">Active Topology</div>
+              <div className="font-semibold text-cyan-600 dark:text-cyan-400 truncate" title={hybridSol.summaryLabel}>
+                {hybridSol.summaryLabel}
+              </div>
+              <div className="text-[10px] text-slate-500">{hybridSol.totalUnits} total units</div>
+            </div>
+            <div className="p-2.5 rounded border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50">
+              <div className="text-[10px] text-slate-500 uppercase">Effective C (Bias-Adj)</div>
+              <div className="font-semibold text-slate-900 dark:text-white tabular-nums">
+                {formatCapValue(hybridSol.totalCapEff_uF)}
+              </div>
+              <div className="text-[10px] text-slate-500">Nom: {formatCapValue(hybridSol.totalCapNominal_uF)}</div>
+            </div>
+            <div className="p-2.5 rounded border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50">
+              <div className="text-[10px] text-slate-500 uppercase">ESR / |Z| @ {hybridConditions.fsw_kHz.toFixed(0)} kHz</div>
+              <div className="font-semibold text-slate-900 dark:text-white tabular-nums">
+                {hybridSol.esrEffAtFsw_mOhm.toFixed(2)} mΩ / {hybridSol.Z_at_fsw_mOhm.toFixed(2)} mΩ
+              </div>
+              <div className="text-[10px] text-slate-500">ESL_eff: {hybridSol.eslEff_nH.toFixed(2)} nH</div>
+            </div>
+            <div className="p-2.5 rounded border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50">
+              <div className="text-[10px] text-slate-500 uppercase">Anti-Resonance Peak</div>
+              <div className={`font-semibold tabular-nums ${
+                hybridSol.antiResonanceRisk === 'high'
+                  ? 'text-rose-600 dark:text-rose-400'
+                  : hybridSol.antiResonanceRisk === 'moderate'
+                  ? 'text-amber-600 dark:text-amber-400'
+                  : 'text-emerald-600 dark:text-emerald-400'
+              }`}>
+                {hybridSol.f_antiresonance_kHz
+                  ? `${hybridSol.f_antiresonance_kHz.toFixed(0)} kHz (${hybridSol.Z_antiresonance_mOhm?.toFixed(1)} mΩ)`
+                  : 'Damped (No Peak)'}
+              </div>
+              <div className="text-[10px] text-slate-500">Risk: {hybridSol.antiResonanceRisk.toUpperCase()}</div>
+            </div>
+            <div className="p-2.5 rounded border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50">
+              <div className="text-[10px] text-slate-500 uppercase">Peak Stress / Loss</div>
+              <div className="font-semibold text-slate-900 dark:text-white tabular-nums">
+                {hybridSol.worstVoltageDerating_pct.toFixed(0)}% V · {hybridSol.worstRippleUtilization_pct.toFixed(0)}% I_rms
+              </div>
+              <div className="text-[10px] text-slate-500">Loss: {hybridSol.P_loss_total_W.toFixed(2)} W</div>
+            </div>
+            <div className="p-2.5 rounded border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50">
+              <div className="text-[10px] text-slate-500 uppercase">Min L10 / Hotspot</div>
+              <div className={`font-semibold tabular-nums ${
+                hybridSol.status === 'critical'
+                  ? 'text-rose-600 dark:text-rose-400'
+                  : hybridSol.status === 'warning'
+                  ? 'text-amber-600 dark:text-amber-400'
+                  : 'text-emerald-600 dark:text-emerald-400'
+              }`}>
+                {(hybridSol.minL10Life_hrs / 1000).toFixed(0)}k hrs · {hybridSol.worstHotspot_C.toFixed(1)}°C
+              </div>
+              <div className="text-[10px] text-slate-500 uppercase">Verdict: {hybridSol.status}</div>
+            </div>
+          </div>
+
+          {/* Branch-by-Branch Editable Table with Exact Ripple Current Sharing */}
+          <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-lg">
+            <table className="w-full text-left border-collapse text-xs font-mono">
+              <thead>
+                <tr className="border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase text-slate-500 bg-slate-50/60 dark:bg-slate-900/40">
+                  <th className="py-2 px-2.5">Branch / Technology</th>
+                  <th className="py-2 px-2.5">COTS Part Preset</th>
+                  <th className="py-2 px-2.5">Qty</th>
+                  <th className="py-2 px-2.5">C_each (µF)</th>
+                  <th className="py-2 px-2.5">ESR (mΩ)</th>
+                  <th className="py-2 px-2.5">ESL (nH)</th>
+                  <th className="py-2 px-2.5">V_rated (V)</th>
+                  <th className="py-2 px-2.5">I_rms/ea (A)</th>
+                  <th className="py-2 px-2.5">Shared Ripple</th>
+                  <th className="py-2 px-2.5">T_hot / L10</th>
+                  <th className="py-2 px-2.5 text-right">Del</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                {hybridSol.branches.map((br, idx) => (
+                  <tr key={br.branch.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30">
+                    <td className="py-2 px-2.5 space-y-1">
+                      <select
+                        value={br.branch.technology}
+                        onChange={(e) => updateBranchField(idx, 'technology', e.target.value as CapTechnology)}
+                        className="w-28 px-1.5 py-1 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-[11px]"
+                      >
+                        <option value="electrolytic">Electrolytic</option>
+                        <option value="polymer">Polymer Solid</option>
+                        <option value="mlcc">MLCC Ceramic</option>
+                        <option value="film">MKP Film</option>
+                      </select>
+                      <input
+                        type="text"
+                        value={br.branch.label}
+                        onChange={(e) => updateBranchField(idx, 'label', e.target.value)}
+                        className="w-28 block px-1.5 py-0.5 rounded bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[10px] text-slate-600 dark:text-slate-300"
+                      />
+                    </td>
+                    <td className="py-2 px-2.5">
+                      <select
+                        value={READY_COTS_CAPACITORS.find((p) => p.mpn === br.branch.mpn)?.id || ''}
+                        onChange={(e) => assignCotsPartToBranch(idx, e.target.value)}
+                        className="w-36 px-1.5 py-1 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-[10px]"
+                      >
+                        <option value="">Custom / Manual</option>
+                        {READY_COTS_CAPACITORS.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.mpn} ({p.C_uF}µF/{p.V_dc_rated_V ?? p.V_rated_V}V)
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="py-2 px-2.5">
+                      <input
+                        type="number"
+                        min={1}
+                        max={24}
+                        value={br.branch.qty}
+                        onChange={(e) => updateBranchField(idx, 'qty', Math.max(1, Number(e.target.value) || 1))}
+                        className="w-12 px-1.5 py-1 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 tabular-nums font-bold"
+                      />
+                    </td>
+                    <td className="py-2 px-2.5">
+                      <input
+                        type="number"
+                        step="any"
+                        min={0.01}
+                        value={br.branch.capEach_uF}
+                        onChange={(e) => updateBranchField(idx, 'capEach_uF', Math.max(0.001, Number(e.target.value) || 0.1))}
+                        className="w-16 px-1.5 py-1 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 tabular-nums"
+                      />
+                      {br.mlccBiasDerate_pct > 1 && (
+                        <div className="text-[9px] text-amber-600 dark:text-amber-400">
+                          -{br.mlccBiasDerate_pct}% bias
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-2 px-2.5">
+                      <input
+                        type="number"
+                        step="0.1"
+                        min={0.1}
+                        value={br.branch.esrEach_mOhm}
+                        onChange={(e) => updateBranchField(idx, 'esrEach_mOhm', Math.max(0.1, Number(e.target.value) || 1))}
+                        className="w-14 px-1.5 py-1 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 tabular-nums"
+                      />
+                    </td>
+                    <td className="py-2 px-2.5">
+                      <input
+                        type="number"
+                        step="0.1"
+                        min={0.2}
+                        value={br.branch.eslEach_nH}
+                        onChange={(e) => updateBranchField(idx, 'eslEach_nH', Math.max(0.2, Number(e.target.value) || 1))}
+                        className="w-14 px-1.5 py-1 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 tabular-nums"
+                      />
+                    </td>
+                    <td className="py-2 px-2.5">
+                      <input
+                        type="number"
+                        min={10}
+                        value={br.branch.vRated_V}
+                        onChange={(e) => updateBranchField(idx, 'vRated_V', Math.max(10, Number(e.target.value) || 50))}
+                        className="w-14 px-1.5 py-1 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 tabular-nums"
+                      />
+                      <div className={`text-[9px] ${br.voltageDerating_pct > 85 ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-slate-500'}`}>
+                        {br.voltageDerating_pct.toFixed(0)}% V
+                      </div>
+                    </td>
+                    <td className="py-2 px-2.5">
+                      <input
+                        type="number"
+                        step="0.1"
+                        min={0.1}
+                        value={br.branch.iRmsEach_A}
+                        onChange={(e) => updateBranchField(idx, 'iRmsEach_A', Math.max(0.1, Number(e.target.value) || 1))}
+                        className="w-14 px-1.5 py-1 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 tabular-nums"
+                      />
+                    </td>
+                    <td className="py-2 px-2.5 tabular-nums">
+                      <div className="font-semibold text-cyan-600 dark:text-cyan-400">
+                        {br.I_total_branch_A.toFixed(2)} A ({br.rippleShare_pct.toFixed(0)}%)
+                      </div>
+                      <div className={`text-[10px] ${
+                        br.rippleUtilization_pct > 100
+                          ? 'text-rose-600 dark:text-rose-400 font-bold'
+                          : br.rippleUtilization_pct > 85
+                          ? 'text-amber-600 dark:text-amber-400'
+                          : 'text-slate-500'
+                      }`}>
+                        {br.I_per_cap_A.toFixed(2)} A/ea ({br.rippleUtilization_pct.toFixed(0)}%)
+                      </div>
+                    </td>
+                    <td className="py-2 px-2.5 tabular-nums">
+                      <div>{br.T_hotspot_C.toFixed(1)}°C</div>
+                      <div className="text-[10px] text-emerald-600 dark:text-emerald-400">
+                        {(br.L10_life_hrs / 1000).toFixed(0)}k hrs
+                      </div>
+                    </td>
+                    <td className="py-2 px-2.5 text-right">
+                      <button
+                        type="button"
+                        disabled={activeHybridConfig.branches.length <= 1}
+                        onClick={() => removeHybridBranch(idx)}
+                        className="p-1 rounded text-slate-400 hover:text-rose-500 disabled:opacity-30 cursor-pointer"
+                        title="Remove branch"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Hybrid Multi-Branch |Z(f)| Frequency Response & Anti-Resonance Chart */}
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
+            <div className="xl:col-span-4 space-y-2 text-xs font-mono">
+              <div className={`p-3 rounded-lg border ${
+                hybridSol.status === 'critical'
+                  ? 'border-rose-500/40 bg-rose-500/5 text-rose-700 dark:text-rose-300'
+                  : hybridSol.status === 'warning'
+                  ? 'border-amber-500/40 bg-amber-500/5 text-amber-700 dark:text-amber-300'
+                  : 'border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300'
+              }`}>
+                <div className="font-bold uppercase text-[10px] mb-1">Hybrid Bank Engineering Audit</div>
+                <div className="font-sans text-[11px] leading-relaxed">{hybridSol.statusReason}</div>
+              </div>
+              <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 space-y-1 text-[11px]">
+                <div className="font-bold text-slate-700 dark:text-slate-200">Why Combine Electrolytic + MLCC?</div>
+                <p className="font-sans text-slate-600 dark:text-slate-400 leading-relaxed">
+                  Bulk Electrolytic/Polymer carries LF energy &amp; dampens LC resonances with its moderate ESR, while parallel MLCCs provide ~1 nH ESL shunting for fast switching edges. Always check the parallel anti-resonance peak between bulk ESL and MLCC C.
+                </p>
+              </div>
+            </div>
+
+            <div className="xl:col-span-8 bg-slate-50/40 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-800 rounded-lg p-3">
+              <InteractiveChart
+                title={`Hybrid Parallel Bank Impedance |Z(f)| & Anti-Resonance (${hybridRole === 'dcdc-cin' ? 'C_in' : hybridRole === 'dcdc-cout' ? 'C_out' : 'C_DC'})`}
+                subtitle={`Combined Bank |Z| vs Individual Branches · Switching Ripple Marker @ ${hybridConditions.fsw_kHz.toFixed(0)} kHz`}
+                data={hybridImpedanceChartData}
+                xKey="freq_kHz"
+                xLabel="Frequency"
+                xUnit="kHz"
+                logX
+                currentX={hybridConditions.fsw_kHz}
+                currentXLabel={`f_rip=${hybridConditions.fsw_kHz.toFixed(0)}kHz`}
+                series={[
+                  { key: 'Z_total_mOhm', name: 'Combined Bank |Z|', unit: 'mΩ', color: '#06b6d4', axis: 'left' },
+                  ...hybridSol.branches.map((br, i) => ({
+                    key: `b${i}`,
+                    name: `${br.branch.qty}× ${br.branch.label}`,
+                    unit: 'mΩ',
+                    color: ['#f59e0b', '#10b981', '#a855f7', '#ec4899'][i % 4],
+                    axis: 'left' as const,
+                    dashed: true,
+                  })),
+                ]}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* 1. ALL CIRCUIT CAPACITORS MATRIX */}
       <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
         <div className="px-4 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 flex flex-wrap items-center justify-between gap-2">

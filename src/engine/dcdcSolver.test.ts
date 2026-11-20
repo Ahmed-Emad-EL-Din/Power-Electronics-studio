@@ -16,12 +16,16 @@ import { solveDcDcDesign, syncDcdcTurnsRatioState } from './dcdcEngine';
 import { DCDC_DEFAULT_LOCKS, DcDcLockableKey, optimizeDcDcUnlocked } from './autoOptimizer';
 import { evaluateDesignAlerts } from './designAlerts';
 import {
+  buildHybridCapPreset,
+  expandHybridCapBankForSpice,
   extractCircuitCapacitors,
   extractCircuitInductors,
+  getDefaultHybridCapBank,
   rankInductorCoreMaterials,
   rankTransformerCoresForDcDc,
   solveCapacitorBank,
   solveCustomInductorDesign,
+  solveHybridCapBank,
 } from './passiveDesignEngine';
 import { createAiToolSession } from './aiToolRegistry';
 import katex from 'katex';
@@ -40,11 +44,18 @@ import {
 import { runTransientLoadStep } from './transientOdeSolver';
 import { runMonteCarloAnalysis } from './monteCarloEngine';
 import {
+  findPlecsBlockOverlaps,
   generateAcDcLtspiceAsc,
+  generateAcDcPlecsBundle,
   generateAcDcQspiceBundle,
   generateAcDcSpiceNetlist,
+  generateCombinedSystemLtspiceAsc,
+  generateCombinedSystemPlecsBundle,
+  generateCombinedSystemQspiceBundle,
+  generateCombinedSystemSpiceNetlist,
   generateControlFirmwareHeader,
   generateDcDcLtspiceAsc,
+  generateDcDcPlecsBundle,
   generateDcDcQspiceBundle,
   generateDcDcSpiceNetlist,
 } from './spiceNetlistExporter';
@@ -1260,6 +1271,242 @@ test('Manufacturer SPICE .SUBCKT library covers all 22 catalog devices and binds
   assert.ok(acAsc.includes(`.SUBCKT ${acSw.subcktName} d g s`));
   assert.ok(acAsc.includes('.SUBCKT GBJ2510_DIODE a k'));
 });
+
+test('Hybrid multi-branch capacitor bank solver computes admittance sharing, MLCC bias derating & anti-resonance', () => {
+  const dcState = DCDC_PRESETS[0].state;
+  const dcRes = solveDcDcDesign(dcState);
+
+  const hybridBank = buildHybridCapPreset('dcdc-cout', '3elec-2mlcc', dcState.Vout_V);
+  assert.ok(hybridBank.branches.length >= 2, 'Expected at least 2 capacitor technology branches');
+
+  const sol = solveHybridCapBank(hybridBank, {
+    fsw_kHz: dcRes.fRipple_out_kHz,
+    f_lf_Hz: 120,
+    I_hf_rms_A: dcRes.ICo_rms_A,
+    I_lf_rms_A: 0,
+    V_op_pk_V: dcState.Vout_V * 1.05,
+    Tamb_C: dcState.Tamb_C,
+  });
+
+  assert.ok(sol.totalCapEff_uF > 0, 'Total effective capacitance must be positive');
+  assert.ok(sol.esrEffAtFsw_mOhm > 0 && sol.esrEffAtFsw_mOhm < 100, 'Effective ESR at fsw should be realistic');
+  assert.ok(sol.impedanceCurve.length > 20, 'Impedance sweep |Z(f)| must be populated');
+
+  const elecBranch = sol.branches.find((b) => b.branch.technology === 'electrolytic');
+  const mlccBranch = sol.branches.find((b) => b.branch.technology === 'mlcc');
+  assert.ok(elecBranch && mlccBranch, 'Expected electrolytic + mlcc branches');
+  // MLCC should show DC-bias derating when operated at Vout > 0 and carry major HF ripple share
+  assert.ok(mlccBranch.effCapEach_uF <= mlccBranch.branch.capEach_uF, 'MLCC C_eff should be <= nominal');
+  assert.ok(mlccBranch.I_hf_branch_A > 0, 'MLCC branch must share HF switching current');
+
+  const expanded = expandHybridCapBankForSpice(hybridBank, 'C_OUT', dcState.Vout_V * 1.05, 4);
+  assert.ok(expanded.some((u) => u.refDes.startsWith('C_OUT_E1_')), 'Expected expanded E1 electrolytic unit refdes');
+  assert.ok(expanded.some((u) => u.refDes.startsWith('C_OUT_M2_')), 'Expected expanded M2 MLCC unit refdes');
+});
+
+test('Hybrid parallel capacitor branches are emitted in LTspice .asc, QSPICE .qsch/.zip, SPICE .cir, and PLECS .plecs/.zip', () => {
+  const dcState: DcDcDesignState = {
+    ...DCDC_PRESETS[0].state,
+    coutBank: buildHybridCapPreset('dcdc-cout', '3elec-2mlcc', DCDC_PRESETS[0].state.Vout_V),
+    cinBank: buildHybridCapPreset('dcdc-cin', '2film-4mlcc', DCDC_PRESETS[0].state.Vin_max_V),
+  };
+  const dcRes = solveDcDcDesign(dcState);
+
+  const acState = {
+    ...ACDC_PRESETS[0].state,
+    cdcBank: buildHybridCapPreset('acdc-cdc', '4elec-2film', ACDC_PRESETS[0].state.Vdc_bus_V),
+  };
+  const acRes = solveAcDcDesign(acState);
+
+  // 1. LTspice .asc
+  const dcAsc = generateDcDcLtspiceAsc(dcState, dcRes);
+  assert.ok(dcAsc.includes('SYMATTR InstName C_OUT_E1_1'), 'Expected hybrid Cout E1 in DC-DC .asc');
+  assert.ok(dcAsc.includes('SYMATTR InstName C_OUT_M2_1'), 'Expected hybrid Cout M2 in DC-DC .asc');
+  assert.ok(dcAsc.includes('Rser=') && dcAsc.includes('Lser='), 'Expected Rser/Lser parasitics in .asc');
+
+  const acAsc = generateAcDcLtspiceAsc(acState, acRes);
+  assert.ok(acAsc.includes('SYMATTR InstName C_DC_E1_1'), 'Expected hybrid Cdc E1 in AC-DC .asc');
+  assert.ok(acAsc.includes('SYMATTR InstName C_DC_F2_1'), 'Expected hybrid Cdc F2 in AC-DC .asc');
+
+  // 2. SPICE .cir
+  const dcCir = generateDcDcSpiceNetlist(dcState, dcRes);
+  assert.ok(dcCir.includes('C_OUT_E1_1') && dcCir.includes('C_OUT_M2_1'), 'Expected hybrid Cout branches in .cir');
+  const acCir = generateAcDcSpiceNetlist(acState, acRes);
+  assert.ok(acCir.includes('C_DC_E1_1') && acCir.includes('C_DC_F2_1'), 'Expected hybrid Cdc branches in .cir');
+
+  // 3. QSPICE .qsch / .zip
+  const dcQspice = generateDcDcQspiceBundle(dcState, dcRes);
+  assert.ok(dcQspice.qschContent.includes('C_OUT_E1_1'), 'Expected hybrid Cout E1 in QSPICE .qsch');
+  assert.ok(dcQspice.qschContent.includes('C_OUT_M2_1'), 'Expected hybrid Cout M2 in QSPICE .qsch');
+  assert.equal(dcQspice.zipBytes[0], 0x50);
+  assert.equal(dcQspice.zipBytes[1], 0x4b);
+
+  const acQspice = generateAcDcQspiceBundle(acState, acRes);
+  assert.ok(acQspice.qschContent.includes('C_DC_E1_1'), 'Expected hybrid Cdc E1 in AC-DC QSPICE .qsch');
+  assert.equal(acQspice.zipBytes[0], 0x50);
+  assert.equal(acQspice.zipBytes[1], 0x4b);
+
+  // 4. Plexim PLECS Standalone .plecs / .zip
+  const dcPlecs = generateDcDcPlecsBundle(dcState, dcRes);
+  assert.ok(dcPlecs.plecsText.startsWith('Plecs {'), 'Expected valid PLECS header');
+  assert.ok(dcPlecs.plecsText.includes('Version       "4.8"'), 'Expected PLECS 4.8 version');
+  assert.ok(dcPlecs.plecsText.includes('Solver        "RADAU"'), 'Expected RADAU solver');
+  assert.ok(dcPlecs.plecsText.includes('C_OUT_E1_1') && dcPlecs.plecsText.includes('R_C_OUT_E1_1'), 'Expected explicit R+L+C hybrid branch in DC-DC PLECS');
+  assert.ok(dcPlecs.capVerifyScriptText.includes('Hybrid Multi-Branch Capacitor Bank Impedance & Ripple Sharing Verification'), 'Expected MATLAB/Octave cap verification script');
+  assert.ok(dcPlecs.thermalXmlText.includes('ThermalModel'), 'Expected PLECS thermal XML');
+  assert.equal(dcPlecs.zipBytes[0], 0x50);
+  assert.equal(dcPlecs.zipBytes[1], 0x4b);
+
+  const acPlecs = generateAcDcPlecsBundle(acState, acRes);
+  assert.ok(acPlecs.plecsText.startsWith('Plecs {'), 'Expected valid AC-DC PLECS header');
+  assert.ok(acPlecs.plecsText.includes('C_DC_E1_1') && acPlecs.plecsText.includes('R_C_DC_E1_1'), 'Expected explicit R+L+C hybrid Cdc branch in AC-DC PLECS');
+  assert.equal(acPlecs.zipBytes[0], 0x50);
+  assert.equal(acPlecs.zipBytes[1], 0x4b);
+});
+
+test('Engineering report model includes acdc-schematic, dcdc-schematic figures and hybrid capacitor schedule tables', () => {
+  const dcState = DCDC_PRESETS[0].state;
+  const dcRes = solveDcDcDesign(dcState);
+  const acState = ACDC_PRESETS[0].state;
+  const acRes = solveAcDcDesign(acState);
+
+  const model = buildDesignReportModel({
+    scope: 'both',
+    dcdcState: dcState,
+    dcdcRes: dcRes,
+    acdcState: acState,
+    acdcRes: acRes,
+    dcdcInductorRows: [],
+    dcdcCapRows: [],
+    acdcInductorRows: [],
+    acdcCapRows: [],
+    scopedAlerts: evaluateDesignAlerts({
+      dcdcState: dcState,
+      dcdcRes: dcRes,
+      acdcState: acState,
+      acdcRes: acRes,
+    }),
+  });
+
+  const figIds = model.chapters.flatMap((c) => (c.figures ?? []).map((f) => f.figId));
+  assert.ok(figIds.includes('combined-schematic'), 'Report should include combined-schematic figure in both scope');
+  assert.ok(figIds.includes('acdc-schematic'), 'Report should include acdc-schematic figure');
+  assert.ok(figIds.includes('dcdc-schematic'), 'Report should include dcdc-schematic figure');
+
+  const paramTableTitles = model.chapters.flatMap((c) => (c.paramTables ?? []).map((t) => t.title));
+  assert.ok(
+    paramTableTitles.some((t) => t.includes('Hybrid DC-Link Multi-Branch')),
+    'Report should include Hybrid DC-Link Multi-Branch table'
+  );
+  assert.ok(
+    paramTableTitles.some((t) => t.includes('Hybrid Multi-Branch Input & Output')),
+    'Report should include Hybrid Multi-Branch Input & Output table'
+  );
+});
+
+test('PLECS schematic layout has zero overlapping blocks across DC-DC, AC-DC, and Combined models', () => {
+  const acState2Ph = ACDC_PRESETS[0].state;
+  const acRes2Ph = solveAcDcDesign(acState2Ph);
+  const acState1Ph = { ...acState2Ph, topology: '1ph-totem-pfc' as const };
+  const acRes1Ph = solveAcDcDesign(acState1Ph);
+
+  const dcPsfb = DCDC_PRESETS[0].state;
+  const dcPsfbRes = solveDcDcDesign(dcPsfb);
+  const dcLlcHb: DcDcDesignState = { ...dcPsfb, topology: 'llc-hb', txType: 'center-tapped' };
+  const dcLlcHbRes = solveDcDcDesign(dcLlcHb);
+
+  for (const [label, plecsText] of [
+    ['DC-DC PSFB', generateDcDcPlecsBundle(dcPsfb, dcPsfbRes).plecsText],
+    ['DC-DC LLC-HB', generateDcDcPlecsBundle(dcLlcHb, dcLlcHbRes).plecsText],
+    ['AC-DC 2-Ph', generateAcDcPlecsBundle(acState2Ph, acRes2Ph).plecsText],
+    ['AC-DC 1-Ph', generateAcDcPlecsBundle(acState1Ph, acRes1Ph).plecsText],
+    ['Combined 2-Stage', generateCombinedSystemPlecsBundle(acState2Ph, acRes2Ph, dcPsfb, dcPsfbRes).plecsText],
+  ] as const) {
+    const overlaps = findPlecsBlockOverlaps(plecsText, 55, 55);
+    assert.deepEqual(
+      overlaps,
+      [],
+      `${label} PLECS schematic should have zero block overlaps, found: ${JSON.stringify(overlaps)}`
+    );
+  }
+});
+
+test('Combined AC-DC -> DC-DC system exports (PLECS, LTspice, QSPICE, SPICE) and ProjectOutputMode scoping', () => {
+  const acState = ACDC_PRESETS[0].state;
+  const acRes = solveAcDcDesign(acState);
+  const dcState = DCDC_PRESETS[0].state;
+  const dcRes = solveDcDcDesign(dcState);
+
+  // Combined SPICE .cir
+  const combCir = generateCombinedSystemSpiceNetlist(acState, acRes, dcState, dcRes);
+  assert.ok(combCir.includes('COMBINED 2-STAGE SPICE Netlist'));
+  assert.ok(combCir.includes('XQ1 v_dc g_q1 sw_a'), 'Expected Stage 2 primary bridge powered directly from v_dc');
+  assert.ok(!combCir.includes('V_IN vin_pos'), 'Combined netlist should omit standalone V_IN source');
+
+  // Combined LTspice .asc
+  const combAsc = generateCombinedSystemLtspiceAsc(acState, acRes, dcState, dcRes);
+  assert.ok(combAsc.includes('COMBINED 2-STAGE'));
+  assert.ok(combAsc.includes('FSW_PFC=') && combAsc.includes('FSW_DC='));
+  assert.ok(combAsc.includes('v_dc') && !combAsc.includes('SYMATTR InstName V_IN'));
+
+  // Combined QSPICE .zip
+  const combQspice = generateCombinedSystemQspiceBundle(acState, acRes, dcState, dcRes);
+  assert.ok(combQspice.qschContent.includes('COMBINED 2-STAGE QSPICE'));
+  assert.equal(combQspice.zipBytes[0], 0x50);
+  assert.equal(combQspice.zipBytes[1], 0x4b);
+
+  // Combined PLECS .zip
+  const combPlecs = generateCombinedSystemPlecsBundle(acState, acRes, dcState, dcRes);
+  assert.ok(combPlecs.plecsText.includes('VM_VDC_BUS') && combPlecs.plecsText.includes('SCOPE_VOUT'));
+  assert.equal(combPlecs.zipBytes[0], 0x50);
+  assert.equal(combPlecs.zipBytes[1], 0x4b);
+
+  // ProjectOutputMode alert filtering & projectStorage round-trip
+  const highStressDc: DcDcDesignState = { ...dcState, Np_turns: 4 }; // force DC-DC saturation danger
+  const highStressDcRes = solveDcDcDesign(highStressDc);
+  const acdcOnlyAlerts = evaluateDesignAlerts({
+    dcdcState: highStressDc,
+    dcdcRes: highStressDcRes,
+    acdcState: acState,
+    acdcRes: acRes,
+    outputMode: 'acdc-only',
+  });
+  assert.ok(
+    acdcOnlyAlerts.all.every((a) => a.domain === 'acdc'),
+    'acdc-only mode must exclude DC-DC alerts'
+  );
+  const dcdcOnlyAlerts = evaluateDesignAlerts({
+    dcdcState: highStressDc,
+    dcdcRes: highStressDcRes,
+    acdcState: acState,
+    acdcRes: acRes,
+    outputMode: 'dcdc-only',
+  });
+  assert.ok(
+    dcdcOnlyAlerts.all.length > 0 && dcdcOnlyAlerts.all.every((a) => a.domain === 'dcdc'),
+    'dcdc-only mode must exclude AC-DC alerts'
+  );
+
+  const projFile = buildProjectFile('Combined Scope Test', {
+    dcdcState: dcState,
+    acdcState: acState,
+    inductorConfigs: {},
+    capacitorConfigs: {},
+    systemLink: { outputMode: 'dcdc-only', linkBusVoltage: false, linkLoadPower: false },
+  });
+  const parsed = parseImportedProjectJson(JSON.stringify(projFile), {
+    dcdcState: dcState,
+    acdcState: acState,
+    inductorConfigs: {},
+    capacitorConfigs: {},
+    systemLink: { outputMode: 'combined', linkBusVoltage: false, linkLoadPower: false },
+  });
+  assert.equal(parsed.ok, true);
+  if (parsed.ok) {
+    assert.equal(parsed.project.systemLink.outputMode, 'dcdc-only');
+  }
+});
+
 
 
 

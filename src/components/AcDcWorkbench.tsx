@@ -16,6 +16,7 @@ import { useDesignSolver } from './DesignSolverContext';
 import { AcDcLockableKey } from '../engine/autoOptimizer';
 import { AllInductorsDesigner } from './AllInductorsDesigner';
 import { AllCapacitorsDesigner } from './AllCapacitorsDesigner';
+import { getDefaultHybridCapBank } from '../engine/passiveDesignEngine';
 import {
   Activity,
   Cpu,
@@ -576,6 +577,20 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                 onChange={(e) => update('Cdc_uF', Number(e.target.value))}
                 className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
               />
+              {(() => {
+                const bank = getDefaultHybridCapBank('acdc-cdc', undefined, state);
+                const lbl = bank.branches.map((b) => `${b.qty}×${b.technology}`).join('+');
+                return (
+                  <button
+                    type="button"
+                    onClick={() => setActiveSubTab('dc-link')}
+                    title="Open Hybrid DC-Link Capacitor Bank Composer"
+                    className="mt-1 w-full text-left px-1.5 py-0.5 text-[9.5px] font-mono rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 hover:bg-emerald-500/20 truncate cursor-pointer"
+                  >
+                    Mix: {lbl}
+                  </button>
+                );
+              })()}
             </div>
             <div>
               <div className="flex justify-between items-center gap-1 text-[10px] text-slate-500 mb-0.5">

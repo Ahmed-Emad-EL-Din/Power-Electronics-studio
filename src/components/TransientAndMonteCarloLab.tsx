@@ -6,13 +6,23 @@ import { runTransientLoadStep } from '../engine/transientOdeSolver';
 import { runMonteCarloAnalysis } from '../engine/monteCarloEngine';
 import {
   generateAcDcLtspiceAsc,
+  generateAcDcPlecsBundle,
+  generateAcDcPlecsModel,
   generateAcDcQspiceBundle,
   generateAcDcSpiceNetlist,
+  generateCombinedSystemLtspiceAsc,
+  generateCombinedSystemPlecsBundle,
+  generateCombinedSystemPlecsModel,
+  generateCombinedSystemQspiceBundle,
+  generateCombinedSystemSpiceNetlist,
   generateControlFirmwareHeader,
   generateDcDcLtspiceAsc,
+  generateDcDcPlecsBundle,
+  generateDcDcPlecsModel,
   generateDcDcQspiceBundle,
   generateDcDcSpiceNetlist,
 } from '../engine/spiceNetlistExporter';
+import type { ProjectOutputMode } from '../engine/systemCascadeEngine';
 import { buildQspiceBinaryFile } from '../engine/zipBuilder';
 import { OscilloscopeViewer } from './OscilloscopeViewer';
 import { InteractiveChart } from './InteractiveChart';
@@ -36,6 +46,7 @@ interface TransientAndMonteCarloLabProps {
   pinnedDcdcRes?: DcDcResults | null;
   acdcState: AcDcDesignState;
   acdcRes: AcDcResults;
+  outputMode?: ProjectOutputMode;
 }
 
 export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps> = ({
@@ -44,6 +55,7 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
   pinnedDcdcRes,
   acdcState,
   acdcRes,
+  outputMode = 'combined',
 }) => {
   // Transient Simulator Controls
   const [scenario, setScenario] = useState<'load-step' | 'soft-start'>('load-step');
@@ -63,7 +75,18 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
 
   // Netlist / Schematic / Firmware Viewer Tab
   const [exportTab, setExportTab] = useState<
-    'dcdc-asc' | 'acdc-asc' | 'dcdc-qsch' | 'dcdc-cpp' | 'dcdc-cir' | 'acdc-cir' | 'firmware-h'
+    | 'dcdc-asc'
+    | 'acdc-asc'
+    | 'combined-asc'
+    | 'dcdc-qsch'
+    | 'dcdc-cpp'
+    | 'dcdc-plecs'
+    | 'acdc-plecs'
+    | 'combined-plecs'
+    | 'dcdc-cir'
+    | 'acdc-cir'
+    | 'combined-cir'
+    | 'firmware-h'
   >('dcdc-asc');
   const [copiedFlag, setCopiedFlag] = useState<boolean>(false);
 
@@ -114,10 +137,15 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
   const codePreview = useMemo(() => {
     if (exportTab === 'dcdc-asc') return generateDcDcLtspiceAsc(dcdcState, dcdcRes);
     if (exportTab === 'acdc-asc') return generateAcDcLtspiceAsc(acdcState, acdcRes);
+    if (exportTab === 'combined-asc') return generateCombinedSystemLtspiceAsc(acdcState, acdcRes, dcdcState, dcdcRes);
     if (exportTab === 'dcdc-qsch') return dcdcQspiceBundle.qschContent;
     if (exportTab === 'dcdc-cpp') return dcdcQspiceBundle.cppContent;
+    if (exportTab === 'dcdc-plecs') return generateDcDcPlecsModel(dcdcState, dcdcRes);
+    if (exportTab === 'acdc-plecs') return generateAcDcPlecsModel(acdcState, acdcRes);
+    if (exportTab === 'combined-plecs') return generateCombinedSystemPlecsModel(acdcState, acdcRes, dcdcState, dcdcRes);
     if (exportTab === 'dcdc-cir') return generateDcDcSpiceNetlist(dcdcState, dcdcRes);
     if (exportTab === 'acdc-cir') return generateAcDcSpiceNetlist(acdcState, acdcRes);
+    if (exportTab === 'combined-cir') return generateCombinedSystemSpiceNetlist(acdcState, acdcRes, dcdcState, dcdcRes);
     return generateControlFirmwareHeader(dcdcState, dcdcRes, acdcState, acdcRes);
   }, [exportTab, dcdcState, dcdcRes, acdcState, acdcRes, dcdcQspiceBundle]);
 
@@ -127,14 +155,24 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
         ? `voltcraft_${dcdcState.topology}.asc`
         : exportTab === 'acdc-asc'
         ? `voltcraft_${acdcState.topology}.asc`
+        : exportTab === 'combined-asc'
+        ? `voltcraft_combined_${acdcState.topology}_to_${dcdcState.topology}.asc`
         : exportTab === 'dcdc-qsch'
         ? dcdcQspiceBundle.qschFileName
         : exportTab === 'dcdc-cpp'
         ? dcdcQspiceBundle.cppFileName
+        : exportTab === 'dcdc-plecs'
+        ? `voltcraft_${dcdcState.topology}.plecs`
+        : exportTab === 'acdc-plecs'
+        ? `voltcraft_${acdcState.topology}.plecs`
+        : exportTab === 'combined-plecs'
+        ? `voltcraft_combined_${acdcState.topology}_to_${dcdcState.topology}.plecs`
         : exportTab === 'dcdc-cir'
         ? `voltcraft_${dcdcState.topology}.cir`
         : exportTab === 'acdc-cir'
         ? `voltcraft_${acdcState.topology}.cir`
+        : exportTab === 'combined-cir'
+        ? `voltcraft_combined_${acdcState.topology}_to_${dcdcState.topology}.cir`
         : 'powerstage_control_cfg.h';
     const blob =
       exportTab === 'dcdc-qsch'
@@ -150,9 +188,11 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
     URL.revokeObjectURL(url);
   };
 
-  const downloadQspiceZip = (target: 'dcdc' | 'acdc') => {
+  const downloadQspiceZip = (target: 'dcdc' | 'acdc' | 'combined') => {
     const bundle =
-      target === 'acdc'
+      target === 'combined'
+        ? generateCombinedSystemQspiceBundle(acdcState, acdcRes, dcdcState, dcdcRes)
+        : target === 'acdc'
         ? generateAcDcQspiceBundle(acdcState, acdcRes)
         : dcdcQspiceBundle;
     const blob = new Blob([new Uint8Array(bundle.zipBytes)], { type: 'application/zip' });
@@ -160,6 +200,22 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
     const a = document.createElement('a');
     a.href = url;
     a.download = `${bundle.baseName}_qspice.zip`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadPlecsZip = (target: 'dcdc' | 'acdc' | 'combined') => {
+    const bundle =
+      target === 'combined'
+        ? generateCombinedSystemPlecsBundle(acdcState, acdcRes, dcdcState, dcdcRes)
+        : target === 'acdc'
+        ? generateAcDcPlecsBundle(acdcState, acdcRes)
+        : generateDcDcPlecsBundle(dcdcState, dcdcRes);
+    const blob = new Blob([new Uint8Array(bundle.zipBytes)], { type: 'application/zip' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${bundle.baseName}_plecs.zip`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -498,11 +554,11 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
             <div className="flex items-center gap-2">
               <Code2 className="w-4 h-4 text-cyan-500" />
               <h3 className="text-xs font-bold font-mono text-slate-900 dark:text-slate-100">
-                LTspice (.asc), QSPICE Suite (.zip: .qsch/.qsym/.qraw/.cir/.cpp) &amp; DSP (.h) Exporter
+                LTspice (.asc), QSPICE (.zip), PLECS Standalone (.plecs/.zip) &amp; DSP (.h) Exporter
               </h3>
             </div>
             <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-              Download grid-aligned LTspice .asc diagrams, complete QSPICE simulation ZIP bundles, .cir netlists, or TI C2000 / STM32G4 headers.
+              Download grid-aligned LTspice .asc diagrams, QSPICE bundles, Plexim PLECS .plecs/.m/.xml bundles, .cir netlists, or TI C2000 / STM32G4 headers.
             </p>
           </div>
 
@@ -511,10 +567,21 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
               [
                 { id: 'dcdc-asc', label: 'DC-DC LTspice (.asc)' },
                 { id: 'acdc-asc', label: 'AC-DC LTspice (.asc)' },
+                ...(outputMode === 'combined'
+                  ? [{ id: 'combined-asc', label: 'Combined LTspice (.asc)' } as const]
+                  : []),
                 { id: 'dcdc-qsch', label: 'QSPICE (.qsch)' },
                 { id: 'dcdc-cpp', label: 'QSPICE C++ (.cpp)' },
+                { id: 'dcdc-plecs', label: 'DC-DC PLECS (.plecs)' },
+                { id: 'acdc-plecs', label: 'AC-DC PLECS (.plecs)' },
+                ...(outputMode === 'combined'
+                  ? [{ id: 'combined-plecs', label: 'Combined PLECS (.plecs)' } as const]
+                  : []),
                 { id: 'dcdc-cir', label: 'DC-DC SPICE (.cir)' },
                 { id: 'acdc-cir', label: 'AC-DC SPICE (.cir)' },
+                ...(outputMode === 'combined'
+                  ? [{ id: 'combined-cir', label: 'Combined SPICE (.cir)' } as const]
+                  : []),
                 { id: 'firmware-h', label: 'Firmware Config (.h)' },
               ] as const
             ).map((t) => (
@@ -550,12 +617,37 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
             </button>
             <button
               type="button"
-              onClick={() => downloadQspiceZip(exportTab === 'acdc-cir' || exportTab === 'acdc-asc' ? 'acdc' : 'dcdc')}
+              onClick={() =>
+                downloadQspiceZip(
+                  exportTab === 'combined-asc' || exportTab === 'combined-plecs' || exportTab === 'combined-cir'
+                    ? 'combined'
+                    : exportTab === 'acdc-cir' || exportTab === 'acdc-asc' || exportTab === 'acdc-plecs'
+                    ? 'acdc'
+                    : 'dcdc'
+                )
+              }
               className="px-2.5 py-1 rounded text-[11px] font-mono bg-violet-600 hover:bg-violet-500 text-white inline-flex items-center gap-1 font-semibold cursor-pointer"
               title="Download QSPICE ZIP containing .qsch, .qsym, .qraw, .cir, .cpp"
             >
               <Archive className="w-3 h-3" />
               QSPICE Bundle (.zip)
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                downloadPlecsZip(
+                  exportTab === 'combined-asc' || exportTab === 'combined-plecs' || exportTab === 'combined-cir'
+                    ? 'combined'
+                    : exportTab === 'acdc-cir' || exportTab === 'acdc-asc' || exportTab === 'acdc-plecs'
+                    ? 'acdc'
+                    : 'dcdc'
+                )
+              }
+              className="px-2.5 py-1 rounded text-[11px] font-mono bg-sky-600 hover:bg-sky-500 text-white inline-flex items-center gap-1 font-semibold cursor-pointer"
+              title="Download Plexim PLECS Standalone ZIP containing .plecs, init_params.m, hybrid_cap_verification.m, and thermal_descriptions.xml"
+            >
+              <Archive className="w-3 h-3" />
+              PLECS Bundle (.zip)
             </button>
           </div>
         </div>

@@ -24,6 +24,11 @@ import {
   ReportWindowCrossSectionSvg,
 } from './report/ReportSvgCharts';
 import {
+  AcDcReportSchematicSvg,
+  CombinedReportSchematicSvg,
+  DcDcReportSchematicSvg,
+} from './CircuitSchematics';
+import {
   ReportChapter,
   ReportStageScope,
   ReportStep,
@@ -267,6 +272,10 @@ export const DesignReportModal: React.FC<DesignReportModalProps> = ({
 
   const renderFigureById = (figId: string) => {
     switch (figId) {
+      case 'combined-schematic':
+        return <CombinedReportSchematicSvg acdcRes={acdcRes} dcdcRes={dcdcRes} />;
+      case 'acdc-schematic':
+        return <AcDcReportSchematicSvg res={acdcRes} />;
       case 'acdc-line':
         return <ReportAcDcLineSvg res={acdcRes} />;
       case 'acdc-harmonics':
@@ -280,6 +289,8 @@ export const DesignReportModal: React.FC<DesignReportModalProps> = ({
             pm_deg={acdcRes.pm_i_actual_deg}
           />
         );
+      case 'dcdc-schematic':
+        return <DcDcReportSchematicSvg res={dcdcRes} />;
       case 'dcdc-waveforms':
         return <ReportDcDcWaveformsSvg res={dcdcRes} />;
       case 'dcdc-bh':
@@ -684,10 +695,10 @@ export const DesignReportModal: React.FC<DesignReportModalProps> = ({
       </div>
 
       {/* SCROLLABLE WHITE-PAPER ENGINEERING BOOK BODY */}
-      <div className="flex-1 overflow-y-auto bg-slate-200 py-6 px-3 sm:px-6 report-print-root">
+      <div className="flex-1 overflow-y-auto bg-slate-200 py-3 sm:py-6 px-2 sm:px-6 report-print-root">
         <article
           ref={articleRef}
-          className="max-w-[960px] mx-auto bg-white text-slate-900 shadow-xl border border-slate-300 rounded-sm p-6 sm:p-10 space-y-8 report-print-root"
+          className="max-w-[960px] mx-auto bg-white text-slate-900 shadow-xl border border-slate-300 rounded-sm p-3.5 sm:p-10 space-y-8 report-print-root overflow-x-hidden"
         >
           {/* COVER TITLE BLOCK & SYSTEM VERIFICATION SUMMARY */}
           <header className="border-b-2 border-slate-900 pb-6 space-y-4">

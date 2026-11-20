@@ -299,6 +299,31 @@ export function hydrateCustomSemiconductors(): void {
 }
 
 // ============================================================================
+// HYBRID MULTI-BRANCH CAPACITOR BANK TYPES (e.g. 3× Electrolytic + 2× MLCC)
+// ============================================================================
+export type CapTechnology = 'electrolytic' | 'polymer' | 'mlcc' | 'film';
+
+export interface CapBranchSpec {
+  id: string;
+  label: string;
+  technology: CapTechnology;
+  qty: number;
+  capEach_uF: number;
+  esrEach_mOhm: number;
+  eslEach_nH: number;
+  vRated_V: number;
+  iRmsEach_A: number;
+  rthCa_CW?: number;
+  tMax_C?: number;
+  l0_hrs?: number;
+  mpn?: string;
+}
+
+export interface HybridCapBankConfig {
+  branches: CapBranchSpec[];
+}
+
+// ============================================================================
 // TAB 1: AC-DC CONVERTER (2-PHASE INTERLEAVED PFC & BRIDGELESS TOTEM-POLE)
 // ============================================================================
 export type AcDcTopologyType =
@@ -327,6 +352,7 @@ export interface AcDcDesignState {
   RL_mOhm: number;         // Inductor DCR/ACR (mΩ)
   Cdc_uF: number;          // DC-Link capacitor bank (µF)
   ESR_Cdc_mOhm: number;    // DC-Link ESR (mΩ)
+  cdcBank?: HybridCapBankConfig; // Realistic multi-branch DC-link bank (e.g. HV Elec + MKP/MLCC)
   tHold_ms: number;        // Target hold-up time (ms)
   Vdc_min_hold_V: number;  // Min bus voltage after hold-up dropout (V)
 
@@ -544,6 +570,8 @@ export interface DcDcDesignState {
   Lo_uH: number;          // Output filter inductor L_o (µH)
   Co_uF: number;          // Output filter capacitor C_o (µF)
   ESR_Co_mOhm: number;    // Output capacitor ESR (mΩ)
+  cinBank?: HybridCapBankConfig;  // Realistic multi-branch primary DC input capacitor bank
+  coutBank?: HybridCapBankConfig; // Realistic multi-branch secondary output capacitor bank
   deadTime_ns: number;    // Primary bridge dead-time (ns)
   Ctr_par_pF: number;     // Transformer parasitic capacitance (pF)
 

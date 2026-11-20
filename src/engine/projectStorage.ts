@@ -5,13 +5,13 @@ import {
   DcDcDesignState,
 } from '../data/databases';
 import { PerCapConfig, PerInductorConfig } from './passiveDesignEngine';
-import { SystemLinkConfig } from './systemCascadeEngine';
+import { ProjectOutputMode, SystemLinkConfig } from './systemCascadeEngine';
 
 export interface PowerStudioProjectFile {
   schemaVersion: 2;
   name: string;
   savedAt: string;
-  systemLink: SystemLinkConfig;
+  systemLink: SystemLinkConfig & { outputMode: ProjectOutputMode };
   dcdcState: DcDcDesignState;
   acdcState: AcDcDesignState;
   inductorConfigs: Record<string, PerInductorConfig>;
@@ -48,11 +48,14 @@ export function buildProjectFile(
   name: string,
   snapshot: StudioWorkspaceSnapshot
 ): PowerStudioProjectFile {
+  const inferredMode: ProjectOutputMode =
+    snapshot.systemLink.outputMode ??
+    (snapshot.systemLink.linkBusVoltage || snapshot.systemLink.linkLoadPower ? 'combined' : 'dcdc-only');
   return {
     schemaVersion: 2,
     name: name.trim() || 'Untitled Power Stage',
     savedAt: new Date().toISOString(),
-    systemLink: { ...snapshot.systemLink },
+    systemLink: { ...snapshot.systemLink, outputMode: inferredMode },
     dcdcState: { ...snapshot.dcdcState },
     acdcState: { ...snapshot.acdcState },
     inductorConfigs: structuredCloneSafe(snapshot.inductorConfigs),
@@ -97,6 +100,12 @@ export function parseImportedProjectJson(
         name: typeof obj.name === 'string' && obj.name.trim() ? obj.name.trim() : 'Imported Studio Project',
         savedAt: typeof obj.savedAt === 'string' ? obj.savedAt : new Date().toISOString(),
         systemLink: {
+          outputMode:
+            linkRaw.outputMode === 'dcdc-only' || linkRaw.outputMode === 'acdc-only' || linkRaw.outputMode === 'combined'
+              ? linkRaw.outputMode
+              : linkRaw.linkBusVoltage || linkRaw.linkLoadPower
+              ? 'combined'
+              : 'dcdc-only',
           linkBusVoltage: Boolean(linkRaw.linkBusVoltage),
           linkLoadPower: Boolean(linkRaw.linkLoadPower),
         },

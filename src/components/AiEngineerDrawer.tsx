@@ -238,7 +238,7 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
   return (
     <aside
       aria-label="AI Engineer Workspace"
-      className="no-print fixed lg:sticky top-14 right-0 bottom-0 lg:h-[calc(100vh-3.5rem)] w-full sm:w-[420px] xl:w-[450px] shrink-0 z-30 bg-white dark:bg-[#0E131D] border-l border-slate-200 dark:border-slate-800 flex flex-col shadow-xl lg:shadow-none"
+      className="no-print fixed lg:sticky top-0 lg:top-14 right-0 bottom-0 h-[100dvh] lg:h-[calc(100vh-3.5rem)] w-full sm:w-[420px] xl:w-[450px] shrink-0 z-50 lg:z-30 bg-white dark:bg-[#0E131D] border-l border-slate-200 dark:border-slate-800 flex flex-col shadow-xl lg:shadow-none"
     >
       {/* DRAWER HEADER */}
       <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0B0F17] flex items-center justify-between gap-2">
