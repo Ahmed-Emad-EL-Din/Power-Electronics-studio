@@ -957,7 +957,8 @@ export function generateCombinedSystemLtspiceAsc(
   acdcState: AcDcDesignState,
   acdcRes: AcDcResults,
   dcdcState: DcDcDesignState,
-  dcdcRes: DcDcResults
+  dcdcRes: DcDcResults,
+  sharedMcu = true
 ): string {
   const acdcRaw = generateAcDcLtspiceAsc(acdcState, acdcRes);
   const dcdcRaw = generateDcDcLtspiceAsc(dcdcState, dcdcRes);
@@ -1114,7 +1115,9 @@ export function generateCombinedSystemLtspiceAsc(
   asc.comment(
     64,
     60,
-    `Stage 1: ${acdcState.Vac_rms_V}Vrms -> ${acdcState.Vdc_bus_V}Vdc | Stage 2: ${dcdcState.Vin_nom_V}Vdc -> ${dcdcState.Vout_V}V @ ${dcdcState.Pout_W}W | Shared v_dc Bus`
+    `Stage 1: ${acdcState.Vac_rms_V}Vrms -> ${acdcState.Vdc_bus_V}Vdc | Stage 2: ${dcdcState.Vin_nom_V}Vdc -> ${dcdcState.Vout_V}V @ ${dcdcState.Pout_W}W | ${
+      sharedMcu ? 'Same Shared MCU (ePWM Sync + Direct Vdc_ff)' : 'Separate MCUs (Isolated PG_OK + Fault_Trip)'
+    }`
   );
 
   // Unified Directives Panel (Right-side clear zone in Stage 2 row)

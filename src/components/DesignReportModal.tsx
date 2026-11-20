@@ -61,6 +61,7 @@ interface DesignReportModalProps {
   inductorConfigs: Record<string, PerInductorConfig>;
   capacitorConfigs: Record<string, PerCapConfig>;
   alerts: DesignAlertSummary;
+  sharedMcu?: boolean;
 }
 
 const CalcStep: React.FC<ReportStep> = ({
@@ -145,6 +146,7 @@ export const DesignReportModal: React.FC<DesignReportModalProps> = ({
   inductorConfigs,
   capacitorConfigs,
   alerts,
+  sharedMcu = true,
 }) => {
   const [scope, setScope] = useState<ReportStageScope>(initialScope);
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -225,6 +227,7 @@ export const DesignReportModal: React.FC<DesignReportModalProps> = ({
         acdcInductorRows,
         acdcCapRows,
         scopedAlerts,
+        sharedMcu,
       }),
     [
       scope,
@@ -237,6 +240,7 @@ export const DesignReportModal: React.FC<DesignReportModalProps> = ({
       acdcInductorRows,
       acdcCapRows,
       scopedAlerts,
+      sharedMcu,
     ]
   );
 
@@ -273,7 +277,7 @@ export const DesignReportModal: React.FC<DesignReportModalProps> = ({
   const renderFigureById = (figId: string) => {
     switch (figId) {
       case 'combined-schematic':
-        return <CombinedReportSchematicSvg acdcRes={acdcRes} dcdcRes={dcdcRes} />;
+        return <CombinedReportSchematicSvg acdcRes={acdcRes} dcdcRes={dcdcRes} sharedMcu={sharedMcu} />;
       case 'acdc-schematic':
         return <AcDcReportSchematicSvg res={acdcRes} />;
       case 'acdc-line':

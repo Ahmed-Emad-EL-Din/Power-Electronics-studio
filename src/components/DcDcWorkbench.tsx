@@ -70,6 +70,7 @@ interface DcDcWorkbenchProps {
   jumpTargetId?: string | null;
   jumpNonce?: number;
   outputMode?: ProjectOutputMode;
+  sharedMcu?: boolean;
 }
 
 export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
@@ -86,6 +87,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
   jumpTargetId,
   jumpNonce,
   outputMode = 'combined',
+  sharedMcu = true,
 }) => {
   const [localSubTab, setLocalSubTab] = useState<DcDcSubTab>('schematic');
   const subTab = activeSubTab ?? localSubTab;
@@ -1673,6 +1675,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
             acdcState={acdcState ?? ACDC_PRESETS[0].state}
             acdcRes={acdcRes ?? solveAcDcDesign(ACDC_PRESETS[0].state)}
             outputMode={outputMode}
+            sharedMcu={sharedMcu}
           />
         )}
 

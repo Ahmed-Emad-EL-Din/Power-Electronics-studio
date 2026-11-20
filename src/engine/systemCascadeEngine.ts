@@ -8,6 +8,8 @@ export interface SystemLinkConfig {
   outputMode?: ProjectOutputMode;
   linkBusVoltage: boolean;
   linkLoadPower: boolean;
+  /** Combined 2-stage digital controller choice: true = same shared MCU, false = separate MCUs with isolated handshake. */
+  sharedMcu?: boolean;
 }
 
 export interface SystemCascadeSummary {
