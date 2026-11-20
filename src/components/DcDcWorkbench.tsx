@@ -71,6 +71,12 @@ interface DcDcWorkbenchProps {
   jumpNonce?: number;
   outputMode?: ProjectOutputMode;
   sharedMcu?: boolean;
+  dcdcSimTimeUs?: number;
+  onChangeDcdcSimTimeUs?: (v: number | undefined) => void;
+  acdcSimTimeMs?: number;
+  onChangeAcdcSimTimeMs?: (v: number | undefined) => void;
+  combinedSimTimeMs?: number;
+  onChangeCombinedSimTimeMs?: (v: number | undefined) => void;
 }
 
 export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
@@ -88,6 +94,12 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
   jumpNonce,
   outputMode = 'combined',
   sharedMcu = true,
+  dcdcSimTimeUs,
+  onChangeDcdcSimTimeUs,
+  acdcSimTimeMs,
+  onChangeAcdcSimTimeMs,
+  combinedSimTimeMs,
+  onChangeCombinedSimTimeMs,
 }) => {
   const [localSubTab, setLocalSubTab] = useState<DcDcSubTab>('schematic');
   const subTab = activeSubTab ?? localSubTab;
@@ -1676,6 +1688,12 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
             acdcRes={acdcRes ?? solveAcDcDesign(ACDC_PRESETS[0].state)}
             outputMode={outputMode}
             sharedMcu={sharedMcu}
+            dcdcSimTimeUs={dcdcSimTimeUs}
+            onChangeDcdcSimTimeUs={onChangeDcdcSimTimeUs}
+            acdcSimTimeMs={acdcSimTimeMs}
+            onChangeAcdcSimTimeMs={onChangeAcdcSimTimeMs}
+            combinedSimTimeMs={combinedSimTimeMs}
+            onChangeCombinedSimTimeMs={onChangeCombinedSimTimeMs}
           />
         )}
 

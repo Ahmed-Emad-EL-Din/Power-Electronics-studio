@@ -10,6 +10,23 @@ export interface SystemLinkConfig {
   linkLoadPower: boolean;
   /** Combined 2-stage digital controller choice: true = same shared MCU, false = separate MCUs with isolated handshake. */
   sharedMcu?: boolean;
+  /** User-configured SPICE / QSPICE / PLECS transient stop time overrides. */
+  dcdcSimTime_us?: number;
+  acdcSimTime_ms?: number;
+  combinedSimTime_ms?: number;
+}
+
+export function getDefaultDcDcSimTimeUs(fsw_kHz: number): number {
+  const fswHz = Math.max(10e3, fsw_kHz * 1e3);
+  return Math.round(Math.max(500, (1e6 / fswHz) * 60));
+}
+
+export function getDefaultAcDcSimTimeMs(f_line_Hz: number): number {
+  return Number(((2 / Math.max(45, f_line_Hz)) * 1e3).toFixed(1));
+}
+
+export function getDefaultCombinedSimTimeMs(f_line_Hz: number): number {
+  return Number(((1 / Math.max(45, f_line_Hz)) * 1e3).toFixed(1));
 }
 
 export interface SystemCascadeSummary {

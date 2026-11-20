@@ -113,6 +113,15 @@ export function parseImportedProjectJson(
           linkBusVoltage: Boolean(linkRaw.linkBusVoltage),
           linkLoadPower: Boolean(linkRaw.linkLoadPower),
           sharedMcu: linkRaw.sharedMcu === undefined ? true : Boolean(linkRaw.sharedMcu),
+          ...(typeof linkRaw.dcdcSimTime_us === 'number' && Number.isFinite(linkRaw.dcdcSimTime_us)
+            ? { dcdcSimTime_us: Math.max(50, Math.round(linkRaw.dcdcSimTime_us)) }
+            : {}),
+          ...(typeof linkRaw.acdcSimTime_ms === 'number' && Number.isFinite(linkRaw.acdcSimTime_ms)
+            ? { acdcSimTime_ms: Math.max(1, Number(linkRaw.acdcSimTime_ms.toFixed(1))) }
+            : {}),
+          ...(typeof linkRaw.combinedSimTime_ms === 'number' && Number.isFinite(linkRaw.combinedSimTime_ms)
+            ? { combinedSimTime_ms: Math.max(1, Number(linkRaw.combinedSimTime_ms.toFixed(1))) }
+            : {}),
         },
         dcdcState: { ...DCDC_PRESETS[0].state, ...dcdcRaw },
         acdcState: { ...ACDC_PRESETS[0].state, ...acdcRaw },

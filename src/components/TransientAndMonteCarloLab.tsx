@@ -22,7 +22,12 @@ import {
   generateDcDcQspiceBundle,
   generateDcDcSpiceNetlist,
 } from '../engine/spiceNetlistExporter';
-import type { ProjectOutputMode } from '../engine/systemCascadeEngine';
+import {
+  getDefaultAcDcSimTimeMs,
+  getDefaultCombinedSimTimeMs,
+  getDefaultDcDcSimTimeUs,
+  type ProjectOutputMode,
+} from '../engine/systemCascadeEngine';
 import { buildQspiceBinaryFile } from '../engine/zipBuilder';
 import { OscilloscopeViewer } from './OscilloscopeViewer';
 import { InteractiveChart } from './InteractiveChart';
@@ -31,6 +36,7 @@ import {
   Archive,
   BarChart3,
   Check,
+  Clock,
   Code2,
   Copy,
   Download,
@@ -48,6 +54,12 @@ interface TransientAndMonteCarloLabProps {
   acdcRes: AcDcResults;
   outputMode?: ProjectOutputMode;
   sharedMcu?: boolean;
+  dcdcSimTimeUs?: number;
+  onChangeDcdcSimTimeUs?: (v: number | undefined) => void;
+  acdcSimTimeMs?: number;
+  onChangeAcdcSimTimeMs?: (v: number | undefined) => void;
+  combinedSimTimeMs?: number;
+  onChangeCombinedSimTimeMs?: (v: number | undefined) => void;
 }
 
 export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps> = ({
@@ -58,6 +70,12 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
   acdcRes,
   outputMode = 'combined',
   sharedMcu = true,
+  dcdcSimTimeUs: propDcdcSimUs,
+  onChangeDcdcSimTimeUs,
+  acdcSimTimeMs: propAcdcSimMs,
+  onChangeAcdcSimTimeMs,
+  combinedSimTimeMs: propCombinedSimMs,
+  onChangeCombinedSimTimeMs,
 }) => {
   // Transient Simulator Controls
   const [scenario, setScenario] = useState<'load-step' | 'soft-start'>('load-step');
@@ -65,6 +83,26 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
   const [finalLoad, setFinalLoad] = useState<number>(90);
   const [slewRate, setSlewRate] = useState<number>(8);
   const [simHorizonUs, setSimHorizonUs] = useState<number>(900);
+
+  // Local fallback state for SPICE / QSPICE / PLECS simulation time if not controlled by parent
+  const [localDcdcSimUs, setLocalDcdcSimUs] = useState<number | undefined>(undefined);
+  const [localAcdcSimMs, setLocalAcdcSimMs] = useState<number | undefined>(undefined);
+  const [localCombinedSimMs, setLocalCombinedSimMs] = useState<number | undefined>(undefined);
+
+  const dcdcSimOverrideUs = onChangeDcdcSimTimeUs ? propDcdcSimUs : localDcdcSimUs;
+  const setDcdcSimOverrideUs = onChangeDcdcSimTimeUs ?? setLocalDcdcSimUs;
+  const acdcSimOverrideMs = onChangeAcdcSimTimeMs ? propAcdcSimMs : localAcdcSimMs;
+  const setAcdcSimOverrideMs = onChangeAcdcSimTimeMs ?? setLocalAcdcSimMs;
+  const combinedSimOverrideMs = onChangeCombinedSimTimeMs ? propCombinedSimMs : localCombinedSimMs;
+  const setCombinedSimOverrideMs = onChangeCombinedSimTimeMs ?? setLocalCombinedSimMs;
+
+  const autoDcdcSimUs = getDefaultDcDcSimTimeUs(dcdcState.fsw_kHz);
+  const autoAcdcSimMs = getDefaultAcDcSimTimeMs(acdcState.f_line_Hz);
+  const autoCombinedSimMs = getDefaultCombinedSimTimeMs(acdcState.f_line_Hz);
+
+  const effectiveDcdcSimUs = dcdcSimOverrideUs ?? autoDcdcSimUs;
+  const effectiveAcdcSimMs = acdcSimOverrideMs ?? autoAcdcSimMs;
+  const effectiveCombinedSimMs = combinedSimOverrideMs ?? autoCombinedSimMs;
 
   // Monte Carlo Controls
   const [mcTrials, setMcTrials] = useState<number>(200);
@@ -132,24 +170,59 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
   );
 
   const dcdcQspiceBundle = useMemo(
-    () => generateDcDcQspiceBundle(dcdcState, dcdcRes),
-    [dcdcState, dcdcRes]
+    () => generateDcDcQspiceBundle(dcdcState, dcdcRes, effectiveDcdcSimUs),
+    [dcdcState, dcdcRes, effectiveDcdcSimUs]
   );
 
   const codePreview = useMemo(() => {
-    if (exportTab === 'dcdc-asc') return generateDcDcLtspiceAsc(dcdcState, dcdcRes);
-    if (exportTab === 'acdc-asc') return generateAcDcLtspiceAsc(acdcState, acdcRes);
-    if (exportTab === 'combined-asc') return generateCombinedSystemLtspiceAsc(acdcState, acdcRes, dcdcState, dcdcRes, sharedMcu);
+    if (exportTab === 'dcdc-asc') return generateDcDcLtspiceAsc(dcdcState, dcdcRes, effectiveDcdcSimUs);
+    if (exportTab === 'acdc-asc') return generateAcDcLtspiceAsc(acdcState, acdcRes, effectiveAcdcSimMs);
+    if (exportTab === 'combined-asc')
+      return generateCombinedSystemLtspiceAsc(
+        acdcState,
+        acdcRes,
+        dcdcState,
+        dcdcRes,
+        sharedMcu,
+        effectiveCombinedSimMs
+      );
     if (exportTab === 'dcdc-qsch') return dcdcQspiceBundle.qschContent;
     if (exportTab === 'dcdc-cpp') return dcdcQspiceBundle.cppContent;
-    if (exportTab === 'dcdc-plecs') return generateDcDcPlecsModel(dcdcState, dcdcRes);
-    if (exportTab === 'acdc-plecs') return generateAcDcPlecsModel(acdcState, acdcRes);
-    if (exportTab === 'combined-plecs') return generateCombinedSystemPlecsModel(acdcState, acdcRes, dcdcState, dcdcRes, sharedMcu);
-    if (exportTab === 'dcdc-cir') return generateDcDcSpiceNetlist(dcdcState, dcdcRes);
-    if (exportTab === 'acdc-cir') return generateAcDcSpiceNetlist(acdcState, acdcRes);
-    if (exportTab === 'combined-cir') return generateCombinedSystemSpiceNetlist(acdcState, acdcRes, dcdcState, dcdcRes, sharedMcu);
+    if (exportTab === 'dcdc-plecs') return generateDcDcPlecsModel(dcdcState, dcdcRes, effectiveDcdcSimUs);
+    if (exportTab === 'acdc-plecs') return generateAcDcPlecsModel(acdcState, acdcRes, effectiveAcdcSimMs);
+    if (exportTab === 'combined-plecs')
+      return generateCombinedSystemPlecsModel(
+        acdcState,
+        acdcRes,
+        dcdcState,
+        dcdcRes,
+        sharedMcu,
+        effectiveCombinedSimMs
+      );
+    if (exportTab === 'dcdc-cir') return generateDcDcSpiceNetlist(dcdcState, dcdcRes, effectiveDcdcSimUs);
+    if (exportTab === 'acdc-cir') return generateAcDcSpiceNetlist(acdcState, acdcRes, effectiveAcdcSimMs);
+    if (exportTab === 'combined-cir')
+      return generateCombinedSystemSpiceNetlist(
+        acdcState,
+        acdcRes,
+        dcdcState,
+        dcdcRes,
+        sharedMcu,
+        effectiveCombinedSimMs
+      );
     return generateControlFirmwareHeader(dcdcState, dcdcRes, acdcState, acdcRes, sharedMcu);
-  }, [exportTab, dcdcState, dcdcRes, acdcState, acdcRes, dcdcQspiceBundle, sharedMcu]);
+  }, [
+    exportTab,
+    dcdcState,
+    dcdcRes,
+    acdcState,
+    acdcRes,
+    dcdcQspiceBundle,
+    sharedMcu,
+    effectiveDcdcSimUs,
+    effectiveAcdcSimMs,
+    effectiveCombinedSimMs,
+  ]);
 
   const downloadCodeFile = () => {
     const filename =
@@ -193,9 +266,16 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
   const downloadQspiceZip = (target: 'dcdc' | 'acdc' | 'combined') => {
     const bundle =
       target === 'combined'
-        ? generateCombinedSystemQspiceBundle(acdcState, acdcRes, dcdcState, dcdcRes, sharedMcu)
+        ? generateCombinedSystemQspiceBundle(
+            acdcState,
+            acdcRes,
+            dcdcState,
+            dcdcRes,
+            sharedMcu,
+            effectiveCombinedSimMs
+          )
         : target === 'acdc'
-        ? generateAcDcQspiceBundle(acdcState, acdcRes)
+        ? generateAcDcQspiceBundle(acdcState, acdcRes, effectiveAcdcSimMs)
         : dcdcQspiceBundle;
     const blob = new Blob([new Uint8Array(bundle.zipBytes)], { type: 'application/zip' });
     const url = URL.createObjectURL(blob);
@@ -209,10 +289,17 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
   const downloadPlecsZip = (target: 'dcdc' | 'acdc' | 'combined') => {
     const bundle =
       target === 'combined'
-        ? generateCombinedSystemPlecsBundle(acdcState, acdcRes, dcdcState, dcdcRes, sharedMcu)
+        ? generateCombinedSystemPlecsBundle(
+            acdcState,
+            acdcRes,
+            dcdcState,
+            dcdcRes,
+            sharedMcu,
+            effectiveCombinedSimMs
+          )
         : target === 'acdc'
-        ? generateAcDcPlecsBundle(acdcState, acdcRes)
-        : generateDcDcPlecsBundle(dcdcState, dcdcRes);
+        ? generateAcDcPlecsBundle(acdcState, acdcRes, effectiveAcdcSimMs)
+        : generateDcDcPlecsBundle(dcdcState, dcdcRes, effectiveDcdcSimUs);
     const blob = new Blob([new Uint8Array(bundle.zipBytes)], { type: 'application/zip' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -328,11 +415,11 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
             <span className="text-[10px] text-slate-500">Window (µs)</span>
             <input
               type="number"
-              min={300}
-              max={3000}
+              min={100}
+              max={50000}
               step={100}
               value={simHorizonUs}
-              onChange={(e) => setSimHorizonUs(Number(e.target.value) || 900)}
+              onChange={(e) => setSimHorizonUs(Math.max(100, Number(e.target.value) || 900))}
               className="w-full mt-0.5 px-2 py-1 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded"
             />
           </div>
@@ -652,6 +739,145 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
               PLECS Bundle (.zip)
             </button>
           </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 dark:bg-[#090D16] border border-slate-200 dark:border-slate-800 px-3 py-2 text-[11px] font-mono">
+          {exportTab === 'acdc-asc' || exportTab === 'acdc-plecs' || exportTab === 'acdc-cir' ? (
+            <>
+              <div className="flex items-center gap-2">
+                <Clock className="w-3.5 h-3.5 text-cyan-500" />
+                <span className="font-semibold text-slate-700 dark:text-slate-200">
+                  AC-DC Simulation Time (Tstop):
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={500}
+                  step={5}
+                  value={effectiveAcdcSimMs}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v) && v > 0) setAcdcSimOverrideMs(v);
+                  }}
+                  className="w-20 px-2 py-0.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-right font-bold"
+                />
+                <span className="text-slate-500">ms</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1">
+                {[20, 40, 80, 120].map((ms) => (
+                  <button
+                    key={ms}
+                    type="button"
+                    onClick={() => setAcdcSimOverrideMs(ms)}
+                    className={`px-2 py-0.5 rounded border cursor-pointer ${
+                      Math.abs(effectiveAcdcSimMs - ms) < 0.05
+                        ? 'bg-cyan-600 border-cyan-600 text-white'
+                        : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    {ms} ms
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setAcdcSimOverrideMs(undefined)}
+                  className="px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
+                >
+                  Auto ({autoAcdcSimMs} ms)
+                </button>
+              </div>
+            </>
+          ) : exportTab === 'combined-asc' || exportTab === 'combined-plecs' || exportTab === 'combined-cir' ? (
+            <>
+              <div className="flex items-center gap-2">
+                <Clock className="w-3.5 h-3.5 text-cyan-500" />
+                <span className="font-semibold text-slate-700 dark:text-slate-200">
+                  Combined Simulation Time (Tstop):
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={500}
+                  step={5}
+                  value={effectiveCombinedSimMs}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v) && v > 0) setCombinedSimOverrideMs(v);
+                  }}
+                  className="w-20 px-2 py-0.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-right font-bold"
+                />
+                <span className="text-slate-500">ms</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1">
+                {[10, 20, 40, 80].map((ms) => (
+                  <button
+                    key={ms}
+                    type="button"
+                    onClick={() => setCombinedSimOverrideMs(ms)}
+                    className={`px-2 py-0.5 rounded border cursor-pointer ${
+                      Math.abs(effectiveCombinedSimMs - ms) < 0.05
+                        ? 'bg-cyan-600 border-cyan-600 text-white'
+                        : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    {ms} ms
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setCombinedSimOverrideMs(undefined)}
+                  className="px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
+                >
+                  Auto ({autoCombinedSimMs} ms)
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-2">
+                <Clock className="w-3.5 h-3.5 text-cyan-500" />
+                <span className="font-semibold text-slate-700 dark:text-slate-200">
+                  DC-DC Simulation Time (Tstop):
+                </span>
+                <input
+                  type="number"
+                  min={50}
+                  max={50000}
+                  step={100}
+                  value={effectiveDcdcSimUs}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v) && v >= 50) setDcdcSimOverrideUs(Math.round(v));
+                  }}
+                  className="w-24 px-2 py-0.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-right font-bold"
+                />
+                <span className="text-slate-500">µs</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1">
+                {[300, 600, 1000, 2000, 5000].map((us) => (
+                  <button
+                    key={us}
+                    type="button"
+                    onClick={() => setDcdcSimOverrideUs(us)}
+                    className={`px-2 py-0.5 rounded border cursor-pointer ${
+                      effectiveDcdcSimUs === us
+                        ? 'bg-cyan-600 border-cyan-600 text-white'
+                        : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    {us >= 1000 ? `${us / 1000} ms` : `${us} µs`}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setDcdcSimOverrideUs(undefined)}
+                  className="px-2 py-0.5 rounded border border-slate-300 dark:border-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 cursor-pointer"
+                >
+                  Auto ({autoDcdcSimUs} µs)
+                </button>
+              </div>
+            </>
+          )}
         </div>
 
         <pre className="max-h-72 overflow-auto p-3 rounded-lg bg-[#060910] border border-slate-800 text-[11px] font-mono text-cyan-200 leading-relaxed">

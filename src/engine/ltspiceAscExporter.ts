@@ -233,7 +233,11 @@ class AscSchematicBuilder {
  * Generates a spacious, zero-overlap, 16px-grid-aligned LTspice .asc schematic
  * for the active Isolated DC-DC stage (PSFB / LLC-FB / LLC-HB).
  */
-export function generateDcDcLtspiceAsc(state: DcDcDesignState, res: DcDcResults): string {
+export function generateDcDcLtspiceAsc(
+  state: DcDcDesignState,
+  res: DcDcResults,
+  simStopTime_us?: number
+): string {
   const asc = new AscSchematicBuilder(2880, 1920);
 
   const fswHz = state.fsw_kHz * 1e3;
@@ -256,7 +260,10 @@ export function generateDcDcLtspiceAsc(state: DcDcDesignState, res: DcDcResults)
   const Lpri_uH = Math.max(50, state.Lm_uH);
   const Lsec_uH = Lpri_uH / (n * n);
   const Rload_Ohm = (state.Vout_V * state.Vout_V) / Math.max(1, state.Pout_W);
-  const tStop_us = Math.round(Math.max(500, (1e6 / fswHz) * 60));
+  const tStop_us =
+    typeof simStopTime_us === 'number' && Number.isFinite(simStopTime_us) && simStopTime_us > 0
+      ? Math.max(50, Math.round(simStopTime_us))
+      : Math.round(Math.max(500, (1e6 / fswHz) * 60));
 
   const tShiftA = res.isLLC ? half_ns : phaseShift_ns;
   const tShiftB = res.isLLC ? 0 : Math.round(phaseShift_ns + half_ns);
@@ -736,7 +743,16 @@ export function generateDcDcLtspiceAsc(state: DcDcDesignState, res: DcDcResults)
  * Generates an accurate, well-organized, 16px-grid-aligned LTspice .asc schematic
  * for the active AC-DC PFC Front-End stage (1-Phase / 2-Phase Interleaved).
  */
-export function generateAcDcLtspiceAsc(state: AcDcDesignState, res: AcDcResults): string {
+export function generateAcDcLtspiceAsc(
+  state: AcDcDesignState,
+  res: AcDcResults,
+  simStopTime_ms?: number
+): string {
+  const tStop_ms =
+    typeof simStopTime_ms === 'number' && Number.isFinite(simStopTime_ms) && simStopTime_ms > 0
+      ? Number(Math.max(1, simStopTime_ms).toFixed(2))
+      : Number(((2 / Math.max(45, state.f_line_Hz)) * 1e3).toFixed(1));
+  const tMeasStart_ms = Number((tStop_ms * 0.5).toFixed(2));
   const asc = new AscSchematicBuilder(2752, 1680);
 
   const Vac_pk = state.Vac_rms_V * Math.SQRT2;
@@ -934,9 +950,9 @@ export function generateAcDcLtspiceAsc(state: AcDcDesignState, res: AcDcResults)
   );
   asc.directive(X_DIR, 736, `.ic V(v_dc)=${state.Vdc_bus_V.toFixed(1)}`);
   asc.directive(X_DIR, 776, '.options reltol=1m');
-  asc.directive(X_DIR, 816, `.tran 0 40m 20m 250n`);
-  asc.directive(X_DIR, 856, `.meas TRAN Vdc_avg AVG V(v_dc) FROM 20m TO 40m`);
-  asc.directive(X_DIR, 896, `.meas TRAN Iac_rms RMS I(L_DM) FROM 20m TO 40m`);
+  asc.directive(X_DIR, 816, `.tran 0 ${tStop_ms}m 0 250n`);
+  asc.directive(X_DIR, 856, `.meas TRAN Vdc_avg AVG V(v_dc) FROM ${tMeasStart_ms}m TO ${tStop_ms}m`);
+  asc.directive(X_DIR, 896, `.meas TRAN Iac_rms RMS I(L_DM) FROM ${tMeasStart_ms}m TO ${tStop_ms}m`);
   asc.comment(X_DIR, 952, `Switch: ${swModel.manufacturer} ${res.sw.id} | Diode: ${boostDiode.manufacturer} ${boostDiode.mpn}`);
 
   // 5C. Manufacturer .SUBCKT SPICE Models
@@ -958,8 +974,14 @@ export function generateCombinedSystemLtspiceAsc(
   acdcRes: AcDcResults,
   dcdcState: DcDcDesignState,
   dcdcRes: DcDcResults,
-  sharedMcu = true
+  sharedMcu = true,
+  simStopTime_ms?: number
 ): string {
+  const tStop_ms =
+    typeof simStopTime_ms === 'number' && Number.isFinite(simStopTime_ms) && simStopTime_ms > 0
+      ? Number(Math.max(1, simStopTime_ms).toFixed(2))
+      : Number(((1 / Math.max(45, acdcState.f_line_Hz)) * 1e3).toFixed(1));
+  const tMeasStart_ms = Number((tStop_ms * 0.5).toFixed(2));
   const acdcRaw = generateAcDcLtspiceAsc(acdcState, acdcRes);
   const dcdcRaw = generateDcDcLtspiceAsc(dcdcState, dcdcRes);
 
@@ -1140,9 +1162,9 @@ export function generateCombinedSystemLtspiceAsc(
     `.ic V(v_dc)=${acdcState.Vdc_bus_V.toFixed(1)} V(v_out)=${(dcdcState.Vout_V * 0.94).toFixed(2)}`
   );
   asc.directive(80, Y_DIR + 120, '.options reltol=1m');
-  asc.directive(80, Y_DIR + 160, `.tran 0 ${(1 / acdcState.f_line_Hz * 1e3).toFixed(1)}m 0 100n`);
-  asc.directive(80, Y_DIR + 200, `.meas TRAN Vdc_avg AVG V(v_dc)`);
-  asc.directive(80, Y_DIR + 240, `.meas TRAN Vout_avg AVG V(v_out)`);
+  asc.directive(80, Y_DIR + 160, `.tran 0 ${tStop_ms}m 0 100n`);
+  asc.directive(80, Y_DIR + 200, `.meas TRAN Vdc_avg AVG V(v_dc) FROM ${tMeasStart_ms}m TO ${tStop_ms}m`);
+  asc.directive(80, Y_DIR + 240, `.meas TRAN Vout_avg AVG V(v_out) FROM ${tMeasStart_ms}m TO ${tStop_ms}m`);
 
   // Deduplicated Manufacturer .SUBCKT Blocks
   const subckts = Array.from(

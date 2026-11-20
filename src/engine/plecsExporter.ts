@@ -809,9 +809,17 @@ function appendDcDcStageBlocks(params: {
 // ============================================================================
 // 1. DC-DC CONVERTER PLECS GENERATOR (PSFB & LLC)
 // ============================================================================
-export function generateDcDcPlecsModel(state: DcDcDesignState, res: DcDcResults): string {
+export function generateDcDcPlecsModel(
+  state: DcDcDesignState,
+  res: DcDcResults,
+  simStopTime_us?: number
+): string {
   const modelName = sanitizePlecsIdent(`voltcraft_${state.topology}_${state.txType}`);
   const fswHz = state.fsw_kHz * 1e3;
+  const simTimeSec =
+    typeof simStopTime_us === 'number' && Number.isFinite(simStopTime_us) && simStopTime_us > 0
+      ? Number((Math.max(50, simStopTime_us) * 1e-6).toPrecision(4))
+      : 0.002;
   const Rload = (state.Vout_V * state.Vout_V) / Math.max(1, state.Pout_W);
   const Lpri_H = state.Lm_uH * 1e-6;
   const nRatio = Math.max(0.1, state.turnsRatio_n);
@@ -904,7 +912,7 @@ export function generateDcDcPlecsModel(state: DcDcDesignState, res: DcDcResults)
     '  Version       "4.8"',
     '  SavedModel    "True"',
     '  StoredState   "False"',
-    '  SimulationTime "0.002"',
+    `  SimulationTime "${simTimeSec}"`,
     '  StartTime     "0.0"',
     `  TimeStep      "${(1 / (fswHz * 40)).toExponential(2)}"`,
     `  MaxStep       "${(1 / (fswHz * 25)).toExponential(2)}"`,
@@ -938,9 +946,13 @@ export function generateDcDcPlecsModel(state: DcDcDesignState, res: DcDcResults)
   ].join('\n');
 }
 
-export function generateDcDcPlecsBundle(state: DcDcDesignState, res: DcDcResults): PlecsBundle {
+export function generateDcDcPlecsBundle(
+  state: DcDcDesignState,
+  res: DcDcResults,
+  simStopTime_us?: number
+): PlecsBundle {
   const baseName = sanitizePlecsIdent(`voltcraft_${state.topology}_${state.txType}`);
-  const plecsText = generateDcDcPlecsModel(state, res);
+  const plecsText = generateDcDcPlecsModel(state, res, simStopTime_us);
 
   const cinBank = getDefaultHybridCapBank('dcdc-cin', state);
   const coutBank = getDefaultHybridCapBank('dcdc-cout', state);
@@ -1274,9 +1286,17 @@ function appendAcDcFrontEndBlocks(params: {
 // ============================================================================
 // 2. AC-DC PFC PLECS GENERATOR
 // ============================================================================
-export function generateAcDcPlecsModel(state: AcDcDesignState, res: AcDcResults): string {
+export function generateAcDcPlecsModel(
+  state: AcDcDesignState,
+  res: AcDcResults,
+  simStopTime_ms?: number
+): string {
   const modelName = sanitizePlecsIdent(`voltcraft_${state.topology}`);
   const fswHz = state.fsw_kHz * 1e3;
+  const simTimeSec =
+    typeof simStopTime_ms === 'number' && Number.isFinite(simStopTime_ms) && simStopTime_ms > 0
+      ? (Math.max(1, simStopTime_ms) * 1e-3).toFixed(4)
+      : (2 / state.f_line_Hz).toFixed(4);
   const Vac_pk = state.Vac_rms_V * Math.SQRT2;
   const Rload = (state.Vdc_bus_V * state.Vdc_bus_V) / Math.max(10, state.Pout_W);
   const cdcBank = getDefaultHybridCapBank('acdc-cdc', undefined, state);
@@ -1344,7 +1364,7 @@ export function generateAcDcPlecsModel(state: AcDcDesignState, res: AcDcResults)
     '  Version       "4.8"',
     '  SavedModel    "True"',
     '  StoredState   "False"',
-    `  SimulationTime "${(2 / state.f_line_Hz).toFixed(4)}"`,
+    `  SimulationTime "${simTimeSec}"`,
     '  StartTime     "0.0"',
     `  TimeStep      "${(1 / (fswHz * 25)).toExponential(2)}"`,
     `  MaxStep       "${(1 / (fswHz * 15)).toExponential(2)}"`,
@@ -1378,9 +1398,13 @@ export function generateAcDcPlecsModel(state: AcDcDesignState, res: AcDcResults)
   ].join('\n');
 }
 
-export function generateAcDcPlecsBundle(state: AcDcDesignState, res: AcDcResults): PlecsBundle {
+export function generateAcDcPlecsBundle(
+  state: AcDcDesignState,
+  res: AcDcResults,
+  simStopTime_ms?: number
+): PlecsBundle {
   const baseName = sanitizePlecsIdent(`voltcraft_${state.topology}`);
-  const plecsText = generateAcDcPlecsModel(state, res);
+  const plecsText = generateAcDcPlecsModel(state, res, simStopTime_ms);
 
   const cdcBank = getDefaultHybridCapBank('acdc-cdc', undefined, state);
   const cdcSol = solveHybridCapBank(cdcBank, {
@@ -1475,8 +1499,13 @@ export function generateCombinedSystemPlecsModel(
   acdcRes: AcDcResults,
   dcdcState: DcDcDesignState,
   dcdcRes: DcDcResults,
-  sharedMcu = true
+  sharedMcu = true,
+  simStopTime_ms?: number
 ): string {
+  const simTimeSec =
+    typeof simStopTime_ms === 'number' && Number.isFinite(simStopTime_ms) && simStopTime_ms > 0
+      ? (Math.max(1, simStopTime_ms) * 1e-3).toFixed(4)
+      : (1 / acdcState.f_line_Hz).toFixed(4);
   const modelName = sanitizePlecsIdent(`voltcraft_combined_${acdcState.topology}_to_${dcdcState.topology}`);
   const fswPfcHz = acdcState.fsw_kHz * 1e3;
   const fswDcHz = dcdcState.fsw_kHz * 1e3;
@@ -1576,7 +1605,7 @@ export function generateCombinedSystemPlecsModel(
     '  Version       "4.8"',
     '  SavedModel    "True"',
     '  StoredState   "False"',
-    `  SimulationTime "${(1 / acdcState.f_line_Hz).toFixed(4)}"`,
+    `  SimulationTime "${simTimeSec}"`,
     '  StartTime     "0.0"',
     `  TimeStep      "${(1 / (Math.max(fswPfcHz, fswDcHz) * 25)).toExponential(2)}"`,
     `  MaxStep       "${(1 / (Math.max(fswPfcHz, fswDcHz) * 15)).toExponential(2)}"`,
@@ -1615,10 +1644,18 @@ export function generateCombinedSystemPlecsBundle(
   acdcRes: AcDcResults,
   dcdcState: DcDcDesignState,
   dcdcRes: DcDcResults,
-  sharedMcu = true
+  sharedMcu = true,
+  simStopTime_ms?: number
 ): PlecsBundle {
   const baseName = sanitizePlecsIdent(`voltcraft_combined_${acdcState.topology}_to_${dcdcState.topology}`);
-  const plecsText = generateCombinedSystemPlecsModel(acdcState, acdcRes, dcdcState, dcdcRes, sharedMcu);
+  const plecsText = generateCombinedSystemPlecsModel(
+    acdcState,
+    acdcRes,
+    dcdcState,
+    dcdcRes,
+    sharedMcu,
+    simStopTime_ms
+  );
 
   const cdcBank = getDefaultHybridCapBank('acdc-cdc', undefined, acdcState);
   const cdcUnits = expandHybridCapBankForSpice(cdcBank, 'C_DC', acdcState.Vdc_bus_V * 1.04, 4);
