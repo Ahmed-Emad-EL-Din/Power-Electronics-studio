@@ -2,6 +2,8 @@ import { AcDcDesignState, DcDcDesignState } from '../data/databases';
 import { AcDcResults } from './acdcEngine';
 import { DcDcResults } from './dcdcEngine';
 export { generateAcDcLtspiceAsc, generateDcDcLtspiceAsc } from './ltspiceAscExporter';
+export { generateAcDcQspiceBundle, generateDcDcQspiceBundle } from './qspiceExporter';
+export type { QspiceSimulationBundle } from './qspiceExporter';
 
 /**
  * Generates an LTspice / ngspice compatible .cir behavioral switching SPICE netlist

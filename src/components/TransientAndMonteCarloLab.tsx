@@ -6,15 +6,18 @@ import { runTransientLoadStep } from '../engine/transientOdeSolver';
 import { runMonteCarloAnalysis } from '../engine/monteCarloEngine';
 import {
   generateAcDcLtspiceAsc,
+  generateAcDcQspiceBundle,
   generateAcDcSpiceNetlist,
   generateControlFirmwareHeader,
   generateDcDcLtspiceAsc,
+  generateDcDcQspiceBundle,
   generateDcDcSpiceNetlist,
 } from '../engine/spiceNetlistExporter';
 import { OscilloscopeViewer } from './OscilloscopeViewer';
 import { InteractiveChart } from './InteractiveChart';
 import {
   Activity,
+  Archive,
   BarChart3,
   Check,
   Code2,
@@ -58,7 +61,9 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
   >('Tj_max_C');
 
   // Netlist / Schematic / Firmware Viewer Tab
-  const [exportTab, setExportTab] = useState<'dcdc-asc' | 'acdc-asc' | 'dcdc-cir' | 'acdc-cir' | 'firmware-h'>('dcdc-asc');
+  const [exportTab, setExportTab] = useState<
+    'dcdc-asc' | 'acdc-asc' | 'dcdc-qsch' | 'dcdc-cpp' | 'dcdc-cir' | 'acdc-cir' | 'firmware-h'
+  >('dcdc-asc');
   const [copiedFlag, setCopiedFlag] = useState<boolean>(false);
 
   const transientRes = useMemo(
@@ -100,21 +105,31 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
     [dcdcState, mcTrials, tolL, tolC, tolVin]
   );
 
+  const dcdcQspiceBundle = useMemo(
+    () => generateDcDcQspiceBundle(dcdcState, dcdcRes),
+    [dcdcState, dcdcRes]
+  );
+
   const codePreview = useMemo(() => {
     if (exportTab === 'dcdc-asc') return generateDcDcLtspiceAsc(dcdcState, dcdcRes);
     if (exportTab === 'acdc-asc') return generateAcDcLtspiceAsc(acdcState, acdcRes);
+    if (exportTab === 'dcdc-qsch') return dcdcQspiceBundle.qschContent;
+    if (exportTab === 'dcdc-cpp') return dcdcQspiceBundle.cppContent;
     if (exportTab === 'dcdc-cir') return generateDcDcSpiceNetlist(dcdcState, dcdcRes);
     if (exportTab === 'acdc-cir') return generateAcDcSpiceNetlist(acdcState, acdcRes);
     return generateControlFirmwareHeader(dcdcState, dcdcRes, acdcState, acdcRes);
-  }, [exportTab, dcdcState, dcdcRes, acdcState, acdcRes]);
+  }, [exportTab, dcdcState, dcdcRes, acdcState, acdcRes, dcdcQspiceBundle]);
 
   const downloadCodeFile = () => {
-    const ext = exportTab === 'firmware-h' ? 'h' : exportTab.endsWith('-asc') ? 'asc' : 'cir';
     const filename =
       exportTab === 'dcdc-asc'
         ? `voltcraft_${dcdcState.topology}.asc`
         : exportTab === 'acdc-asc'
         ? `voltcraft_${acdcState.topology}.asc`
+        : exportTab === 'dcdc-qsch'
+        ? dcdcQspiceBundle.qschFileName
+        : exportTab === 'dcdc-cpp'
+        ? dcdcQspiceBundle.cppFileName
         : exportTab === 'dcdc-cir'
         ? `voltcraft_${dcdcState.topology}.cir`
         : exportTab === 'acdc-cir'
@@ -124,7 +139,21 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = filename || `export.${ext}`;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadQspiceZip = (target: 'dcdc' | 'acdc') => {
+    const bundle =
+      target === 'acdc'
+        ? generateAcDcQspiceBundle(acdcState, acdcRes)
+        : dcdcQspiceBundle;
+    const blob = new Blob([new Uint8Array(bundle.zipBytes)], { type: 'application/zip' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${bundle.baseName}_qspice.zip`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -463,11 +492,11 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
             <div className="flex items-center gap-2">
               <Code2 className="w-4 h-4 text-cyan-500" />
               <h3 className="text-xs font-bold font-mono text-slate-900 dark:text-slate-100">
-                LTspice Schematic (.asc), SPICE Netlist (.cir) &amp; DSP Header (.h) Exporter
+                LTspice (.asc), QSPICE Suite (.zip: .qsch/.qsym/.qraw/.cir/.cpp) &amp; DSP (.h) Exporter
               </h3>
             </div>
             <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-              Download grid-aligned LTspice .asc circuit diagrams, .cir netlists, or TI C2000 / STM32G4 firmware configuration headers.
+              Download grid-aligned LTspice .asc diagrams, complete QSPICE simulation ZIP bundles, .cir netlists, or TI C2000 / STM32G4 headers.
             </p>
           </div>
 
@@ -476,6 +505,8 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
               [
                 { id: 'dcdc-asc', label: 'DC-DC LTspice (.asc)' },
                 { id: 'acdc-asc', label: 'AC-DC LTspice (.asc)' },
+                { id: 'dcdc-qsch', label: 'QSPICE (.qsch)' },
+                { id: 'dcdc-cpp', label: 'QSPICE C++ (.cpp)' },
                 { id: 'dcdc-cir', label: 'DC-DC SPICE (.cir)' },
                 { id: 'acdc-cir', label: 'AC-DC SPICE (.cir)' },
                 { id: 'firmware-h', label: 'Firmware Config (.h)' },
@@ -510,6 +541,15 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
             >
               <Download className="w-3 h-3" />
               Download File
+            </button>
+            <button
+              type="button"
+              onClick={() => downloadQspiceZip(exportTab === 'acdc-cir' || exportTab === 'acdc-asc' ? 'acdc' : 'dcdc')}
+              className="px-2.5 py-1 rounded text-[11px] font-mono bg-violet-600 hover:bg-violet-500 text-white inline-flex items-center gap-1 font-semibold cursor-pointer"
+              title="Download QSPICE ZIP containing .qsch, .qsym, .qraw, .cir, .cpp"
+            >
+              <Archive className="w-3 h-3" />
+              QSPICE Bundle (.zip)
             </button>
           </div>
         </div>

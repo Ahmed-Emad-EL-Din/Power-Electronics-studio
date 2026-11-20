@@ -69,9 +69,11 @@ import {
 } from './engine/projectStorage';
 import {
   generateAcDcLtspiceAsc,
+  generateAcDcQspiceBundle,
   generateAcDcSpiceNetlist,
   generateControlFirmwareHeader,
   generateDcDcLtspiceAsc,
+  generateDcDcQspiceBundle,
   generateDcDcSpiceNetlist,
 } from './engine/spiceNetlistExporter';
 import {
@@ -970,6 +972,20 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
     URL.revokeObjectURL(url);
   };
 
+  const handleExportActiveQspiceZip = () => {
+    const bundle =
+      domainTab === 'acdc'
+        ? generateAcDcQspiceBundle(acdcState, acdcRes)
+        : generateDcDcQspiceBundle(dcdcState, dcdcRes);
+    const blob = new Blob([new Uint8Array(bundle.zipBytes)], { type: 'application/zip' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${bundle.baseName}_qspice.zip`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleExportFirmwareHeader = () => {
     const text = generateControlFirmwareHeader(dcdcState, dcdcRes, acdcState, acdcRes);
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
@@ -1841,6 +1857,15 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
                 >
                   <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                   LTspice .asc
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportActiveQspiceZip}
+                  className="px-2.5 py-2 text-xs font-mono rounded-lg border border-slate-200 dark:border-white/[0.1] bg-[#f5f7fa] dark:bg-[#1a1e28] hover:border-violet-500/60 text-violet-700 dark:text-violet-300 inline-flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                  title="Download QSPICE simulation suite ZIP (.qsch, .qsym, .qraw, .cir, .cpp)"
+                >
+                  <Download className="w-3.5 h-3.5 text-violet-600 dark:text-violet-400" />
+                  QSPICE .zip
                 </button>
                 <button
                   type="button"

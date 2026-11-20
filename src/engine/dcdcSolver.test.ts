@@ -35,9 +35,11 @@ import { runTransientLoadStep } from './transientOdeSolver';
 import { runMonteCarloAnalysis } from './monteCarloEngine';
 import {
   generateAcDcLtspiceAsc,
+  generateAcDcQspiceBundle,
   generateAcDcSpiceNetlist,
   generateControlFirmwareHeader,
   generateDcDcLtspiceAsc,
+  generateDcDcQspiceBundle,
   generateDcDcSpiceNetlist,
 } from './spiceNetlistExporter';
 import {
@@ -1098,6 +1100,8 @@ test('LTspice .asc schematic exporter produces grid-aligned, orthogonal, well-or
 
     assert.ok(lines.some((l) => l.startsWith('FLAG ') && l.endsWith(' 0')), `[${label}] Missing GND flag 0`);
     assert.ok(lines.some((l) => l.includes('!.tran ')), `[${label}] Missing .tran directive`);
+    // Verify pure 7-bit printable ASCII so LTspice Windows-1252 parser never renders mojibake
+    assert.ok(/^[\x0A\x0D\x20-\x7E]+$/.test(ascText), `[${label}] Non-ASCII characters found in .asc`);
   };
 
   // Test DC-DC PSFB (CT + Op-Amp), PSFB (Full-Bridge + OTA), PSFB (Current-Doubler), and LLC-HB
@@ -1112,6 +1116,9 @@ test('LTspice .asc schematic exporter produces grid-aligned, orthogonal, well-or
     verifyAsc(asc, `${variant.topology}-${variant.txType}-${variant.type2Architecture ?? 'default'}`);
     assert.ok(asc.includes('K_TX L_PRI L_SEC1'));
     assert.ok(asc.includes('SYMBOL nmos '));
+    // Verify L_PRI uses M0 (labels left) and L_SEC1 uses R0 (labels right) so transformer labels never collide
+    const priLine = asc.split('\n').find((l) => l.startsWith('SYMBOL ind2 ') && asc.split('\n')[asc.split('\n').indexOf(l) + 1]?.includes('L_PRI'));
+    assert.ok(priLine?.endsWith(' M0'), 'Expected L_PRI to use M0 mirror so labels face away from core');
   }
 
   // Test AC-DC PFC (2-Phase Interleaved & 1-Phase)
@@ -1122,6 +1129,36 @@ test('LTspice .asc schematic exporter produces grid-aligned, orthogonal, well-or
     assert.ok(asc.includes('SYMBOL nmos '));
   }
 });
+
+test('QSPICE ZIP bundle exports valid .zip with .qsch, .qsym, .qraw, .cir, and .cpp simulation files', () => {
+  const dcState = DCDC_PRESETS[0].state;
+  const dcRes = solveDcDcDesign(dcState);
+  const dcBundle = generateDcDcQspiceBundle(dcState, dcRes);
+
+  assert.ok(dcBundle.qschContent.startsWith('«schematic'));
+  assert.ok(dcBundle.qschContent.includes('«wire '));
+  assert.ok(dcBundle.qschContent.includes('«component '));
+  assert.ok(dcBundle.qsymFiles.length >= 2);
+  assert.ok(dcBundle.qsymFiles.every((f) => f.path.endsWith('.qsym') && f.content.startsWith('«symbol')));
+  assert.ok(dcBundle.qrawContent.includes('Plotname: Transient Analysis') && dcBundle.qrawContent.includes('Variables:') && dcBundle.qrawContent.includes('Values:'));
+  assert.ok(dcBundle.cirContent.includes('.tran ') && dcBundle.cirContent.includes('.end'));
+  assert.ok(dcBundle.cppContent.includes('__declspec(dllexport)') && dcBundle.cppContent.includes('union uData'));
+  assert.equal(dcBundle.zipBytes[0], 0x50); // 'P'
+  assert.equal(dcBundle.zipBytes[1], 0x4b); // 'K'
+  assert.equal(dcBundle.zipBytes[2], 0x03);
+  assert.equal(dcBundle.zipBytes[3], 0x04);
+
+  const acState = ACDC_PRESETS[0].state;
+  const acRes = solveAcDcDesign(acState);
+  const acBundle = generateAcDcQspiceBundle(acState, acRes);
+  assert.ok(acBundle.qschContent.startsWith('«schematic'));
+  assert.ok(acBundle.qsymFiles.some((f) => f.path.endsWith('.qsym')));
+  assert.ok(acBundle.qrawContent.includes('V(v_dc)') && acBundle.qrawContent.includes('I(L_DM)'));
+  assert.ok(acBundle.cppContent.includes('PfcState'));
+  assert.equal(acBundle.zipBytes[0], 0x50);
+  assert.equal(acBundle.zipBytes[1], 0x4b);
+});
+
 
 
 
