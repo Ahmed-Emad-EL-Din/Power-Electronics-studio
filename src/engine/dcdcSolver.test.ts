@@ -4,7 +4,13 @@ import {
   ACDC_PRESETS,
   DCDC_PRESETS,
   DcDcDesignState,
+  SEMICONDUCTOR_DATABASE,
 } from '../data/databases';
+import {
+  generateManufacturerMosfetSubckt,
+  generateManufacturerRectifierSubckt,
+  generatePfcBoostDiodeSubckt,
+} from './spiceModelLibrary';
 import { solveAcDcDesign } from './acdcEngine';
 import { solveDcDcDesign, syncDcdcTurnsRatioState } from './dcdcEngine';
 import { DCDC_DEFAULT_LOCKS, DcDcLockableKey, optimizeDcDcUnlocked } from './autoOptimizer';
@@ -845,7 +851,9 @@ test('SPICE .cir Netlist & Embedded C Header Exporters emit valid netlists and T
 
   const dcdcCir = generateDcDcSpiceNetlist(dcdcState, dcdcRes);
   assert.ok(dcdcCir.includes('.tran'));
-  assert.ok(dcdcCir.includes('K_TX L_PRI L_SEC1 L_SEC2'));
+  assert.ok(dcdcCir.includes('K_TX L_PRI L_SEC1'));
+  assert.ok(dcdcCir.includes('.SUBCKT '));
+  assert.ok(!dcdcCir.includes('SW_PRI'));
   assert.ok(dcdcCir.endsWith('.end'));
 
   const acdcCir = generateAcDcSpiceNetlist(acdcState, acdcRes);
@@ -1130,7 +1138,7 @@ test('LTspice .asc schematic exporter produces grid-aligned, orthogonal, well-or
   }
 });
 
-test('QSPICE ZIP bundle exports valid .zip with .qsch, .qsym, .qraw, .cir, and .cpp simulation files', () => {
+test('QSPICE ZIP bundle exports valid .zip with binary/Latin-1 .qsch, .qsym, .lib, .qraw, .cir, and DMC-compatible .cpp files', () => {
   const dcState = DCDC_PRESETS[0].state;
   const dcRes = solveDcDcDesign(dcState);
   const dcBundle = generateDcDcQspiceBundle(dcState, dcRes);
@@ -1138,11 +1146,28 @@ test('QSPICE ZIP bundle exports valid .zip with .qsch, .qsym, .qraw, .cir, and .
   assert.ok(dcBundle.qschContent.startsWith('«schematic'));
   assert.ok(dcBundle.qschContent.includes('«wire '));
   assert.ok(dcBundle.qschContent.includes('«component '));
+  assert.ok(dcBundle.qschContent.includes('«type: Ø(.DLL)»'));
+  assert.ok(dcBundle.qschContent.includes('«type: X»'));
+  assert.ok(dcBundle.qschContent.includes('.lib voltcraft_models.lib'));
+  assert.ok(dcBundle.libContent.includes(`.SUBCKT ${dcRes.priDevice.id.toUpperCase()}`));
   assert.ok(dcBundle.qsymFiles.length >= 2);
-  assert.ok(dcBundle.qsymFiles.every((f) => f.path.endsWith('.qsym') && f.content.startsWith('«symbol')));
-  assert.ok(dcBundle.qrawContent.includes('Plotname: Transient Analysis') && dcBundle.qrawContent.includes('Variables:') && dcBundle.qrawContent.includes('Values:'));
+  assert.ok(
+    dcBundle.qsymFiles.every((f) => f.path.endsWith('.qsym') && f.content.startsWith('«symbol'))
+  );
+  assert.ok(
+    dcBundle.qrawContent.includes('Plotname: Transient Analysis') &&
+      dcBundle.qrawContent.includes('Flags: real forward log double') &&
+      dcBundle.qrawContent.includes('Variables:') &&
+      dcBundle.qrawContent.includes('Values:')
+  );
   assert.ok(dcBundle.cirContent.includes('.tran ') && dcBundle.cirContent.includes('.end'));
-  assert.ok(dcBundle.cppContent.includes('__declspec(dllexport)') && dcBundle.cppContent.includes('union uData'));
+  assert.ok(
+    dcBundle.cppContent.includes('__declspec(dllexport)') &&
+      dcBundle.cppContent.includes('union uData') &&
+      dcBundle.cppContent.includes('DllMain') &&
+      dcBundle.cppContent.includes('calloc(') &&
+      !dcBundle.cppContent.includes('constexpr')
+  );
   assert.equal(dcBundle.zipBytes[0], 0x50); // 'P'
   assert.equal(dcBundle.zipBytes[1], 0x4b); // 'K'
   assert.equal(dcBundle.zipBytes[2], 0x03);
@@ -1152,11 +1177,62 @@ test('QSPICE ZIP bundle exports valid .zip with .qsch, .qsym, .qraw, .cir, and .
   const acRes = solveAcDcDesign(acState);
   const acBundle = generateAcDcQspiceBundle(acState, acRes);
   assert.ok(acBundle.qschContent.startsWith('«schematic'));
+  assert.ok(acBundle.qschContent.includes('«type: Ø(.DLL)»'));
+  assert.ok(acBundle.qschContent.includes('GBJ2510_DIODE'));
+  assert.ok(acBundle.libContent.includes('GBJ2510_DIODE'));
   assert.ok(acBundle.qsymFiles.some((f) => f.path.endsWith('.qsym')));
   assert.ok(acBundle.qrawContent.includes('V(v_dc)') && acBundle.qrawContent.includes('I(L_DM)'));
-  assert.ok(acBundle.cppContent.includes('PfcState'));
+  assert.ok(acBundle.cppContent.includes('struct sVOLTCRAFT_') && acBundle.cppContent.includes('DllMain'));
   assert.equal(acBundle.zipBytes[0], 0x50);
   assert.equal(acBundle.zipBytes[1], 0x4b);
+});
+
+test('Manufacturer SPICE .SUBCKT library covers all 22 catalog devices and binds cleanly in LTspice .asc, .cir, and QSPICE', () => {
+  assert.equal(SEMICONDUCTOR_DATABASE.length, 22);
+
+  for (const dev of SEMICONDUCTOR_DATABASE) {
+    const mos = generateManufacturerMosfetSubckt(dev, 2);
+    assert.ok(mos.spiceText.includes(`.SUBCKT ${mos.subcktName} d g s`), `Missing .SUBCKT for ${dev.id}`);
+    assert.ok(mos.spiceText.includes('VDMOS('), `Missing VDMOS for ${dev.id}`);
+    assert.ok(mos.spiceText.includes('L_D d d_int'), `Missing drain parasitic for ${dev.id}`);
+    assert.ok(mos.spiceText.includes('.ENDS'), `Missing .ENDS for ${dev.id}`);
+
+    const sr = generateManufacturerRectifierSubckt(dev, 2, 'sync-fet');
+    assert.ok(sr.spiceText.includes(`.SUBCKT ${sr.subcktName} a k`), `Missing SR wrapper for ${dev.id}`);
+    if (dev.tech === 'SiC Schottky') {
+      assert.ok(sr.spiceText.includes('D_DIO'), `Missing diode instance for ${dev.id}`);
+    } else {
+      assert.ok(sr.spiceText.includes('B_SRDRV'), `Missing SR gate driver for ${dev.id}`);
+    }
+
+    const dio = generateManufacturerRectifierSubckt(dev, 1, 'schottky-diode');
+    assert.ok(dio.spiceText.includes(`.SUBCKT ${dio.subcktName} a k`), `Missing diode wrapper for ${dev.id}`);
+  }
+
+  const sic400 = generatePfcBoostDiodeSubckt(400);
+  assert.equal(sic400.mpn, 'STPSC10H065DY');
+  assert.ok(sic400.spiceText.includes('.SUBCKT GBJ2510_DIODE a k'));
+
+  const sic800 = generatePfcBoostDiodeSubckt(800);
+  assert.equal(sic800.mpn, 'C4D20120D');
+
+  // Verify LTspice .asc embeds Prefix X + exact manufacturer .SUBCKT for DC-DC and AC-DC
+  const dcState = DCDC_PRESETS[0].state;
+  const dcRes = solveDcDcDesign(dcState);
+  const dcPri = generateManufacturerMosfetSubckt(dcRes.priDevice, dcState.nParallelPri);
+  const dcSec = generateManufacturerRectifierSubckt(dcRes.secDevice, dcState.nParallelSec, dcState.rectMode);
+  const dcAsc = generateDcDcLtspiceAsc(dcState, dcRes);
+  assert.ok(dcAsc.includes('SYMATTR Prefix X'));
+  assert.ok(dcAsc.includes(`.SUBCKT ${dcPri.subcktName} d g s`));
+  assert.ok(dcAsc.includes(`.SUBCKT ${dcSec.subcktName} a k`));
+
+  const acState = ACDC_PRESETS[0].state;
+  const acRes = solveAcDcDesign(acState);
+  const acSw = generateManufacturerMosfetSubckt(acRes.sw, 1);
+  const acAsc = generateAcDcLtspiceAsc(acState, acRes);
+  assert.ok(acAsc.includes('SYMATTR Prefix X'));
+  assert.ok(acAsc.includes(`.SUBCKT ${acSw.subcktName} d g s`));
+  assert.ok(acAsc.includes('.SUBCKT GBJ2510_DIODE a k'));
 });
 
 

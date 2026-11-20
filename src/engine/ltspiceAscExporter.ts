@@ -16,6 +16,11 @@
 import { AcDcDesignState, DcDcDesignState } from '../data/databases';
 import { AcDcResults } from './acdcEngine';
 import { DcDcResults } from './dcdcEngine';
+import {
+  generateManufacturerMosfetSubckt,
+  generateManufacturerRectifierSubckt,
+  generatePfcBoostDiodeSubckt,
+} from './spiceModelLibrary';
 
 type AscRotation = 'R0' | 'R90' | 'R180' | 'R270' | 'M0' | 'M90' | 'M180' | 'M270';
 
@@ -171,8 +176,8 @@ class AscSchematicBuilder {
   }
 
   /** Vertical N-channel MOSFET (R0): Drain=(x, y), Gate=(x - 48, y + 80), Source=(x, y + 96). */
-  placeMosfet(xDrain: number, yDrain: number, name: string, modelName: string) {
-    this.symbol('nmos', xDrain - 48, yDrain, 'R0', name, modelName);
+  placeMosfet(xDrain: number, yDrain: number, name: string, modelName: string, isSubckt = true) {
+    this.symbol('nmos', xDrain - 48, yDrain, 'R0', name, modelName, isSubckt ? { Prefix: 'X' } : undefined);
     return {
       drain: [xDrain, yDrain] as [number, number],
       gate: [xDrain - 48, yDrain + 80] as [number, number],
@@ -186,9 +191,10 @@ class AscSchematicBuilder {
     xAnode: number,
     y: number,
     name: string,
-    modelName: string
+    modelName: string,
+    isSubckt = true
   ) {
-    this.symbol(sym, xAnode, y + 16, 'R270', name, modelName);
+    this.symbol(sym, xAnode, y + 16, 'R270', name, modelName, isSubckt ? { Prefix: 'X' } : undefined);
     return { anode: [xAnode, y] as [number, number], cathode: [xAnode + 64, y] as [number, number] };
   }
 
@@ -198,10 +204,30 @@ class AscSchematicBuilder {
     x: number,
     yCathode: number,
     name: string,
-    modelName: string
+    modelName: string,
+    isSubckt = true
   ) {
-    this.symbol(sym, x + 16, yCathode + 64, 'R180', name, modelName);
+    this.symbol(sym, x + 16, yCathode + 64, 'R180', name, modelName, isSubckt ? { Prefix: 'X' } : undefined);
     return { cathode: [x, yCathode] as [number, number], anode: [x, yCathode + 64] as [number, number] };
+  }
+
+  /** Renders a multi-line SPICE .SUBCKT/.MODEL block cleanly on 24px vertical pitch. */
+  placeSpiceBlock(x: number, yStart: number, spiceText: string, linePitch = 24): number {
+    let y = yStart;
+    for (const rawLine of spiceText.split('\n')) {
+      const line = rawLine.trimEnd();
+      if (!line) {
+        y += Math.round(linePitch * 0.5);
+        continue;
+      }
+      if (line.startsWith('*')) {
+        this.comment(x, y, line.replace(/^\*+\s*/, ''));
+      } else {
+        this.directive(x, y, line);
+      }
+      y += linePitch;
+    }
+    return y;
   }
 
   build(): string {
@@ -214,7 +240,7 @@ class AscSchematicBuilder {
  * for the active Isolated DC-DC stage (PSFB / LLC-FB / LLC-HB).
  */
 export function generateDcDcLtspiceAsc(state: DcDcDesignState, res: DcDcResults): string {
-  const asc = new AscSchematicBuilder(2880, 1344);
+  const asc = new AscSchematicBuilder(2880, 1856);
 
   const fswHz = state.fsw_kHz * 1e3;
   const Tsw = 1 / fswHz;
@@ -225,15 +251,13 @@ export function generateDcDcLtspiceAsc(state: DcDcDesignState, res: DcDcResults)
   const half_ns = Math.round(Thalf * 1e9);
   const phaseShift_ns = Math.round((1 - Math.min(0.95, res.Deff_nom)) * Thalf * 1e9);
 
-  const Ron_pri = Math.max(
-    0.002,
-    ((res.priDevice.Rds_on_25C_mOhm * 1.45) / Math.max(1, state.nParallelPri)) * 1e-3
+  const priModel = generateManufacturerMosfetSubckt(res.priDevice, state.nParallelPri);
+  const secModel = generateManufacturerRectifierSubckt(
+    res.secDevice,
+    state.nParallelSec,
+    state.rectMode
   );
-  const Ron_sec = Math.max(
-    0.001,
-    ((res.secDevice.Rds_on_25C_mOhm * 1.4) / Math.max(1, state.nParallelSec)) * 1e-3
-  );
-  const Coss_pri_pF = Math.max(15, res.priDevice.Coss_er_pF * state.nParallelPri);
+
   const n = Math.max(0.2, res.Np_actual / Math.max(1, res.Ns_actual));
   const Lpri_uH = Math.max(50, state.Lm_uH);
   const Lsec_uH = Lpri_uH / (n * n);
@@ -256,15 +280,15 @@ export function generateDcDcLtspiceAsc(state: DcDcDesignState, res: DcDcResults)
   asc.comment(80, 120, '1. INPUT BUS');
 
   asc.graphicRect(384, 112, 928, 624);
-  asc.comment(400, 120, `2. PRIMARY ${state.topology === 'llc-hb' ? 'HALF-BRIDGE' : 'FULL-BRIDGE'}`);
+  asc.comment(400, 120, `2. PRIMARY ${state.topology === 'llc-hb' ? 'HALF-BRIDGE' : 'FULL-BRIDGE'} (${priModel.subcktName})`);
 
   asc.graphicRect(960, 112, 1632, 624);
   asc.comment(976, 120, '3. TANK & ISOLATION TRANSFORMER');
 
   asc.graphicRect(1664, 112, 2752, 624);
-  asc.comment(1680, 120, `4. ${state.txType.toUpperCase()} RECTIFIER, OUTPUT FILTER & LOAD`);
+  asc.comment(1680, 120, `4. ${state.txType.toUpperCase()} RECTIFIER (${secModel.subcktName}), OUTPUT FILTER & LOAD`);
 
-  // Bottom Row Zones (Gate Drives, Control Loop, Directives)
+  // Middle Row Zones (Gate Drives, Control Loop, Directives)
   asc.graphicRect(64, 672, 928, 1200);
   asc.comment(80, 680, '5A. ISOLATED GATE DRIVE SOURCES');
 
@@ -276,7 +300,11 @@ export function generateDcDcLtspiceAsc(state: DcDcDesignState, res: DcDcResults)
   );
 
   asc.graphicRect(1968, 672, 2752, 1200);
-  asc.comment(1984, 680, '6. SPICE PARAMETERS, MODELS & DIRECTIVES');
+  asc.comment(1984, 680, '6A. SPICE PARAMETERS & SIMULATION COMMANDS');
+
+  // Bottom Row Zone (Manufacturer .SUBCKT SPICE Models)
+  asc.graphicRect(64, 1232, 2752, 1808);
+  asc.comment(80, 1244, `6B. MANUFACTURER SPICE SUBCIRCUITS (${priModel.manufacturer} ${res.priDevice.id} & ${secModel.manufacturer} ${res.secDevice.id})`);
 
   // --------------------------------------------------------------------------
   // ZONE 1: INPUT DC SOURCE & BULK CAPACITOR
@@ -295,7 +323,7 @@ export function generateDcDcLtspiceAsc(state: DcDcDesignState, res: DcDcResults)
   asc.wirePath([[144, Y_BUS_BOT], [272, Y_BUS_BOT], cin.bot]);
 
   // --------------------------------------------------------------------------
-  // ZONE 2: PRIMARY BRIDGE LEGS (CLEAN MOSFET SYMBOLS, NO CLUTTERING PULSE TEXT)
+  // ZONE 2: PRIMARY BRIDGE LEGS (REAL MANUFACTURER .SUBCKT WITH PREFIX X)
   // --------------------------------------------------------------------------
   const X_LEG_A = 528;
   const X_LEG_B = 784;
@@ -305,13 +333,13 @@ export function generateDcDcLtspiceAsc(state: DcDcDesignState, res: DcDcResults)
   asc.wirePath([[272, Y_BUS_BOT], [X_LEG_A, Y_BUS_BOT]]);
 
   // Leg A: Q1 (high) + Q2 (low)
-  const q1 = asc.placeMosfet(X_LEG_A, 224, 'Q1', 'Q_PRI');
+  const q1 = asc.placeMosfet(X_LEG_A, 224, 'Q1', priModel.subcktName, true);
   asc.wirePath([[X_LEG_A, Y_BUS_TOP], q1.drain]);
   asc.wirePath([q1.source, [X_LEG_A, Y_MID]]);
   asc.wirePath([[X_LEG_A - 80, q1.gate[1]], q1.gate]);
   asc.flag(X_LEG_A - 80, q1.gate[1], 'g1');
 
-  const q2 = asc.placeMosfet(X_LEG_A, 432, 'Q2', 'Q_PRI');
+  const q2 = asc.placeMosfet(X_LEG_A, 432, 'Q2', priModel.subcktName, true);
   asc.wirePath([[X_LEG_A, Y_MID], q2.drain]);
   asc.wirePath([q2.source, [X_LEG_A, Y_BUS_BOT]]);
   asc.wirePath([[X_LEG_A - 80, q2.gate[1]], q2.gate]);
@@ -331,13 +359,13 @@ export function generateDcDcLtspiceAsc(state: DcDcDesignState, res: DcDcResults)
     asc.wirePath([chbTop.bot, [X_LEG_B, Y_MID], chbBot.top]);
     asc.wirePath([chbBot.bot, [X_LEG_B, Y_BUS_BOT]]);
   } else {
-    const q3 = asc.placeMosfet(X_LEG_B, 224, 'Q3', 'Q_PRI');
+    const q3 = asc.placeMosfet(X_LEG_B, 224, 'Q3', priModel.subcktName, true);
     asc.wirePath([[X_LEG_B, Y_BUS_TOP], q3.drain]);
     asc.wirePath([q3.source, [X_LEG_B, Y_MID]]);
     asc.wirePath([[X_LEG_B - 80, q3.gate[1]], q3.gate]);
     asc.flag(X_LEG_B - 80, q3.gate[1], 'g3');
 
-    const q4 = asc.placeMosfet(X_LEG_B, 432, 'Q4', 'Q_PRI');
+    const q4 = asc.placeMosfet(X_LEG_B, 432, 'Q4', priModel.subcktName, true);
     asc.wirePath([[X_LEG_B, Y_MID], q4.drain]);
     asc.wirePath([q4.source, [X_LEG_B, Y_BUS_BOT]]);
     asc.wirePath([[X_LEG_B - 80, q4.gate[1]], q4.gate]);
@@ -407,7 +435,7 @@ export function generateDcDcLtspiceAsc(state: DcDcDesignState, res: DcDcResults)
   }
 
   // --------------------------------------------------------------------------
-  // ZONE 4: SECONDARY RECTIFIER, OUTPUT LC FILTER & LOAD (SPACIOUS >=192PX LEGS)
+  // ZONE 4: SECONDARY RECTIFIER, OUTPUT LC FILTER & LOAD (MANUFACTURER .SUBCKT)
   // --------------------------------------------------------------------------
   const Y_OUT_RAIL = 240;
   const Y_SEC_GND = 560;
@@ -415,8 +443,8 @@ export function generateDcDcLtspiceAsc(state: DcDcDesignState, res: DcDcResults)
   if (state.txType === 'center-tapped') {
     asc.flag(1712, 240, 'sec_p');
     asc.flag(1712, 432, 'sec_n');
-    const d1 = asc.placeVerticalDiodeUp('schottky', 1808, 240, 'D_SR1', 'D_SEC');
-    const d2 = asc.placeVerticalDiodeUp('schottky', 1808, 432, 'D_SR2', 'D_SEC');
+    const d1 = asc.placeVerticalDiodeUp('schottky', 1808, 240, 'D_SR1', secModel.subcktName, true);
+    const d2 = asc.placeVerticalDiodeUp('schottky', 1808, 432, 'D_SR2', secModel.subcktName, true);
     asc.wirePath([[1712, 240], d1.cathode]);
     asc.wirePath([[1712, 432], d2.cathode]);
     asc.wirePath([d1.anode, [1888, 304], [1888, Y_SEC_GND]]);
@@ -431,8 +459,8 @@ export function generateDcDcLtspiceAsc(state: DcDcDesignState, res: DcDcResults)
   } else if (state.txType === 'current-doubler') {
     asc.flag(1712, 240, 'sec_p');
     asc.flag(1712, 416, 'sec_n');
-    const d1 = asc.placeVerticalDiodeUp('schottky', 1824, 240, 'D_SR1', 'D_SEC');
-    const d2 = asc.placeVerticalDiodeUp('schottky', 1824, 416, 'D_SR2', 'D_SEC');
+    const d1 = asc.placeVerticalDiodeUp('schottky', 1824, 240, 'D_SR1', secModel.subcktName, true);
+    const d2 = asc.placeVerticalDiodeUp('schottky', 1824, 416, 'D_SR2', secModel.subcktName, true);
     asc.wirePath([[1712, 240], d1.cathode]);
     asc.wirePath([[1712, 416], d2.cathode]);
     asc.wirePath([d1.anode, [1904, 304], [1904, Y_SEC_GND]]);
@@ -450,10 +478,10 @@ export function generateDcDcLtspiceAsc(state: DcDcDesignState, res: DcDcResults)
     // Full-bridge rectifier: legs separated by 224px horizontally, 160px vertically
     const X_REC_1 = 1792;
     const X_REC_2 = 2016;
-    const d1 = asc.placeVerticalDiodeUp('schottky', X_REC_1, 240, 'D_SR1', 'D_SEC');
-    const d2 = asc.placeVerticalDiodeUp('schottky', X_REC_1, 448, 'D_SR2', 'D_SEC');
-    const d3 = asc.placeVerticalDiodeUp('schottky', X_REC_2, 240, 'D_SR3', 'D_SEC');
-    const d4 = asc.placeVerticalDiodeUp('schottky', X_REC_2, 448, 'D_SR4', 'D_SEC');
+    const d1 = asc.placeVerticalDiodeUp('schottky', X_REC_1, 240, 'D_SR1', secModel.subcktName, true);
+    const d2 = asc.placeVerticalDiodeUp('schottky', X_REC_1, 448, 'D_SR2', secModel.subcktName, true);
+    const d3 = asc.placeVerticalDiodeUp('schottky', X_REC_2, 240, 'D_SR3', secModel.subcktName, true);
+    const d4 = asc.placeVerticalDiodeUp('schottky', X_REC_2, 448, 'D_SR4', secModel.subcktName, true);
 
     asc.wirePath([d1.cathode, d3.cathode, [2112, Y_OUT_RAIL]]);
     asc.wirePath([d1.anode, d2.cathode]);
@@ -615,7 +643,7 @@ export function generateDcDcLtspiceAsc(state: DcDcDesignState, res: DcDcResults)
   }
 
   // --------------------------------------------------------------------------
-  // ZONE 6: SPICE PARAMETERS, DEVICE MODELS & SIMULATION COMMANDS
+  // ZONE 6A: SPICE PARAMETERS & SIMULATION COMMANDS
   // --------------------------------------------------------------------------
   const X_DIR = 1984;
   asc.directive(
@@ -628,37 +656,43 @@ export function generateDcDcLtspiceAsc(state: DcDcDesignState, res: DcDcResults)
     760,
     `.param TON=${tOnHalf_ns}n THALF=${half_ns}n TD_A=${tShiftA}n TD_B=${tShiftB}n`
   );
+  asc.directive(X_DIR, 808, `.tran 0 ${tStop_us}u ${(tStop_us * 0.6).toFixed(0)}u 20n`);
   asc.directive(
     X_DIR,
-    800,
-    `.model Q_PRI VDMOS(Rg=${(res.priDevice.Rg_int_Ohm ?? 1.5).toFixed(2)} Vto=3.0 Rd=${(Ron_pri * 0.6).toFixed(5)} Rs=${(Ron_pri * 0.4).toFixed(5)} Cgdmax=${Math.max(5, Math.round(Coss_pri_pF * 0.25))}p Cgdmin=5p Cgs=${Math.max(50, Math.round(res.priDevice.Qg_nC * 40))}p Cjo=${Coss_pri_pF.toFixed(1)}p Is=1e-10)`
-  );
-  asc.directive(
-    X_DIR,
-    840,
-    `.model D_SEC D(Ron=${Ron_sec.toFixed(5)} Roff=1Meg Vfwd=${state.rectMode === 'schottky-diode' ? res.secDevice.Vsd_V.toFixed(2) : '0.45'})`
-  );
-  asc.directive(X_DIR, 888, `.tran 0 ${tStop_us}u ${(tStop_us * 0.6).toFixed(0)}u 20n`);
-  asc.directive(
-    X_DIR,
-    928,
+    848,
     `.meas TRAN Vout_avg AVG V(v_out) FROM ${(tStop_us * 0.7).toFixed(0)}u TO ${tStop_us}u`
   );
   asc.directive(
     X_DIR,
-    968,
+    888,
     `.meas TRAN Vout_pp PP V(v_out) FROM ${(tStop_us * 0.7).toFixed(0)}u TO ${tStop_us}u`
   );
   asc.directive(
     X_DIR,
-    1008,
+    928,
     `.meas TRAN Ipri_rms RMS I(L_LK) FROM ${(tStop_us * 0.7).toFixed(0)}u TO ${tStop_us}u`
   );
   asc.comment(
     X_DIR,
-    1064,
+    984,
+    `Primary: ${priModel.manufacturer} ${res.priDevice.id} x${state.nParallelPri}`
+  );
+  asc.comment(
+    X_DIR,
+    1016,
+    `Secondary: ${secModel.manufacturer} ${res.secDevice.id} x${state.nParallelSec} (${state.rectMode})`
+  );
+  asc.comment(
+    X_DIR,
+    1048,
     `PCMC Slope Se=${res.Se_ramp_V_us.toFixed(3)} V/us | mc=${res.mc_slope.toFixed(2)} | Qp(wc)=${res.Qp_subharmonic_wc.toFixed(2)}`
   );
+
+  // --------------------------------------------------------------------------
+  // ZONE 6B: EMBEDDED MANUFACTURER SPICE .SUBCKT MODELS (ZERO MISSING LIBS)
+  // --------------------------------------------------------------------------
+  asc.placeSpiceBlock(80, 1280, priModel.spiceText, 24);
+  asc.placeSpiceBlock(1440, 1280, secModel.spiceText, 24);
 
   return asc.build();
 }
@@ -668,15 +702,15 @@ export function generateDcDcLtspiceAsc(state: DcDcDesignState, res: DcDcResults)
  * for the active AC-DC PFC Front-End stage (1-Phase / 2-Phase Interleaved).
  */
 export function generateAcDcLtspiceAsc(state: AcDcDesignState, res: AcDcResults): string {
-  const asc = new AscSchematicBuilder(2464, 1120);
+  const asc = new AscSchematicBuilder(2464, 1648);
 
   const Vac_pk = state.Vac_rms_V * Math.SQRT2;
   const fswHz = state.fsw_kHz * 1e3;
   const Tsw_ns = Math.round((1 / fswHz) * 1e9);
   const tOn_ns = Math.round(Tsw_ns * 0.45);
   const td2_ns = Math.round(Tsw_ns * 0.5);
-  const Ron_sw = Math.max(0.005, res.sw.Rds_on_25C_mOhm * 1.45 * 1e-3);
-  const Coss_pF = Math.max(15, res.sw.Coss_er_pF);
+  const swModel = generateManufacturerMosfetSubckt(res.sw, 1);
+  const boostDiode = generatePfcBoostDiodeSubckt(state.Vdc_bus_V);
   const Rload_dc = (state.Vdc_bus_V * state.Vdc_bus_V) / Math.max(10, state.Pout_W);
   const nPh = res.nPhases;
 
@@ -684,17 +718,17 @@ export function generateAcDcLtspiceAsc(state: AcDcDesignState, res: AcDcResults)
   asc.comment(
     64,
     60,
-    `Vac=${state.Vac_rms_V}Vrms @ ${state.f_line_Hz}Hz -> Vdc=${state.Vdc_bus_V}V @ ${state.Pout_W}W | fsw=${state.fsw_kHz}kHz | Switch=${res.sw.name}`
+    `Vac=${state.Vac_rms_V}Vrms @ ${state.f_line_Hz}Hz -> Vdc=${state.Vdc_bus_V}V @ ${state.Pout_W}W | fsw=${state.fsw_kHz}kHz | Switch=${swModel.subcktName} | Diode=${boostDiode.subcktName}`
   );
 
   asc.graphicRect(64, 112, 624, 592);
   asc.comment(80, 120, '1. AC MAINS & DM EMI FILTER');
 
   asc.graphicRect(656, 112, 1152, 592);
-  asc.comment(672, 120, '2. INPUT BRIDGE RECTIFIER');
+  asc.comment(672, 120, '2. INPUT BRIDGE RECTIFIER (GBJ2510)');
 
   asc.graphicRect(1184, 112, 1936, 592);
-  asc.comment(1200, 120, `3. ${nPh}-PHASE BOOST STAGE`);
+  asc.comment(1200, 120, `3. ${nPh}-PHASE BOOST STAGE (${swModel.subcktName} + ${boostDiode.mpn})`);
 
   asc.graphicRect(1968, 112, 2400, 592);
   asc.comment(1984, 120, '4. DC-LINK BULK & LOAD');
@@ -703,7 +737,10 @@ export function generateAcDcLtspiceAsc(state: AcDcDesignState, res: AcDcResults)
   asc.comment(80, 648, '5A. PFC GATE DRIVE SOURCES');
 
   asc.graphicRect(1184, 640, 2400, 1024);
-  asc.comment(1200, 648, '5B. SPICE PARAMETERS, MODELS & DIRECTIVES');
+  asc.comment(1200, 648, '5B. SPICE PARAMETERS & DIRECTIVES');
+
+  asc.graphicRect(64, 1056, 2400, 1600);
+  asc.comment(80, 1068, `5C. MANUFACTURER SPICE SUBCIRCUITS (${swModel.manufacturer} ${res.sw.id} & ${boostDiode.manufacturer} ${boostDiode.mpn})`);
 
   const Y_TOP = 240;
   const Y_AC_N = 432;
@@ -728,11 +765,11 @@ export function generateAcDcLtspiceAsc(state: AcDcDesignState, res: AcDcResults)
   asc.wirePath([rpre.right, [768, Y_TOP]]);
   asc.flag(576, Y_TOP, 'ac_bus');
 
-  // 2. Diode Bridge (224px horizontal leg separation)
-  const dr1 = asc.placeVerticalDiodeUp('diode', 768, 192, 'D_R1', 'D_PFC');
-  const dr2 = asc.placeVerticalDiodeUp('diode', 768, 416, 'D_R2', 'D_PFC');
-  const dr3 = asc.placeVerticalDiodeUp('diode', 992, 192, 'D_R3', 'D_PFC');
-  const dr4 = asc.placeVerticalDiodeUp('diode', 992, 416, 'D_R4', 'D_PFC');
+  // 2. Diode Bridge (Vishay GBJ2510, 224px horizontal leg separation)
+  const dr1 = asc.placeVerticalDiodeUp('diode', 768, 192, 'D_R1', 'GBJ2510_DIODE', true);
+  const dr2 = asc.placeVerticalDiodeUp('diode', 768, 416, 'D_R2', 'GBJ2510_DIODE', true);
+  const dr3 = asc.placeVerticalDiodeUp('diode', 992, 192, 'D_R3', 'GBJ2510_DIODE', true);
+  const dr4 = asc.placeVerticalDiodeUp('diode', 992, 416, 'D_R4', 'GBJ2510_DIODE', true);
 
   asc.wirePath([[768, Y_TOP], dr1.anode, dr2.cathode]);
   asc.flag(912, 336, 'ac_n');
@@ -744,10 +781,10 @@ export function generateAcDcLtspiceAsc(state: AcDcDesignState, res: AcDcResults)
   asc.wirePath([[992, 528], [2288, 528]]);
   asc.gnd(880, 528);
 
-  // 3. 1-Phase or 2-Phase Interleaved Boost Stage (Side-by-Side Zero-Crossing Layout)
+  // 3. 1-Phase or 2-Phase Interleaved Boost Stage (Manufacturer .SUBCKT)
   const lpfc1 = asc.placeHorizontalInd(1264, 192, 'L_PFC1', `${state.Lpfc_uH.toFixed(1)}u`, 'Rser=8m');
-  const q1 = asc.placeMosfet(1408, 368, 'Q_PFC1', 'Q_PFC');
-  const db1 = asc.placeHorizontalDiode('diode', 1440, 192, 'D_B1', 'D_PFC');
+  const q1 = asc.placeMosfet(1408, 368, 'Q_PFC1', swModel.subcktName, true);
+  const db1 = asc.placeHorizontalDiode('schottky', 1440, 192, 'D_B1', boostDiode.subcktName, true);
   asc.wirePath([lpfc1.right, [1408, 192], q1.drain]);
   asc.wirePath([[1408, 192], db1.anode]);
   asc.wirePath([q1.source, [1408, 528]]);
@@ -774,8 +811,8 @@ export function generateAcDcLtspiceAsc(state: AcDcDesignState, res: AcDcResults)
     asc.flag(1600, 192, 'v_rect');
     const lpfc2 = asc.placeHorizontalInd(1632, 192, 'L_PFC2', `${state.Lpfc_uH.toFixed(1)}u`, 'Rser=8m');
     asc.wirePath([[1600, 192], lpfc2.left]);
-    const q2 = asc.placeMosfet(1776, 368, 'Q_PFC2', 'Q_PFC');
-    const db2 = asc.placeHorizontalDiode('diode', 1808, 192, 'D_B2', 'D_PFC');
+    const q2 = asc.placeMosfet(1776, 368, 'Q_PFC2', swModel.subcktName, true);
+    const db2 = asc.placeHorizontalDiode('schottky', 1808, 192, 'D_B2', boostDiode.subcktName, true);
     asc.wirePath([lpfc2.right, [1776, 192], q2.drain]);
     asc.wirePath([[1776, 192], db2.anode]);
     asc.wirePath([q2.source, [1776, 528]]);
@@ -823,15 +860,14 @@ export function generateAcDcLtspiceAsc(state: AcDcDesignState, res: AcDcResults)
     696,
     `.param FSW=${fswHz} TSW={1/FSW} TON=${tOn_ns}n TD2=${td2_ns}n VAC_PK=${Vac_pk.toFixed(2)} FLINE=${state.f_line_Hz} VDC_REF=${state.Vdc_bus_V}`
   );
-  asc.directive(
-    X_DIR,
-    744,
-    `.model Q_PFC VDMOS(Rg=${(res.sw.Rg_int_Ohm ?? 1.5).toFixed(2)} Vto=3.0 Rd=${(Ron_sw * 0.6).toFixed(5)} Rs=${(Ron_sw * 0.4).toFixed(5)} Cjo=${Coss_pF.toFixed(1)}p Is=1e-10)`
-  );
-  asc.directive(X_DIR, 792, '.model D_PFC D(Ron=0.015 Roff=1Meg Vfwd=1.1)');
-  asc.directive(X_DIR, 840, `.tran 0 40m 20m 200n`);
-  asc.directive(X_DIR, 888, `.meas TRAN Vdc_avg AVG V(v_dc) FROM 20m TO 40m`);
-  asc.directive(X_DIR, 936, `.meas TRAN Iac_rms RMS I(L_DM) FROM 20m TO 40m`);
+  asc.directive(X_DIR, 744, `.tran 0 40m 20m 200n`);
+  asc.directive(X_DIR, 792, `.meas TRAN Vdc_avg AVG V(v_dc) FROM 20m TO 40m`);
+  asc.directive(X_DIR, 840, `.meas TRAN Iac_rms RMS I(L_DM) FROM 20m TO 40m`);
+  asc.comment(X_DIR, 896, `Switch: ${swModel.manufacturer} ${res.sw.id} | Diode: ${boostDiode.manufacturer} ${boostDiode.mpn}`);
+
+  // 5C. Manufacturer .SUBCKT SPICE Models
+  asc.placeSpiceBlock(80, 1104, swModel.spiceText, 24);
+  asc.placeSpiceBlock(1232, 1104, boostDiode.spiceText, 24);
 
   return asc.build();
 }
