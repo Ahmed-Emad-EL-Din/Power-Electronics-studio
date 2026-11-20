@@ -481,6 +481,9 @@ function buildDcDcControllerCpp(fnName: string, state: DcDcDesignState, res: DcD
   const fswHz = state.fsw_kHz * 1e3;
   const tDead = Math.max(20e-9, state.deadTime_ns * 1e-9);
   const isPcmc = state.controlType === 'pcmc';
+  const dInit = res.isLLC
+    ? 1.0
+    : Math.max(0.15, Math.min(0.94, res.D_applied_nom + tDead * fswHz * 2));
   const structName = `s${fnName.toUpperCase()}`;
 
   return `// ============================================================================
@@ -562,8 +565,8 @@ extern "C" __declspec(dllexport) void ${fnName}(
   if (!inst) {
     inst = (struct ${structName} *)calloc(1, sizeof(struct ${structName}));
     *opaque = inst;
-    inst->duty = ${res.Deff_nom.toFixed(4)};
-    inst->comp_v = 2.5;
+    inst->duty = ${dInit.toFixed(4)};
+    inst->comp_v = 0.5 + 4.0 * ${dInit.toFixed(4)};
   }
 
   const double Ts_ctrl = ${Ts.toExponential(8)};
@@ -915,6 +918,8 @@ function buildDcDcPowerStageLines(
   );
 
   // Coupled Secondary Windings (x=3750, right beside L_PRI at x=3300) wired directly to Rectifier
+  const rSnubStr = Math.max(2, res.Rsnub_Ohm).toFixed(1);
+  const cSnubStr = `${Math.max(220, Math.round(res.Csnub_pF))}p`;
   if (state.txType === 'center-tapped') {
     lines.push(
       ...qsymL('L_SEC1', `${Lsec_uH.toFixed(3)}u`, 3750, 1300, 12, true),
@@ -939,11 +944,17 @@ function buildDcDcPowerStageLines(
       wire(5500, 200, 5500, 0, 'GND'),
       wire(5500, 900, 6100, 900, 'GND'),
       wire(6100, 900, 6100, 0, 'GND'),
-      wire(5500, 0, 6100, 0, 'GND'),
+      wire(5500, 0, 9700, 0, 'GND'),
       netLabel(5500, 0, 'GND'),
 
       netLabel(7700, 1600, 'sec_ct'),
       wire(7700, 1600, 8200, 1600, 'sec_ct'),
+      ...qsymR('R_SNUB', rSnubStr, 7800, 1100, 0),
+      ...qsymC('C_SNUB', cSnubStr, 7800, 500, 0),
+      wire(7800, 1600, 7800, 1300, 'sec_ct'),
+      wire(7800, 900, 7800, 700, 'snub_mid'),
+      netLabel(7800, 800, 'snub_mid'),
+      wire(7800, 300, 7800, 0, 'GND'),
       ...qsymL('L_OUT', `${state.Lo_uH.toFixed(2)}u`, 8400, 1600, 2, false, 'Rser=1.5m'),
       wire(8600, 1600, 9700, 1600, 'v_out')
     );
@@ -969,15 +980,23 @@ function buildDcDcPowerStageLines(
 
       wire(5500, 1600, 7100, 1600, 'v_rect_sec'),
       wire(7100, 1600, 8200, 1600, 'v_rect_sec'),
-      netLabel(7700, 1600, 'v_rect_sec'),
+      netLabel(7500, 1600, 'v_rect_sec'),
       wire(5500, 1200, 5500, 600, 'sec_p'),
       netLabel(5500, 900, 'sec_p'),
       wire(7100, 1200, 7100, 600, 'sec_n'),
       netLabel(7100, 900, 'sec_n'),
       wire(5500, 200, 5500, 0, 'GND'),
       wire(7100, 200, 7100, 0, 'GND'),
-      wire(5500, 0, 7100, 0, 'GND'),
+      wire(5500, 0, 9700, 0, 'GND'),
       netLabel(5500, 0, 'GND'),
+
+      // Secondary RC snubber damps L_lk-C_oss rectifier commutation ringing
+      ...qsymR('R_SNUB', rSnubStr, 7800, 1100, 0),
+      ...qsymC('C_SNUB', cSnubStr, 7800, 500, 0),
+      wire(7800, 1600, 7800, 1300, 'v_rect_sec'),
+      wire(7800, 900, 7800, 700, 'snub_mid'),
+      netLabel(7800, 800, 'snub_mid'),
+      wire(7800, 300, 7800, 0, 'GND'),
 
       ...qsymL('L_OUT', `${state.Lo_uH.toFixed(2)}u`, 8400, 1600, 2, false, 'Rser=1.5m'),
       wire(8600, 1600, 9700, 1600, 'v_out')
@@ -1039,7 +1058,9 @@ function buildDcDcQsch(
   const fswHz = state.fsw_kHz * 1e3;
   const tDead_ns = Math.max(40, state.deadTime_ns);
   const { tStop_us, tMeasStart_us, maxStep } = resolveDcDcSimStopUs(fswHz, simStopTime_us);
-  const deff = res.isLLC ? 1.0 : Math.max(0.15, Math.min(0.92, res.Deff_nom));
+  const dInit = res.isLLC
+    ? 1.0
+    : Math.max(0.15, Math.min(0.94, res.D_applied_nom + (tDead_ns * 1e-9) * fswHz * 2));
 
   const priModel = generateManufacturerMosfetSubckt(res.priDevice, state.nParallelPri);
   const secModel = generateManufacturerRectifierSubckt(
@@ -1065,7 +1086,7 @@ function buildDcDcQsch(
     ),
     ...stage.lines,
 
-    // --- ZONE 5A: NATIVE ISOLATED GATE DRIVERS (3400-UNIT PITCH, ZERO LABEL COLLISION) ---
+    // --- ZONE 5A: NATIVE ISOLATED GATE DRIVERS & CLOSED-LOOP PHASE-SHIFT PWM ---
     ...qsymV('V_G1', 'PULSE(0 12 0 15n 15n {TON} {TSW})', -5400, -1400, 0, false),
     wire(-5400, -1200, -5400, -1000, 'g1'),
     netLabel(-5400, -1000, 'g1'),
@@ -1081,13 +1102,43 @@ function buildDcDcQsch(
 
   if (state.topology !== 'llc-hb') {
     lines.push(
-      ...qsymV('V_G3', 'PULSE(0 12 {TD_B} 15n 15n {TON} {TSW})', -5400, -2700, 0, false),
-      wire(-5400, -2500, -5400, -2300, 'g3'),
-      netLabel(-5400, -2300, 'g3'),
-      wire(-5400, -2900, -5400, -3100, 'sw_b'),
-      netLabel(-5400, -3100, 'sw_b'),
+      ...qsymV('V_SAW', 'PULSE(0 1 0 {TSW-1n} 1n 0 {TSW})', -8200, -2700, 0, false),
+      wire(-8200, -2500, -8200, -2300, 'saw_dc'),
+      netLabel(-8200, -2300, 'saw_dc'),
+      wire(-8200, -2900, -8200, -3100, 'GND'),
+      netLabel(-8200, -3100, 'GND'),
 
-      ...qsymV('V_G4', 'PULSE(0 12 {TD_B+THALF} 15n 15n {TON} {TSW})', -1600, -2700, 0, false),
+      ...qsymBv(
+        'B_DCMD',
+        'V=limit((V(comp_node)+8*(V(ref_node)-V(fb_node)))*0.25,0.08,0.95)',
+        -6600,
+        -2700,
+        false
+      ),
+      wire(-6600, -2500, -6600, -2300, 'd_cmd_dc'),
+      netLabel(-6600, -2300, 'd_cmd_dc'),
+      wire(-6600, -2900, -6600, -3100, 'GND'),
+      netLabel(-6600, -3100, 'GND'),
+
+      ...qsymBv(
+        'B_G3',
+        'V=12*0.5*(1+tanh(400*(sin(2*PI*(V(saw_dc)-0.5*V(d_cmd_dc)-0.5*TDEAD/TSW))-sin(PI*TDEAD/TSW))))',
+        -4200,
+        -2700,
+        false
+      ),
+      wire(-4200, -2500, -4200, -2300, 'g3'),
+      netLabel(-4200, -2300, 'g3'),
+      wire(-4200, -2900, -4200, -3100, 'sw_b'),
+      netLabel(-4200, -3100, 'sw_b'),
+
+      ...qsymBv(
+        'B_G4',
+        'V=12*0.5*(1+tanh(400*(-sin(2*PI*(V(saw_dc)-0.5*V(d_cmd_dc)-0.5*TDEAD/TSW))-sin(PI*TDEAD/TSW))))',
+        -1600,
+        -2700,
+        false
+      ),
       wire(-1600, -2500, -1600, -2300, 'g4'),
       netLabel(-1600, -2300, 'g4'),
       wire(-1600, -2900, -1600, -3100, 'GND'),
@@ -1095,14 +1146,12 @@ function buildDcDcQsch(
     );
   }
 
-  const isOta = !res.isTwoZeroComp && res.type2Architecture === 'ota';
-  const rFbTopK = isOta ? res.R1_ota_kOhm : res.R1_kOhm;
-  const rFbBotK = isOta ? res.R4_ota_kOhm : res.R1_kOhm;
-  const rCompK = isOta ? res.R2_ota_kOhm : res.R2_kOhm;
+  const rFbBotK = 10.0;
+  const rFbTopK = Math.max(0.5, rFbBotK * (state.Vout_V / 2.5 - 1));
 
-  // --- ZONE 5B: REFERENCE & TYPE-II COMPENSATOR NETWORK (x=+2000..+8600, y=-1400..-2400) ---
+  // --- ZONE 5B: 2.5V REFERENCE, FEEDBACK DIVIDER & INTEGRATING COMPENSATOR ---
   lines.push(
-    ...qsymV('V_REF', `{VOUT_REF}`, 2000, -1600, 0),
+    ...qsymV('V_REF', `2.5`, 2000, -1600, 0),
     wire(2000, -1400, 2000, -1200, 'ref_node'),
     netLabel(2000, -1200, 'ref_node'),
     wire(2000, -1800, 2000, -2000, 'GND'),
@@ -1118,13 +1167,18 @@ function buildDcDcQsch(
     netLabel(4100, -2100, 'GND'),
     netLabel(4100, -1300, 'fb_node'),
 
-    ...qsymBv('B_COMP', 'V=limit(2.5+8*(V(ref_node)-V(v_out)),0.4,4.8)', 5300, -1600, false),
-    wire(5300, -1400, 5300, -1200, 'comp_node'),
-    netLabel(5300, -1200, 'comp_node'),
+    ...qsymBv('B_COMP', 'V=limit(V(comp_node)+4.5*(V(ref_node)-V(fb_node)),0.25,3.85)', 5300, -1600, false),
+    wire(5300, -1400, 5300, -1200, 'err_node'),
+    netLabel(5300, -1200, 'err_node'),
     wire(5300, -1800, 5300, -2000, 'GND'),
     netLabel(5300, -2000, 'GND'),
-    ...qsymR('R_COMP', `${rCompK.toFixed(2)}k`, 8600, -1600, 0),
-    wire(5300, -1200, 8600, -1200, 'comp_node'),
+
+    ...qsymR('R_COMP', '10.00k', 6800, -1200, 2),
+    wire(5300, -1200, 6600, -1200, 'err_node'),
+    wire(7000, -1200, 8600, -1200, 'comp_node'),
+    netLabel(7800, -1200, 'comp_node'),
+
+    ...qsymC('C_COMP', '22n', 8600, -1600, 0),
     wire(8600, -1200, 8600, -1400, 'comp_node'),
     wire(8600, -1800, 8600, -2000, 'GND'),
     netLabel(8600, -2000, 'GND'),
@@ -1134,16 +1188,16 @@ function buildDcDcQsch(
     directiveText(
       10000,
       -1420,
-      `.param FSW=${fswHz} VIN=${state.Vin_nom_V} VOUT_REF=${state.Vout_V} DEFF=${deff.toFixed(4)}`,
+      `.param FSW=${fswHz} VIN=${state.Vin_nom_V} VOUT_REF=${state.Vout_V} D_INIT=${dInit.toFixed(4)}`,
       1
     ),
     directiveText(
       10000,
       -1740,
-      `.param TSW={1/FSW} THALF={0.5*TSW} TDEAD=${tDead_ns}n TON={THALF-TDEAD} TD_B={DEFF*THALF}`,
+      `.param TSW={1/FSW} THALF={0.5*TSW} TDEAD=${tDead_ns}n TON={THALF-TDEAD}`,
       1
     ),
-    directiveText(10000, -2060, `.ic V(v_out)={VOUT_REF*0.92}`, 1),
+    directiveText(10000, -2060, `.ic V(v_out)={VOUT_REF*0.98} V(comp_node)={D_INIT*4.0}`, 1),
     directiveText(10000, -2380, '.options reltol=1m gmin=1e-10 abstol=1e-9', 1),
     directiveText(10000, -2700, `.tran 0 ${tStop_us}u 0 ${maxStep}`, 1),
     directiveText(
@@ -1291,7 +1345,7 @@ function buildDcDcCblockQsch(
       `.param FSW=${fswHz} VIN=${state.Vin_nom_V} VOUT_REF=${state.Vout_V}`,
       1
     ),
-    directiveText(3800, -1840, `.ic V(v_out)={VOUT_REF*0.92}`, 1),
+    directiveText(3800, -1840, `.ic V(v_out)={VOUT_REF*0.98}`, 1),
     directiveText(3800, -2160, '.options reltol=1m gmin=1e-10 abstol=1e-9', 1),
     directiveText(3800, -2480, `.tran 0 ${tStop_us}u 0 ${maxStep}`, 1),
     directiveText(
@@ -1482,7 +1536,7 @@ function buildAcDcQsch(
     // --- ZONE 5: NATIVE AVERAGE-CURRENT PFC LOOP & INTERLEAVED GATE DRIVERS ---
     ...qsymBv(
       'B_IREF',
-      'V=V(v_rect)*limit(0.004*(VDC_REF-V(v_dc))+INOM_PK/max(80,VAC_PK),0.001,0.12)',
+      'V=V(v_rect)*limit(0.004*(VDC_REF-V(v_dc))+INOM_PK/max(80,VAC_PK),0.001,0.50)',
       -8800,
       -1400,
       false
@@ -1510,7 +1564,7 @@ function buildAcDcQsch(
     wire(-600, -1600, -600, -1800, 'GND'),
     netLabel(-600, -1800, 'GND'),
 
-    ...qsymBv('B_PWM1', 'V=if(V(d_cmd)>V(saw1),12,0)', 3000, -1400, false),
+    ...qsymBv('B_PWM1', 'V=12*0.5*(1+tanh(200*(V(d_cmd)-V(saw1))))', 3000, -1400, false),
     wire(3000, -1200, 3000, -1000, 'gpfc1'),
     netLabel(3000, -1000, 'gpfc1'),
     wire(3000, -1600, 3000, -1800, 'GND'),
@@ -1525,7 +1579,7 @@ function buildAcDcQsch(
       wire(-600, -2900, -600, -3100, 'GND'),
       netLabel(-600, -3100, 'GND'),
 
-      ...qsymBv('B_PWM2', 'V=if(V(d_cmd)>V(saw2),12,0)', 3000, -2700, false),
+      ...qsymBv('B_PWM2', 'V=12*0.5*(1+tanh(200*(V(d_cmd)-V(saw2))))', 3000, -2700, false),
       wire(3000, -2500, 3000, -2300, 'gpfc2'),
       netLabel(3000, -2300, 'gpfc2'),
       wire(3000, -2900, 3000, -3100, 'GND'),
@@ -2044,8 +2098,8 @@ function transformQschLinesForCombined(
         compBlock[0] = `${headerM[1]}(${headerM[2]},${Math.round(Number(headerM[3]) + dy)})${headerM[4]}`;
       }
       for (let k = 1; k < compBlock.length; k++) {
-        if (compBlock[k].includes('{TSW}')) {
-          compBlock[k] = compBlock[k].replace(/\{TSW\}/g, `{${options.tswParamName}}`);
+        if (/\bTSW\b/.test(compBlock[k])) {
+          compBlock[k] = compBlock[k].replace(/\bTSW\b/g, options.tswParamName);
         }
       }
       out.push(...compBlock);
@@ -2192,8 +2246,10 @@ export function generateCombinedSystemQspiceBundle(
     Math.max(1, acdcRes.nPhases);
   const fswPfcHz = acdcState.fsw_kHz * 1e3;
   const fswDcHz = dcdcState.fsw_kHz * 1e3;
-  const tDead_ns = Math.max(20, dcdcState.deadTime_ns);
-  const deff = dcdcRes.isLLC ? 1.0 : Math.max(0.15, Math.min(0.95, dcdcRes.Deff_nom));
+  const tDead_ns = Math.max(40, dcdcState.deadTime_ns);
+  const dInit = dcdcRes.isLLC
+    ? 1.0
+    : Math.max(0.15, Math.min(0.94, dcdcRes.D_applied_nom + (tDead_ns * 1e-9) * fswDcHz * 2));
 
   const mcuArchBanner = sharedMcu
     ? `; Control Architecture: SAME SHARED MCU -- Unified ePWM carrier sync & direct internal V(v_dc) feedforward`
@@ -2228,13 +2284,13 @@ export function generateCombinedSystemQspiceBundle(
       directiveText(
         10000,
         -9140,
-        `.param FSW_DC=${fswDcHz} TSW_DC={1/FSW_DC} VOUT_REF=${dcdcState.Vout_V} DEFF=${deff.toFixed(4)} TDEAD=${tDead_ns}n THALF={0.5*TSW_DC} TON={THALF-TDEAD} TD_B={DEFF*THALF}`,
+        `.param FSW_DC=${fswDcHz} TSW_DC={1/FSW_DC} VOUT_REF=${dcdcState.Vout_V} D_INIT=${dInit.toFixed(4)} TDEAD=${tDead_ns}n THALF={0.5*TSW_DC} TON={THALF-TDEAD}`,
         1
       ),
       directiveText(
         10000,
         -9460,
-        `.ic V(v_dc)=${acdcState.Vdc_bus_V.toFixed(1)} V(v_out)=${(dcdcState.Vout_V * 0.94).toFixed(2)}`,
+        `.ic V(v_dc)=${acdcState.Vdc_bus_V.toFixed(1)} V(v_out)=${(dcdcState.Vout_V * 0.98).toFixed(2)} V(comp_node)={D_INIT*4.0}`,
         1
       ),
       directiveText(10000, -9780, '.options reltol=1m gmin=1e-10 abstol=1e-9', 1),

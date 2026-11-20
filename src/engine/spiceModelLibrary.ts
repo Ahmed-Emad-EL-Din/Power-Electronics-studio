@@ -297,7 +297,7 @@ export function generateManufacturerRectifierSubckt(
     `* Self-Driven Synchronous Rectifier Wrapper for ${mfg} ${spec.id}`,
     `.SUBCKT ${subcktName} a k`,
     `X_SR k g_gate a ${fetModel.subcktName}`,
-    `B_SRDRV g_cmd a V=10*max(0,min(1,(V(a)-V(k)-0.12)*25))`,
+    `B_SRDRV g_cmd a V=10*0.5*(1+tanh((V(a)-V(k)-0.015)*180))`,
     `R_SRG g_cmd g_gate 2.2`,
     `R_SR_GS g_gate a 100k`,
     `C_SRG g_gate a 150p`,

@@ -44,7 +44,9 @@ export function generateDcDcSpiceNetlist(
   const Thalf = Tsw / 2;
   const tDead_ns = Math.max(20, state.deadTime_ns);
   const tOnHalf_ns = Math.max(80, Math.round(Thalf * 1e9 - tDead_ns));
-  const deff = res.isLLC ? 1.0 : Math.max(0.15, Math.min(0.95, res.Deff_nom));
+  const deff = res.isLLC
+    ? 1.0
+    : Math.max(0.15, Math.min(0.95, res.D_applied_nom + (tDead_ns * 1e-9) / Thalf));
   const phaseShift_ns = Math.round(deff * Thalf * 1e9);
 
   const priModel = generateManufacturerMosfetSubckt(res.priDevice, state.nParallelPri);
@@ -134,6 +136,8 @@ export function generateDcDcSpiceNetlist(
     header.push(`C_BLK pri_lk pri_hot 4.7u`);
   }
 
+  const rSnubStr = Math.max(2, res.Rsnub_Ohm).toFixed(1);
+  const cSnubStr = `${Math.max(220, Math.round(res.Csnub_pF))}p`;
   if (state.txType === 'center-tapped') {
     header.push(
       `L_PRI pri_hot sw_b ${Lpri_uH.toFixed(2)}u Rser=${Math.max(0.002, res.Rpri_ac_mOhm * 1e-3).toFixed(4)}`,
@@ -141,9 +145,11 @@ export function generateDcDcSpiceNetlist(
       `L_SEC2 sec_ct sec_n ${Lsec_uH.toFixed(3)}u`,
       `K_TX L_PRI L_SEC1 L_SEC2 0.9995`,
       ``,
-      `* Secondary Center-Tapped Rectifier (${state.rectMode} -> ${secModel.subcktName})`,
+      `* Secondary Center-Tapped Rectifier (${state.rectMode} -> ${secModel.subcktName}) & RC Snubber`,
       `XD_SR1 0 sec_p ${secModel.subcktName}`,
       `XD_SR2 0 sec_n ${secModel.subcktName}`,
+      `R_SNUB sec_ct snub_mid ${rSnubStr}`,
+      `C_SNUB snub_mid 0 ${cSnubStr}`,
       `L_OUT sec_ct v_out ${state.Lo_uH.toFixed(2)}u Rser=1.5m`
     );
   } else if (state.txType === 'current-doubler') {
@@ -152,9 +158,13 @@ export function generateDcDcSpiceNetlist(
       `L_SEC1 sec_p sec_n ${Lsec_uH.toFixed(3)}u`,
       `K_TX L_PRI L_SEC1 0.9995`,
       ``,
-      `* Secondary Current-Doubler Rectifier (${state.rectMode} -> ${secModel.subcktName})`,
+      `* Secondary Current-Doubler Rectifier (${state.rectMode} -> ${secModel.subcktName}) & RC Snubbers`,
       `XD_SR1 0 sec_p ${secModel.subcktName}`,
       `XD_SR2 0 sec_n ${secModel.subcktName}`,
+      `R_SNUB1 sec_p snub_p ${rSnubStr}`,
+      `C_SNUB1 snub_p 0 ${cSnubStr}`,
+      `R_SNUB2 sec_n snub_n ${rSnubStr}`,
+      `C_SNUB2 snub_n 0 ${cSnubStr}`,
       `L_OUT1 sec_p v_out ${state.Lo_uH.toFixed(2)}u Rser=1.5m`,
       `L_OUT2 sec_n v_out ${state.Lo_uH.toFixed(2)}u Rser=1.5m`
     );
@@ -164,11 +174,13 @@ export function generateDcDcSpiceNetlist(
       `L_SEC1 sec_p sec_n ${Lsec_uH.toFixed(3)}u`,
       `K_TX L_PRI L_SEC1 0.9995`,
       ``,
-      `* Secondary Full-Bridge Rectifier (${state.rectMode} -> ${secModel.subcktName})`,
+      `* Secondary Full-Bridge Rectifier (${state.rectMode} -> ${secModel.subcktName}) & RC Snubber`,
       `XD_SR1 sec_p v_rect ${secModel.subcktName}`,
       `XD_SR2 0 sec_p ${secModel.subcktName}`,
       `XD_SR3 sec_n v_rect ${secModel.subcktName}`,
       `XD_SR4 0 sec_n ${secModel.subcktName}`,
+      `R_SNUB v_rect snub_mid ${rSnubStr}`,
+      `C_SNUB snub_mid 0 ${cSnubStr}`,
       `L_OUT v_rect v_out ${state.Lo_uH.toFixed(2)}u Rser=1.5m`
     );
   }
@@ -335,7 +347,9 @@ export function generateCombinedSystemSpiceNetlist(
   const ThalfDc = TswDc / 2;
   const tDead_ns = Math.max(20, dcdcState.deadTime_ns);
   const tOnHalf_ns = Math.max(80, Math.round(ThalfDc * 1e9 - tDead_ns));
-  const deff = dcdcRes.isLLC ? 1.0 : Math.max(0.15, Math.min(0.95, dcdcRes.Deff_nom));
+  const deff = dcdcRes.isLLC
+    ? 1.0
+    : Math.max(0.15, Math.min(0.95, dcdcRes.D_applied_nom + (tDead_ns * 1e-9) / ThalfDc));
   const phaseShift_ns = Math.round(deff * ThalfDc * 1e9);
   const TswDc_ns = Math.round(TswDc * 1e9);
 
@@ -466,6 +480,8 @@ export function generateCombinedSystemSpiceNetlist(
       `XD_SR2 0 sec_p ${secModel.subcktName}`,
       `XD_SR3 sec_n v_rect_sec ${secModel.subcktName}`,
       `XD_SR4 0 sec_n ${secModel.subcktName}`,
+      `R_SNUB v_rect_sec snub_mid ${Math.max(2, dcdcRes.Rsnub_Ohm).toFixed(1)}`,
+      `C_SNUB snub_mid 0 ${Math.max(220, Math.round(dcdcRes.Csnub_pF))}p`,
       `L_OUT v_rect_sec v_out ${dcdcState.Lo_uH.toFixed(2)}u Rser=1.5m`
     );
   }
