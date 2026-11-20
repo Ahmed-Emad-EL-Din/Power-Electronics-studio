@@ -1108,6 +1108,9 @@ test('LTspice .asc schematic exporter produces grid-aligned, orthogonal, well-or
 
     assert.ok(lines.some((l) => l.startsWith('FLAG ') && l.endsWith(' 0')), `[${label}] Missing GND flag 0`);
     assert.ok(lines.some((l) => l.includes('!.tran ')), `[${label}] Missing .tran directive`);
+    assert.ok(lines.some((l) => l.includes('!.ic ')), `[${label}] Missing .ic directive`);
+    assert.ok(lines.some((l) => l.includes('!.options reltol=1m')), `[${label}] Missing .options reltol=1m`);
+    assert.ok(lines.some((l) => l.startsWith('TEXT ') && l.includes('\\n.SUBCKT ') && l.includes('\\n.ENDS ')), `[${label}] Expected atomic multi-line .SUBCKT directive`);
     // Verify pure 7-bit printable ASCII so LTspice Windows-1252 parser never renders mojibake
     assert.ok(/^[\x0A\x0D\x20-\x7E]+$/.test(ascText), `[${label}] Non-ASCII characters found in .asc`);
   };
@@ -1138,28 +1141,49 @@ test('LTspice .asc schematic exporter produces grid-aligned, orthogonal, well-or
   }
 });
 
-test('QSPICE ZIP bundle exports valid .zip with binary/Latin-1 .qsch, .qsym, .lib, .qraw, .cir, and DMC-compatible .cpp files', () => {
+test('QSPICE ZIP bundle exports valid .zip with runnable .qsch, _cblock.qsch, .qsym, .lib, binary .qraw, .cir, and DMC-compatible .cpp files', () => {
   const dcState = DCDC_PRESETS[0].state;
   const dcRes = solveDcDcDesign(dcState);
   const dcBundle = generateDcDcQspiceBundle(dcState, dcRes);
 
+  // Primary .qsch is 100% native SPICE (no uncompiled DLL blocker) & spaciously laid out
   assert.ok(dcBundle.qschContent.startsWith('«schematic'));
   assert.ok(dcBundle.qschContent.includes('«wire '));
   assert.ok(dcBundle.qschContent.includes('«component '));
-  assert.ok(dcBundle.qschContent.includes('«type: Ø(.DLL)»'));
+  assert.ok(!dcBundle.qschContent.includes('«type: Ø(.DLL)»'));
   assert.ok(dcBundle.qschContent.includes('«type: X»'));
+  assert.ok(dcBundle.qschContent.includes('PULSE(0 12'));
   assert.ok(dcBundle.qschContent.includes('.lib voltcraft_models.lib'));
+  assert.ok(!dcBundle.qschContent.includes('«library file: voltcraft_models.lib»'));
+  // C-Block variant carries properly formatted Ø(.DLL) symbol
+  assert.ok(dcBundle.cblockQschContent.startsWith('«schematic'));
+  assert.ok(dcBundle.cblockQschContent.includes('«type: Ø(.DLL)»'));
+  assert.ok(!dcBundle.cblockQschContent.includes(`«library file: ${dcBundle.baseName}_ctrl.dll»`));
+
+  // Manufacturer library uses universal QSPICE/LTspice VDMOS + D_BODY + max(0,...)
   assert.ok(dcBundle.libContent.includes(`.SUBCKT ${dcRes.priDevice.id.toUpperCase()}`));
+  assert.ok(dcBundle.libContent.includes('D_BODY s_int d_int'));
+  assert.ok(!dcBundle.libContent.includes('uramp('));
   assert.ok(dcBundle.qsymFiles.length >= 2);
   assert.ok(
     dcBundle.qsymFiles.every((f) => f.path.endsWith('.qsym') && f.content.startsWith('«symbol'))
   );
+
+  // QSPICE64 binary .qraw verification: Flags: real + Command: QSPICE64 + exact <f8 byte length
   assert.ok(
     dcBundle.qrawContent.includes('Plotname: Transient Analysis') &&
-      dcBundle.qrawContent.includes('Flags: real forward log double') &&
-      dcBundle.qrawContent.includes('Variables:') &&
-      dcBundle.qrawContent.includes('Values:')
+      dcBundle.qrawContent.includes('Flags: real') &&
+      dcBundle.qrawContent.includes('0\tTime\ttime') &&
+      dcBundle.qrawContent.includes('Command: QSPICE64') &&
+      dcBundle.qrawContent.includes('Binary:')
   );
+  const dcPtsMatch = dcBundle.qrawContent.match(/No\. Points:\s*(\d+)/);
+  const dcVarsMatch = dcBundle.qrawContent.match(/No\. Variables:\s*(\d+)/);
+  assert.ok(dcPtsMatch && dcVarsMatch);
+  const dcExpectedPayload = Number(dcPtsMatch[1]) * Number(dcVarsMatch[1]) * 8;
+  const dcHeaderLen = Buffer.byteLength(dcBundle.qrawContent, 'latin1');
+  assert.equal(dcBundle.qrawBytes.length, dcHeaderLen + dcExpectedPayload);
+
   assert.ok(dcBundle.cirContent.includes('.tran ') && dcBundle.cirContent.includes('.end'));
   assert.ok(
     dcBundle.cppContent.includes('__declspec(dllexport)') &&
@@ -1177,11 +1201,13 @@ test('QSPICE ZIP bundle exports valid .zip with binary/Latin-1 .qsch, .qsym, .li
   const acRes = solveAcDcDesign(acState);
   const acBundle = generateAcDcQspiceBundle(acState, acRes);
   assert.ok(acBundle.qschContent.startsWith('«schematic'));
-  assert.ok(acBundle.qschContent.includes('«type: Ø(.DLL)»'));
+  assert.ok(!acBundle.qschContent.includes('«type: Ø(.DLL)»'));
+  assert.ok(acBundle.cblockQschContent.includes('«type: Ø(.DLL)»'));
   assert.ok(acBundle.qschContent.includes('GBJ2510_DIODE'));
   assert.ok(acBundle.libContent.includes('GBJ2510_DIODE'));
   assert.ok(acBundle.qsymFiles.some((f) => f.path.endsWith('.qsym')));
   assert.ok(acBundle.qrawContent.includes('V(v_dc)') && acBundle.qrawContent.includes('I(L_DM)'));
+  assert.ok(acBundle.qrawContent.includes('Flags: real') && acBundle.qrawContent.includes('Binary:'));
   assert.ok(acBundle.cppContent.includes('struct sVOLTCRAFT_') && acBundle.cppContent.includes('DllMain'));
   assert.equal(acBundle.zipBytes[0], 0x50);
   assert.equal(acBundle.zipBytes[1], 0x4b);
