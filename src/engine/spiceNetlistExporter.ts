@@ -21,7 +21,8 @@ export function generateDcDcSpiceNetlist(state: DcDcDesignState, res: DcDcResult
   const Thalf = Tsw / 2;
   const tDead_ns = Math.max(20, state.deadTime_ns);
   const tOnHalf_ns = Math.max(80, Math.round(Thalf * 1e9 - tDead_ns));
-  const phaseShift_ns = Math.round(((1 - Math.min(0.95, res.Deff_nom)) * Thalf) * 1e9);
+  const deff = res.isLLC ? 1.0 : Math.max(0.15, Math.min(0.95, res.Deff_nom));
+  const phaseShift_ns = Math.round(deff * Thalf * 1e9);
 
   const priModel = generateManufacturerMosfetSubckt(res.priDevice, state.nParallelPri);
   const secModel = generateManufacturerRectifierSubckt(
@@ -34,7 +35,7 @@ export function generateDcDcSpiceNetlist(state: DcDcDesignState, res: DcDcResult
   const Lpri_uH = Math.max(50, state.Lm_uH);
   const Lsec_uH = Lpri_uH / (n * n);
   const Rload_Ohm = (state.Vout_V * state.Vout_V) / Math.max(1, state.Pout_W);
-  const tStop_us = Math.round(Math.max(400, (1e6 / fswHz) * 45));
+  const tStop_us = Math.round(Math.max(500, (1e6 / fswHz) * 60));
   const Tsw_ns = Math.round(Tsw * 1e9);
 
   const header = [
@@ -81,7 +82,7 @@ export function generateDcDcSpiceNetlist(state: DcDcDesignState, res: DcDcResult
 
   if (state.topology !== 'llc-hb') {
     const tShiftA = res.isLLC ? Math.round(Thalf * 1e9) : phaseShift_ns;
-    const tShiftB = res.isLLC ? 0 : Math.round((phaseShift_ns + Thalf * 1e9) % Tsw_ns);
+    const tShiftB = res.isLLC ? 0 : Math.round(phaseShift_ns + Thalf * 1e9);
     header.push(
       `V_G3 g_q3 sw_b PULSE(0 12 ${tShiftA}n 10n 10n ${tOnHalf_ns}n ${Tsw_ns}n)`,
       `V_G4 g_q4 0 PULSE(0 12 ${tShiftB}n 10n 10n ${tOnHalf_ns}n ${Tsw_ns}n)`
@@ -152,6 +153,7 @@ export function generateDcDcSpiceNetlist(state: DcDcDesignState, res: DcDcResult
           `R_FB_BOT fb_node 0 ${res.R4_ota_kOhm.toFixed(2)}k`,
           `V_REF ref_node 0 DC 1.25`,
           `G_OTA 0 comp_node ref_node fb_node ${(res.ota_gm_mS * 1e-3).toFixed(5)}`,
+          `R_DC_COMP comp_node 0 10Meg`,
           `R_OTA_Z comp_node comp_z ${res.R2_ota_kOhm.toFixed(2)}k`,
           `C_OTA_1 comp_z 0 ${res.C1_ota_e24_nF.toFixed(2)}n`,
           `C_OTA_2 comp_node 0 ${res.C2_ota_e24_pF.toFixed(0)}p`,
@@ -162,7 +164,7 @@ export function generateDcDcSpiceNetlist(state: DcDcDesignState, res: DcDcResult
           `R_COMP_2 fb_node comp_z ${res.R2_kOhm.toFixed(2)}k`,
           `C_COMP_1 comp_z comp_node ${res.C1_e24_nF.toFixed(2)}n`,
           `C_COMP_2 fb_node comp_node ${res.C2_e24_pF.toFixed(0)}p`,
-          `B_ERR comp_node 0 V=limit(1e5*(V(ref_node)-V(fb_node)),0,5)`,
+          `B_ERR comp_node 0 V=limit(2.5+1e3*(V(ref_node)-V(fb_node)),0.2,4.8)`,
           `V_REF ref_node 0 DC ${(state.Vout_V * 0.5).toFixed(3)}`,
         ]),
     `* PCMC Artificial Slope Ramp: Se=${res.Se_ramp_V_us.toFixed(3)} V/us, mc=${res.mc_slope.toFixed(2)}, Qp=${res.Qp_subharmonic.toFixed(2)}`,
@@ -172,10 +174,12 @@ export function generateDcDcSpiceNetlist(state: DcDcDesignState, res: DcDcResult
     secModel.spiceText,
     ``,
     `* Transient Simulation & Measurements`,
-    `.tran 0 ${tStop_us}u ${(tStop_us * 0.6).toFixed(0)}u 20n`,
-    `.meas TRAN Vout_avg AVG V(v_out) FROM ${(tStop_us * 0.7).toFixed(0)}u TO ${tStop_us}u`,
-    `.meas TRAN Vout_pp PP V(v_out) FROM ${(tStop_us * 0.7).toFixed(0)}u TO ${tStop_us}u`,
-    `.meas TRAN Ipri_rms RMS I(L_LK) FROM ${(tStop_us * 0.7).toFixed(0)}u TO ${tStop_us}u`,
+    `.ic V(v_out)=${(state.Vout_V * 0.92).toFixed(2)}`,
+    `.options reltol=1m`,
+    `.tran 0 ${tStop_us}u 0 25n`,
+    `.meas TRAN Vout_avg AVG V(v_out) FROM ${(tStop_us * 0.72).toFixed(0)}u TO ${tStop_us}u`,
+    `.meas TRAN Vout_pp PP V(v_out) FROM ${(tStop_us * 0.72).toFixed(0)}u TO ${tStop_us}u`,
+    `.meas TRAN Ipri_rms RMS I(L_LK) FROM ${(tStop_us * 0.72).toFixed(0)}u TO ${tStop_us}u`,
     `.backanno`,
     `.end`
   );
@@ -190,7 +194,6 @@ export function generateDcDcSpiceNetlist(state: DcDcDesignState, res: DcDcResult
 export function generateAcDcSpiceNetlist(state: AcDcDesignState, res: AcDcResults): string {
   const Vac_pk = state.Vac_rms_V * Math.SQRT2;
   const fswHz = state.fsw_kHz * 1e3;
-  const Tsw_ns = Math.round((1 / fswHz) * 1e9);
   const swModel = generateManufacturerMosfetSubckt(res.sw, 1);
   const boostDiode = generatePfcBoostDiodeSubckt(state.Vdc_bus_V);
   const Rload_dc = (state.Vdc_bus_V * state.Vdc_bus_V) / Math.max(10, state.Pout_W);
@@ -204,10 +207,11 @@ export function generateAcDcSpiceNetlist(state: AcDcDesignState, res: AcDcResult
     `* Fast Switch: ${swModel.manufacturer} ${res.sw.id} (.SUBCKT ${swModel.subcktName})`,
     `* Boost Diode: ${boostDiode.manufacturer} ${boostDiode.mpn} | Lpfc=${state.Lpfc_uH}uH x${nPh} | Cdc=${state.Cdc_uF}uF`,
     `* ============================================================================`,
-    `.param FSW=${fswHz} VAC_PK=${Vac_pk.toFixed(1)} FLINE=${state.f_line_Hz}`,
+    `.param FSW=${fswHz} TSW={1/FSW} VAC_PK=${Vac_pk.toFixed(1)} FLINE=${state.f_line_Hz} VDC_REF=${state.Vdc_bus_V}`,
     ``,
     `* AC Mains & Differential EMI Input Filter`,
     `V_AC ac_in ac_n SIN(0 {VAC_PK} {FLINE})`,
+    `R_AC_GND ac_n 0 10Meg`,
     `L_DM ac_in ac_dm ${res.Ldm_uH.toFixed(1)}u Rser=5m`,
     `C_X ac_dm ac_n ${res.Cx_each_uF.toFixed(2)}u`,
     `R_PRE ac_dm ac_bus ${state.prechargeR_Ohm ?? 22}`,
@@ -222,7 +226,9 @@ export function generateAcDcSpiceNetlist(state: AcDcDesignState, res: AcDcResult
     `L_PFC1 v_rect sw1 ${state.Lpfc_uH.toFixed(1)}u Rser=8m`,
     `XQ_PFC1 sw1 g_pfc1 0 ${swModel.subcktName}`,
     `XD_B1 sw1 v_dc ${boostDiode.subcktName}`,
-    `V_GPFC1 g_pfc1 0 PULSE(0 12 0 10n 10n ${Math.round(Tsw_ns * 0.45)}n ${Tsw_ns}n)`,
+    `B_DUTY d_cmd 0 V=limit(1-abs(V(v_rect))/max(50,V(v_dc))+0.02*(VDC_REF-V(v_dc)),0.05,0.92)`,
+    `V_SAW1 saw1 0 PULSE(0 1 0 {0.98*TSW} {0.02*TSW} 1n {TSW})`,
+    `B_PWM1 g_pfc1 0 V=if(V(d_cmd)>V(saw1),12,0)`,
   ];
 
   if (nPh === 2) {
@@ -230,7 +236,8 @@ export function generateAcDcSpiceNetlist(state: AcDcDesignState, res: AcDcResult
       `L_PFC2 v_rect sw2 ${state.Lpfc_uH.toFixed(1)}u Rser=8m`,
       `XQ_PFC2 sw2 g_pfc2 0 ${swModel.subcktName}`,
       `XD_B2 sw2 v_dc ${boostDiode.subcktName}`,
-      `V_GPFC2 g_pfc2 0 PULSE(0 12 ${Math.round(Tsw_ns * 0.5)}n 10n 10n ${Math.round(Tsw_ns * 0.45)}n ${Tsw_ns}n)`
+      `V_SAW2 saw2 0 PULSE(0 1 {0.5*TSW} {0.98*TSW} {0.02*TSW} 1n {TSW})`,
+      `B_PWM2 g_pfc2 0 V=if(V(d_cmd)>V(saw2),12,0)`
     );
   }
 
@@ -244,7 +251,9 @@ export function generateAcDcSpiceNetlist(state: AcDcDesignState, res: AcDcResult
     swModel.spiceText,
     boostDiode.spiceText,
     ``,
-    `.tran 0 ${(2 / state.f_line_Hz * 1e3).toFixed(1)}m 0 1u`,
+    `.ic V(v_dc)=${state.Vdc_bus_V.toFixed(1)}`,
+    `.options reltol=1m`,
+    `.tran 0 ${(2 / state.f_line_Hz * 1e3).toFixed(1)}m 0 250n`,
     `.meas TRAN Vdc_avg AVG V(v_dc)`,
     `.meas TRAN Vdc_pp PP V(v_dc)`,
     `.end`

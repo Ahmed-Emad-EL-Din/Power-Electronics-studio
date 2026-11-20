@@ -217,15 +217,20 @@ export function generateManufacturerMosfetSubckt(
   const pkg = spec.packageType ?? 'Power Package';
 
   const coreModel = `${subcktName}_CORE`;
+  const bodyModel = `${subcktName}_DBODY`;
   const lines = [
     `* Manufacturer Model: ${mfg} ${spec.id} (${pkg}, ${spec.Vds_max_V}V, ${spec.Rds_on_25C_mOhm}mOhm${par > 1 ? ` x${par} parallel` : ''})`,
     `* Datasheet Ref: ${spec.datasheetSummary ?? spec.name}`,
     `.SUBCKT ${subcktName} d g s`,
-    `L_D d d_int ${ld_nH}n Rser=0.2m`,
-    `L_G g g_int ${lg_nH}n Rser=10m`,
-    `L_S s s_int ${ls_nH}n Rser=0.2m`,
+    `L_D d d_int ${ld_nH}n`,
+    `R_DD d d_int 50`,
+    `L_G g g_int ${lg_nH}n`,
+    `L_S s s_int ${ls_nH}n`,
+    `R_SD s s_int 50`,
     `M_CORE d_int g_int s_int ${coreModel}`,
-    `.MODEL ${coreModel} VDMOS(Vto=${cal.vto.toFixed(2)} Kp=${kp.toFixed(2)} Lambda=${cal.lambda.toFixed(4)} Rd=${rd.toFixed(5)} Rs=${rs.toFixed(5)} Rg=${rg.toFixed(2)} Cgdmax=${cgdMax_pF}p Cgdmin=${cgdMin_pF}p a=0.75 Cgs=${cgs_pF}p Cjo=${cjo_pF}p M=${cal.mGrad.toFixed(2)} Vj=${cal.vj.toFixed(2)} Is=${(cal.bodyIs * par).toExponential(2)} N=${cal.bodyN.toFixed(2)} Rb=${(cal.rb / par).toFixed(5)} tt=${cal.tt_ns}n BV=${bv} IBV=250u)`,
+    `D_BODY s_int d_int ${bodyModel}`,
+    `.MODEL ${coreModel} VDMOS(Vto=${cal.vto.toFixed(2)} Kp=${kp.toFixed(2)} lambda=${cal.lambda.toFixed(4)} Rd=${rd.toFixed(5)} Rs=${rs.toFixed(5)} Rb=${(cal.rb / par).toFixed(5)} Rg=${rg.toFixed(2)} Cgdmax=${cgdMax_pF}p Cgdmin=${cgdMin_pF}p Cgs=${cgs_pF}p Cjo=0 Is=1e-18)`,
+    `.MODEL ${bodyModel} D(Is=${(cal.bodyIs * par).toExponential(2)} N=${cal.bodyN.toFixed(2)} Rs=${(cal.rb / par).toFixed(5)} Cjo=${cjo_pF}p M=${cal.mGrad.toFixed(2)} Vj=${cal.vj.toFixed(2)} tt=${cal.tt_ns}n BV=${bv} IBV=250u)`,
     `.ENDS ${subcktName}`,
   ];
 
@@ -292,8 +297,9 @@ export function generateManufacturerRectifierSubckt(
     `* Self-Driven Synchronous Rectifier Wrapper for ${mfg} ${spec.id}`,
     `.SUBCKT ${subcktName} a k`,
     `X_SR k g_gate a ${fetModel.subcktName}`,
-    `B_SRDRV g_cmd a V=10*uramp(min(1,(V(a,k)-0.12)*25))`,
+    `B_SRDRV g_cmd a V=10*max(0,min(1,(V(a)-V(k)-0.12)*25))`,
     `R_SRG g_cmd g_gate 2.2`,
+    `R_SR_GS g_gate a 100k`,
     `C_SRG g_gate a 150p`,
     `.ENDS ${subcktName}`,
   ];
