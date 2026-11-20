@@ -90,6 +90,7 @@ export function buildDesignReportModel(params: {
   acdcInductorRows: { req: CircuitInductorRequirement; sol: CustomInductorSolution }[];
   acdcCapRows: { req: CircuitCapacitorRequirement; sol: CapacitorBankSolution }[];
   scopedAlerts: DesignAlertSummary;
+  sharedMcu?: boolean;
 }): DesignReportModel {
   const {
     scope,
@@ -102,6 +103,7 @@ export function buildDesignReportModel(params: {
     acdcInductorRows,
     acdcCapRows,
     scopedAlerts,
+    sharedMcu = true,
   } = params;
 
   const includeAcDc = scope === 'both' || scope === 'acdc';
@@ -152,6 +154,16 @@ export function buildDesignReportModel(params: {
             label: `DC Bus (${acdcState.Vdc_bus_V} Vdc) & f_sw (${acdcState.fsw_kHz} kHz)`,
             detail: `${acdcState.Vdc_bus_V} Vdc guarantees boost controllability above high-line peak (√2 × ${acdcState.Vac_max_V}V = ${(acdcState.Vac_max_V * Math.SQRT2).toFixed(0)} V) while preserving ${vdsMargin_pct.toFixed(0)}% blocking margin on ${acdcRes.sw.Vds_max_V} V switches.`,
           },
+          ...(scope === 'both'
+            ? [
+                {
+                  label: `Control Architecture (${sharedMcu ? 'Same Shared MCU' : 'Separate MCUs'})`,
+                  detail: sharedMcu
+                    ? `A single dual-stage MCU runs both PFC (${acdcState.fs_ctrl_kHz} kHz) and DC-DC (${dcdcState.fs_digital_kHz} kHz) ISRs with carrier phase sync, direct internal Vdc_bus feedforward, and isolated primary-to-secondary gate drivers.`
+                    : `Two independent MCUs (MCU #1 PFC + MCU #2 DC-DC) communicate across an isolated PG_OK / Fault_Trip handshake (~100 µs latency) with independent Vdc_bus sensing.`,
+                },
+              ]
+            : []),
         ],
       },
       steps: [
@@ -194,7 +206,7 @@ export function buildDesignReportModel(params: {
           ? [
               {
                 figId: 'combined-schematic',
-                caption: `Figure ${cA1}.0: Complete 2-stage connected system schematic (${acdcState.topology} PFC -> Shared Hybrid C_DC Bus -> ${dcdcState.topology.toUpperCase()} DC-DC Converter).`,
+                caption: `Figure ${cA1}.0: Complete 2-stage connected system schematic (${acdcState.topology} PFC -> Shared Hybrid C_DC Bus -> ${dcdcState.topology.toUpperCase()} DC-DC Converter | ${sharedMcu ? 'Same Shared MCU' : 'Separate MCUs'}).`,
               },
             ]
           : []),

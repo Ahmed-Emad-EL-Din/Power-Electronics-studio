@@ -228,8 +228,10 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
     outputMode: 'combined',
     linkBusVoltage: false,
     linkLoadPower: false,
+    sharedMcu: true,
   });
   const outputMode: ProjectOutputMode = systemLink.outputMode ?? 'combined';
+  const sharedMcu: boolean = systemLink.sharedMcu ?? true;
   const [projectsModalOpen, setProjectsModalOpen] = useState<boolean>(false);
   const [savedProjects, setSavedProjects] = useState<SavedProjectEntry[]>(() => loadSavedProjects());
   const [projectNameInput, setProjectNameInput] = useState<string>('');
@@ -242,7 +244,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
       acdcState,
       inductorConfigs,
       capacitorConfigs,
-      systemLink: { outputMode: 'combined', linkBusVoltage: false, linkLoadPower: false },
+      systemLink: { outputMode: 'combined', linkBusVoltage: false, linkLoadPower: false, sharedMcu: true },
     })
   );
   const isApplyingHistoryRef = useRef<boolean>(false);
@@ -1030,7 +1032,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
   const handleExportActiveSpice = () => {
     const isCombined = domainTab === 'combined' || (outputMode === 'combined' && domainTab === 'small-signal');
     const text = isCombined
-      ? generateCombinedSystemSpiceNetlist(acdcState, acdcRes, dcdcState, dcdcRes)
+      ? generateCombinedSystemSpiceNetlist(acdcState, acdcRes, dcdcState, dcdcRes, sharedMcu)
       : domainTab === 'acdc'
       ? generateAcDcSpiceNetlist(acdcState, acdcRes)
       : generateDcDcSpiceNetlist(dcdcState, dcdcRes);
@@ -1050,7 +1052,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
   const handleExportActiveLtspiceAsc = () => {
     const isCombined = domainTab === 'combined' || (outputMode === 'combined' && domainTab === 'small-signal');
     const text = isCombined
-      ? generateCombinedSystemLtspiceAsc(acdcState, acdcRes, dcdcState, dcdcRes)
+      ? generateCombinedSystemLtspiceAsc(acdcState, acdcRes, dcdcState, dcdcRes, sharedMcu)
       : domainTab === 'acdc'
       ? generateAcDcLtspiceAsc(acdcState, acdcRes)
       : generateDcDcLtspiceAsc(dcdcState, dcdcRes);
@@ -1070,7 +1072,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
   const handleExportActiveQspiceZip = () => {
     const isCombined = domainTab === 'combined' || (outputMode === 'combined' && domainTab === 'small-signal');
     const bundle = isCombined
-      ? generateCombinedSystemQspiceBundle(acdcState, acdcRes, dcdcState, dcdcRes)
+      ? generateCombinedSystemQspiceBundle(acdcState, acdcRes, dcdcState, dcdcRes, sharedMcu)
       : domainTab === 'acdc'
       ? generateAcDcQspiceBundle(acdcState, acdcRes)
       : generateDcDcQspiceBundle(dcdcState, dcdcRes);
@@ -1086,7 +1088,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
   const handleExportActivePlecsZip = () => {
     const isCombined = domainTab === 'combined' || (outputMode === 'combined' && domainTab === 'small-signal');
     const bundle = isCombined
-      ? generateCombinedSystemPlecsBundle(acdcState, acdcRes, dcdcState, dcdcRes)
+      ? generateCombinedSystemPlecsBundle(acdcState, acdcRes, dcdcState, dcdcRes, sharedMcu)
       : domainTab === 'acdc'
       ? generateAcDcPlecsBundle(acdcState, acdcRes)
       : generateDcDcPlecsBundle(dcdcState, dcdcRes);
@@ -1100,7 +1102,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
   };
 
   const handleExportFirmwareHeader = () => {
-    const text = generateControlFirmwareHeader(dcdcState, dcdcRes, acdcState, acdcRes);
+    const text = generateControlFirmwareHeader(dcdcState, dcdcRes, acdcState, acdcRes, sharedMcu);
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1768,6 +1770,33 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
                 <span className={`w-1.5 h-1.5 rounded-full ${systemLink.linkLoadPower ? 'bg-emerald-500' : 'bg-slate-400 dark:bg-slate-600'}`} />
                 Link Load P ({systemCascade.P_pfc_required_W.toFixed(0)}W)
               </button>
+              <div
+                className="inline-flex items-center rounded-md border border-slate-300 dark:border-white/[0.1] overflow-hidden"
+                title="Choose whether both stages share a single MCU or use two separate MCUs with an isolated handshake"
+              >
+                <button
+                  type="button"
+                  onClick={() => setSystemLink((s) => ({ ...s, sharedMcu: true }))}
+                  className={`px-2 py-0.5 cursor-pointer transition-colors whitespace-nowrap ${
+                    sharedMcu
+                      ? 'bg-emerald-600 text-white font-semibold'
+                      : 'bg-white/70 dark:bg-[#11141c] text-slate-600 dark:text-[#7a8296] hover:text-slate-900 dark:hover:text-[#eef0f5]'
+                  }`}
+                >
+                  Same MCU
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSystemLink((s) => ({ ...s, sharedMcu: false }))}
+                  className={`px-2 py-0.5 cursor-pointer border-l border-slate-300 dark:border-white/[0.1] transition-colors whitespace-nowrap ${
+                    !sharedMcu
+                      ? 'bg-amber-600 text-white font-semibold'
+                      : 'bg-white/70 dark:bg-[#11141c] text-slate-600 dark:text-[#7a8296] hover:text-slate-900 dark:hover:text-[#eef0f5]'
+                  }`}
+                >
+                  Separate MCUs
+                </button>
+              </div>
               {!systemLink.linkBusVoltage && systemCascade.busVoltageMismatch_V > 5 && (
                 <span className="text-amber-600 dark:text-amber-400">
                   ΔBus = {systemCascade.busVoltageMismatch_V}V
@@ -1839,6 +1868,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
               jumpTargetId={jumpState.targetItemId}
               jumpNonce={jumpState.nonce}
               outputMode={outputMode}
+              sharedMcu={sharedMcu}
             />
           ) : domainTab === 'combined' ? (
             <div className="space-y-4">
@@ -1846,6 +1876,10 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
                 acdcRes={acdcRes}
                 dcdcRes={dcdcRes}
                 isConnected={systemLink.linkBusVoltage && systemLink.linkLoadPower}
+                sharedMcu={sharedMcu}
+                onToggleSharedMcu={(shared) =>
+                  setSystemLink((s) => ({ ...s, sharedMcu: shared }))
+                }
               />
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs font-mono">
                 <div className="bg-white dark:bg-[#11141c] border border-slate-200 dark:border-slate-800 rounded-lg p-3">
@@ -1889,7 +1923,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
                     η_sys = {systemCascade.eta_system_pct}% · Loss = {systemCascade.Ploss_system_W.toFixed(1)}W
                   </div>
                   <div className="mt-1 text-[10px] text-slate-500">
-                    P_in(AC)={systemCascade.Pin_ac_system_W.toFixed(0)}W · I_ac={systemCascade.Iac_system_rms_nom_A}A
+                    P_in(AC)={systemCascade.Pin_ac_system_W.toFixed(0)}W · I_ac={systemCascade.Iac_system_rms_nom_A}A · {sharedMcu ? 'Same Shared MCU (ePWM Sync)' : 'Separate MCUs (Iso PG_OK)'}
                   </div>
                 </div>
               </div>
@@ -1994,6 +2028,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
         inductorConfigs={inductorConfigs}
         capacitorConfigs={capacitorConfigs}
         alerts={designAlerts}
+        sharedMcu={sharedMcu}
       />
 
       {/* TOP-BAR AI PROVIDER & API KEYS MODAL */}

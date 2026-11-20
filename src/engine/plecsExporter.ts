@@ -1474,7 +1474,8 @@ export function generateCombinedSystemPlecsModel(
   acdcState: AcDcDesignState,
   acdcRes: AcDcResults,
   dcdcState: DcDcDesignState,
-  dcdcRes: DcDcResults
+  dcdcRes: DcDcResults,
+  sharedMcu = true
 ): string {
   const modelName = sanitizePlecsIdent(`voltcraft_combined_${acdcState.topology}_to_${dcdcState.topology}`);
   const fswPfcHz = acdcState.fsw_kHz * 1e3;
@@ -1566,6 +1567,7 @@ export function generateCombinedSystemPlecsModel(
     `Rload = ${Rload.toFixed(4)};`,
     `Rpri_on = ${rPriOn.toFixed(5)};`,
     `Rsec_on = ${rSecOn.toFixed(5)};`,
+    `SYSTEM_SHARED_MCU = ${sharedMcu ? 1 : 0};`,
   ].join(' ');
 
   return [
@@ -1612,10 +1614,11 @@ export function generateCombinedSystemPlecsBundle(
   acdcState: AcDcDesignState,
   acdcRes: AcDcResults,
   dcdcState: DcDcDesignState,
-  dcdcRes: DcDcResults
+  dcdcRes: DcDcResults,
+  sharedMcu = true
 ): PlecsBundle {
   const baseName = sanitizePlecsIdent(`voltcraft_combined_${acdcState.topology}_to_${dcdcState.topology}`);
-  const plecsText = generateCombinedSystemPlecsModel(acdcState, acdcRes, dcdcState, dcdcRes);
+  const plecsText = generateCombinedSystemPlecsModel(acdcState, acdcRes, dcdcState, dcdcRes, sharedMcu);
 
   const cdcBank = getDefaultHybridCapBank('acdc-cdc', undefined, acdcState);
   const cdcUnits = expandHybridCapBankForSpice(cdcBank, 'C_DC', acdcState.Vdc_bus_V * 1.04, 4);
@@ -1635,7 +1638,9 @@ export function generateCombinedSystemPlecsBundle(
     `% PLECS / MATLAB / Octave Parameter Initialization (COMBINED AC-DC -> DC-DC)`,
     `% Stage 1: ${acdcState.presetName} (${acdcState.Vac_rms_V}Vac -> ${acdcState.Vdc_bus_V}Vdc)`,
     `% Stage 2: ${dcdcState.presetName} (${dcdcState.Vin_nom_V}Vdc -> ${dcdcState.Vout_V}Vdc @ ${dcdcState.Pout_W}W)`,
+    `% Control Arch: ${sharedMcu ? 'Same Shared MCU (ePWM Sync + Direct Vdc FF)' : 'Separate MCUs (Isolated PG_OK Handshake)'}`,
     `% ============================================================================`,
+    `SYSTEM_SHARED_MCU = ${sharedMcu ? 1 : 0};`,
     `Vac_pk = ${(acdcState.Vac_rms_V * Math.SQRT2).toFixed(2)};`,
     `f_line = ${acdcState.f_line_Hz};`,
     `Vdc_init = ${acdcState.Vdc_bus_V.toFixed(1)};`,
@@ -1711,6 +1716,7 @@ export function generateCombinedSystemPlecsBundle(
     `========================================================================`,
     `Stage 1 (PFC):   ${acdcState.topology} (${acdcState.Vac_rms_V}Vac -> ${acdcState.Vdc_bus_V}Vdc)`,
     `Stage 2 (DC-DC): ${dcdcState.topology} (${dcdcState.Vin_nom_V}Vdc -> ${dcdcState.Vout_V}Vdc @ ${dcdcState.Pout_W}W)`,
+    `Control Arch:    ${sharedMcu ? 'Same Shared Dual-Stage MCU (Synchronized PWM + Direct Vdc FF)' : 'Separate MCUs (Isolated PG_OK + Fault_Trip Handshake)'}`,
     `Connected Link:  Shared Hybrid C_DC Bus feeds Primary Bridge directly`,
     ``,
     `Quick Start in Plexim PLECS:`,

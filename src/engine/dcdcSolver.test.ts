@@ -59,6 +59,7 @@ import {
   generateDcDcQspiceBundle,
   generateDcDcSpiceNetlist,
 } from './spiceNetlistExporter';
+import { extractQspiceComponents, findQspiceComponentOverlaps } from './qspiceExporter';
 import {
   clearAiProviderConfig,
   getDefaultAiProviderConfig,
@@ -1492,19 +1493,83 @@ test('Combined AC-DC -> DC-DC system exports (PLECS, LTspice, QSPICE, SPICE) and
     acdcState: acState,
     inductorConfigs: {},
     capacitorConfigs: {},
-    systemLink: { outputMode: 'dcdc-only', linkBusVoltage: false, linkLoadPower: false },
+    systemLink: { outputMode: 'dcdc-only', linkBusVoltage: false, linkLoadPower: false, sharedMcu: false },
   });
   const parsed = parseImportedProjectJson(JSON.stringify(projFile), {
     dcdcState: dcState,
     acdcState: acState,
     inductorConfigs: {},
     capacitorConfigs: {},
-    systemLink: { outputMode: 'combined', linkBusVoltage: false, linkLoadPower: false },
+    systemLink: { outputMode: 'combined', linkBusVoltage: false, linkLoadPower: false, sharedMcu: true },
   });
   assert.equal(parsed.ok, true);
   if (parsed.ok) {
     assert.equal(parsed.project.systemLink.outputMode, 'dcdc-only');
+    assert.equal(parsed.project.systemLink.sharedMcu, false);
   }
+});
+
+test('QSPICE .qsch spacing eliminates hybrid bank & gate-driver overlaps and pairs transformer coils closely', () => {
+  for (const preset of DCDC_PRESETS.slice(0, 3)) {
+    const dcRes = solveDcDcDesign(preset.state);
+    const bundle = generateDcDcQspiceBundle(preset.state, dcRes);
+    const overlaps = findQspiceComponentOverlaps(bundle.qschContent);
+    assert.deepEqual(overlaps, [], `Expected zero QSPICE component overlaps for ${preset.id}`);
+
+    const comps = extractQspiceComponents(bundle.qschContent);
+    const lpri = comps.find((c) => c.ref === 'L_PRI');
+    const lsec = comps.find((c) => c.ref === 'L_SEC1');
+    assert.ok(lpri && lsec, 'Expected L_PRI and L_SEC1');
+    assert.ok(
+      Math.abs(lpri.x - lsec.x) <= 500,
+      `Expected coupled transformer coils close together, got dx=${Math.abs(lpri.x - lsec.x)}`
+    );
+
+    const couts = comps.filter((c) => c.ref.startsWith('C_OUT_')).sort((a, b) => a.x - b.x);
+    for (let i = 1; i < couts.length; i++) {
+      assert.ok(couts[i].x - couts[i - 1].x >= 1100, 'Expected >=1100 pitch between C_OUT banks');
+    }
+  }
+
+  const acState = ACDC_PRESETS[0].state;
+  const acRes = solveAcDcDesign(acState);
+  const acBundle = generateAcDcQspiceBundle(acState, acRes);
+  assert.deepEqual(findQspiceComponentOverlaps(acBundle.qschContent), [], 'Expected zero AC-DC QSPICE overlaps');
+
+  const dcState = DCDC_PRESETS[0].state;
+  const dcRes = solveDcDcDesign(dcState);
+  const combBundle = generateCombinedSystemQspiceBundle(acState, acRes, dcState, dcRes, true);
+  assert.deepEqual(findQspiceComponentOverlaps(combBundle.qschContent), [], 'Expected zero Combined QSPICE overlaps');
+});
+
+test('Combined Same MCU vs Separate MCUs selection propagates across firmware header and all simulation exports', () => {
+  const acState = ACDC_PRESETS[0].state;
+  const acRes = solveAcDcDesign(acState);
+  const dcState = DCDC_PRESETS[0].state;
+  const dcRes = solveDcDcDesign(dcState);
+
+  const hdrSame = generateControlFirmwareHeader(dcState, dcRes, acState, acRes, true);
+  const hdrSep = generateControlFirmwareHeader(dcState, dcRes, acState, acRes, false);
+  assert.ok(hdrSame.includes('#define SYSTEM_SHARED_MCU           (1)'));
+  assert.ok(hdrSame.includes('#define SHARED_MCU_PWM_SYNC_EN      (1)'));
+  assert.ok(hdrSep.includes('#define SYSTEM_SHARED_MCU           (0)'));
+  assert.ok(hdrSep.includes('#define DUAL_MCU_PG_OK_HANDSHAKE_US (100U)'));
+
+  const cirSame = generateCombinedSystemSpiceNetlist(acState, acRes, dcState, dcRes, true);
+  const cirSep = generateCombinedSystemSpiceNetlist(acState, acRes, dcState, dcRes, false);
+  assert.ok(cirSame.includes('Same Shared MCU'));
+  assert.ok(cirSep.includes('Separate MCUs'));
+
+  const ascSep = generateCombinedSystemLtspiceAsc(acState, acRes, dcState, dcRes, false);
+  assert.ok(ascSep.includes('Separate MCUs'));
+
+  const plecsSame = generateCombinedSystemPlecsBundle(acState, acRes, dcState, dcRes, true);
+  const plecsSep = generateCombinedSystemPlecsBundle(acState, acRes, dcState, dcRes, false);
+  assert.ok(plecsSame.plecsText.includes('SYSTEM_SHARED_MCU = 1;'));
+  assert.ok(plecsSep.plecsText.includes('SYSTEM_SHARED_MCU = 0;'));
+
+  const qspSep = generateCombinedSystemQspiceBundle(acState, acRes, dcState, dcRes, false);
+  assert.ok(qspSep.qschContent.includes('SEPARATE MCUs'));
 });
 
 

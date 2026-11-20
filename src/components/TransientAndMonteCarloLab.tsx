@@ -47,6 +47,7 @@ interface TransientAndMonteCarloLabProps {
   acdcState: AcDcDesignState;
   acdcRes: AcDcResults;
   outputMode?: ProjectOutputMode;
+  sharedMcu?: boolean;
 }
 
 export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps> = ({
@@ -56,6 +57,7 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
   acdcState,
   acdcRes,
   outputMode = 'combined',
+  sharedMcu = true,
 }) => {
   // Transient Simulator Controls
   const [scenario, setScenario] = useState<'load-step' | 'soft-start'>('load-step');
@@ -137,17 +139,17 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
   const codePreview = useMemo(() => {
     if (exportTab === 'dcdc-asc') return generateDcDcLtspiceAsc(dcdcState, dcdcRes);
     if (exportTab === 'acdc-asc') return generateAcDcLtspiceAsc(acdcState, acdcRes);
-    if (exportTab === 'combined-asc') return generateCombinedSystemLtspiceAsc(acdcState, acdcRes, dcdcState, dcdcRes);
+    if (exportTab === 'combined-asc') return generateCombinedSystemLtspiceAsc(acdcState, acdcRes, dcdcState, dcdcRes, sharedMcu);
     if (exportTab === 'dcdc-qsch') return dcdcQspiceBundle.qschContent;
     if (exportTab === 'dcdc-cpp') return dcdcQspiceBundle.cppContent;
     if (exportTab === 'dcdc-plecs') return generateDcDcPlecsModel(dcdcState, dcdcRes);
     if (exportTab === 'acdc-plecs') return generateAcDcPlecsModel(acdcState, acdcRes);
-    if (exportTab === 'combined-plecs') return generateCombinedSystemPlecsModel(acdcState, acdcRes, dcdcState, dcdcRes);
+    if (exportTab === 'combined-plecs') return generateCombinedSystemPlecsModel(acdcState, acdcRes, dcdcState, dcdcRes, sharedMcu);
     if (exportTab === 'dcdc-cir') return generateDcDcSpiceNetlist(dcdcState, dcdcRes);
     if (exportTab === 'acdc-cir') return generateAcDcSpiceNetlist(acdcState, acdcRes);
-    if (exportTab === 'combined-cir') return generateCombinedSystemSpiceNetlist(acdcState, acdcRes, dcdcState, dcdcRes);
-    return generateControlFirmwareHeader(dcdcState, dcdcRes, acdcState, acdcRes);
-  }, [exportTab, dcdcState, dcdcRes, acdcState, acdcRes, dcdcQspiceBundle]);
+    if (exportTab === 'combined-cir') return generateCombinedSystemSpiceNetlist(acdcState, acdcRes, dcdcState, dcdcRes, sharedMcu);
+    return generateControlFirmwareHeader(dcdcState, dcdcRes, acdcState, acdcRes, sharedMcu);
+  }, [exportTab, dcdcState, dcdcRes, acdcState, acdcRes, dcdcQspiceBundle, sharedMcu]);
 
   const downloadCodeFile = () => {
     const filename =
@@ -191,7 +193,7 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
   const downloadQspiceZip = (target: 'dcdc' | 'acdc' | 'combined') => {
     const bundle =
       target === 'combined'
-        ? generateCombinedSystemQspiceBundle(acdcState, acdcRes, dcdcState, dcdcRes)
+        ? generateCombinedSystemQspiceBundle(acdcState, acdcRes, dcdcState, dcdcRes, sharedMcu)
         : target === 'acdc'
         ? generateAcDcQspiceBundle(acdcState, acdcRes)
         : dcdcQspiceBundle;
@@ -207,7 +209,7 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
   const downloadPlecsZip = (target: 'dcdc' | 'acdc' | 'combined') => {
     const bundle =
       target === 'combined'
-        ? generateCombinedSystemPlecsBundle(acdcState, acdcRes, dcdcState, dcdcRes)
+        ? generateCombinedSystemPlecsBundle(acdcState, acdcRes, dcdcState, dcdcRes, sharedMcu)
         : target === 'acdc'
         ? generateAcDcPlecsBundle(acdcState, acdcRes)
         : generateDcDcPlecsBundle(dcdcState, dcdcRes);

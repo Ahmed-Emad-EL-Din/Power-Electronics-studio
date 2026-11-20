@@ -549,10 +549,11 @@ function useSchematicExport(svgRef: React.RefObject<SVGSVGElement | null>, baseN
 // ============================================================================
 // 1. DC-DC CONVERTER DYNAMIC CIRCUIT SCHEMATIC (PSFB & LLC + ALL VARIANTS)
 // ============================================================================
-export const DcDcSchematicSvg: React.FC<{
+const DcDcSchematicSvgContent: React.FC<{
   res: DcDcResults;
-  svgRef?: React.Ref<SVGSVGElement>;
-}> = ({ res, svgRef }) => {
+  isCombinedChild?: boolean;
+  sharedMcu?: boolean;
+}> = ({ res, isCombinedChild = false, sharedMcu = true }) => {
   const { state } = res;
   const isLLC = res.isLLC;
   const isHB = state.topology === 'llc-hb';
@@ -583,23 +584,10 @@ export const DcDcSchematicSvg: React.FC<{
   });
 
   return (
-    <svg
-      ref={svgRef}
-      viewBox="0 0 1190 510"
-      className="w-full h-auto font-mono select-none text-slate-300"
-    >
-      <defs>
-        <pattern id="dcdc-cad-grid" width="20" height="20" patternUnits="userSpaceOnUse">
-          <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1e293b" strokeWidth="0.7" />
-        </pattern>
-      </defs>
-
-      <rect width="1190" height="510" fill="#090D16" rx="6" />
-      <rect width="1190" height="510" fill="url(#dcdc-cad-grid)" rx="6" />
-
+    <>
       {/* Stage Headers */}
       <text x="30" y="24" fill="#64748b" fontSize="9.5" fontWeight="bold">
-        DC INPUT &amp; HYBRID Cin
+        {isCombinedChild ? 'STAGE 2 DC-LINK BUS & HYBRID Cin' : 'DC INPUT & HYBRID Cin'}
       </text>
       <text x="175" y="24" fill="#06b6d4" fontSize="9.5" fontWeight="bold">
         {isHB
@@ -623,23 +611,38 @@ export const DcDcSchematicSvg: React.FC<{
       </text>
 
       {/* ============================================================== */}
-      {/* 1. DC INPUT SOURCE & HYBRID PARALLEL INPUT CAPACITOR BANK Cin  */}
+      {/* 1. DC INPUT SOURCE (OR INTER-STAGE BUS ENTRY) & HYBRID Cin     */}
       {/* ============================================================== */}
       <g stroke="currentColor" strokeWidth="1.7">
         <line x1="36" y1="60" x2="290" y2="60" />
         <line x1="36" y1="310" x2="290" y2="310" />
-        <line x1="36" y1="60" x2="36" y2="162" />
-        <line x1="36" y1="206" x2="36" y2="310" />
-        <circle cx="36" cy="184" r="21" fill="#0f172a" stroke="#06b6d4" strokeWidth="2" />
-        <text x="36" y="181" textAnchor="middle" stroke="none" fill="#06b6d4" fontSize="9.5" fontWeight="bold">
-          Vin
-        </text>
-        <text x="36" y="193" textAnchor="middle" stroke="none" fill="#e2e8f0" fontSize="9">
-          {state.Vin_nom_V}V
-        </text>
-        <text x="36" y="48" textAnchor="middle" stroke="none" fill="#94a3b8" fontSize="8">
-          [{state.Vin_min_V}–{state.Vin_max_V}V]
-        </text>
+        {isCombinedChild ? (
+          <>
+            <circle cx="36" cy="60" r="4" fill="#f59e0b" stroke="none" />
+            <circle cx="36" cy="310" r="4" fill="#10b981" stroke="none" />
+            <text x="44" y="51" stroke="none" fill="#f59e0b" fontSize="8" fontWeight="bold">
+              +VDC_IN ({state.Vin_nom_V}V)
+            </text>
+            <text x="44" y="324" stroke="none" fill="#10b981" fontSize="8" fontWeight="bold">
+              DC_RTN
+            </text>
+          </>
+        ) : (
+          <>
+            <line x1="36" y1="60" x2="36" y2="162" />
+            <line x1="36" y1="206" x2="36" y2="310" />
+            <circle cx="36" cy="184" r="21" fill="#0f172a" stroke="#06b6d4" strokeWidth="2" />
+            <text x="36" y="181" textAnchor="middle" stroke="none" fill="#06b6d4" fontSize="9.5" fontWeight="bold">
+              Vin
+            </text>
+            <text x="36" y="193" textAnchor="middle" stroke="none" fill="#e2e8f0" fontSize="9">
+              {state.Vin_nom_V}V
+            </text>
+            <text x="36" y="48" textAnchor="middle" stroke="none" fill="#94a3b8" fontSize="8">
+              [{state.Vin_min_V}–{state.Vin_max_V}V]
+            </text>
+          </>
+        )}
       </g>
 
       <HybridCapBankSvg
@@ -1161,6 +1164,12 @@ export const DcDcSchematicSvg: React.FC<{
               Vout Sense ({state.Vout_V}V)
             </text>
 
+            {/* Secondary Output Current Sense Shunt / Sensor */}
+            <circle cx="912" cy="105" r="5" fill="none" stroke="#f59e0b" strokeWidth="1.4" />
+            <text x="912" y="96" textAnchor="middle" fill="#fcd34d" fontSize="7.2" fontWeight="bold">
+              Iout CT
+            </text>
+
             {/* Primary Current / Charge Sense Node */}
             <circle cx="342" cy="172" r="7" fill="none" stroke="#38bdf8" strokeWidth="1.5" />
             <path
@@ -1173,7 +1182,7 @@ export const DcDcSchematicSvg: React.FC<{
             <text x="348" y="395" fill="#38bdf8" fontSize="8.5">
               {state.controlType === 'charge-control'
                 ? `∫i_r dt (Vth=${res.Vth_charge_V.toFixed(1)}V)`
-                : `I_sense (Rs=${state.Rsense_mOhm}mΩ)`}
+                : `I_pri CT (Rs=${state.Rsense_mOhm}mΩ)`}
             </text>
 
             {/* Gate Drive Output Path back to Primary & SR Switches */}
@@ -1201,8 +1210,12 @@ export const DcDcSchematicSvg: React.FC<{
               stroke="#06b6d4"
               strokeWidth="1.8"
             />
-            <text x="607" y="401" textAnchor="middle" fill="#06b6d4" fontSize="10.5" fontWeight="bold">
-              CONTROL SYNTHESIS: {state.controlType.toUpperCase()} @ fs={state.fs_digital_kHz} kHz
+            <text x="607" y="401" textAnchor="middle" fill="#06b6d4" fontSize="10" fontWeight="bold">
+              {isCombinedChild
+                ? sharedMcu
+                  ? `SHARED MCU (STAGE 2): ${state.controlType.toUpperCase()} @ ${state.fs_digital_kHz} kHz`
+                  : `MCU #2 (DC-DC): ${state.controlType.toUpperCase()} @ ${state.fs_digital_kHz} kHz`
+                : `CONTROL SYNTHESIS: ${state.controlType.toUpperCase()} @ fs=${state.fs_digital_kHz} kHz`}
             </text>
             <text x="607" y="418" textAnchor="middle" fill="#e2e8f0" fontSize="9">
               fc = {res.fc_actual_kHz.toFixed(2)} kHz · PM = {res.pm_actual_deg.toFixed(1)}° · GM ={' '}
@@ -1224,9 +1237,29 @@ export const DcDcSchematicSvg: React.FC<{
               η = {res.efficiency_pct.toFixed(2)}% | Ploss = {res.Ptotal_loss_W.toFixed(1)} W | ΔVout ={' '}
               {res.Vout_ripple_mVpp.toFixed(1)} mVpp ({res.fRipple_out_kHz.toFixed(0)} kHz)
             </text>
-    </svg>
+    </>
   );
 };
+
+export const DcDcSchematicSvg: React.FC<{
+  res: DcDcResults;
+  svgRef?: React.Ref<SVGSVGElement>;
+}> = ({ res, svgRef }) => (
+  <svg
+    ref={svgRef}
+    viewBox="0 0 1190 510"
+    className="w-full h-auto font-mono select-none text-slate-300"
+  >
+    <defs>
+      <pattern id="dcdc-cad-grid" width="20" height="20" patternUnits="userSpaceOnUse">
+        <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1e293b" strokeWidth="0.7" />
+      </pattern>
+    </defs>
+    <rect width="1190" height="510" fill="#090D16" rx="6" />
+    <rect width="1190" height="510" fill="url(#dcdc-cad-grid)" rx="6" />
+    <DcDcSchematicSvgContent res={res} />
+  </svg>
+);
 
 export const DcDcReportSchematicSvg: React.FC<{ res: DcDcResults }> = ({ res }) => {
   const srcRef = useRef<SVGSVGElement | null>(null);
@@ -1399,6 +1432,793 @@ interface AcDcConnectionNode {
   telemetry: string;
   layoutRule: string;
 }
+
+const AcDcSchematicSvgContent: React.FC<{
+  res: AcDcResults;
+  halfCycleMode?: 'both' | 'pos' | 'neg';
+  hideStandaloneLoad?: boolean;
+  isCombinedChild?: boolean;
+  sharedMcu?: boolean;
+}> = ({
+  res,
+  halfCycleMode = 'both',
+  hideStandaloneLoad = false,
+  isCombinedChild = false,
+  sharedMcu = true,
+}) => {
+  const { state } = res;
+  const cdcBank = getDefaultHybridCapBank('acdc-cdc', undefined, state);
+  let cdcUnits = expandHybridCapBankForSpice(cdcBank, 'C_DC', state.Vdc_bus_V * 1.04, 4);
+  if (cdcUnits.length > 6) {
+    cdcUnits = expandHybridCapBankForSpice(cdcBank, 'C_DC', state.Vdc_bus_V * 1.04, 1);
+  }
+  const cdcSol = solveHybridCapBank(cdcBank, {
+    fsw_kHz: res.f_emi_fundamental_kHz,
+    f_lf_Hz: state.f_line_Hz * 2,
+    I_hf_rms_A: res.ICdc_hf_rms_A,
+    I_lf_rms_A: res.ICdc_lf_rms_A,
+    V_op_pk_V: state.Vdc_bus_V * 1.04,
+    Tamb_C: state.capAmbient_C ?? 45,
+  });
+
+  const isTotem2Ph = state.topology === '2ph-interleaved-totem';
+  const isTotem1Ph = state.topology === '1ph-totem-pfc';
+  const isDiodeBoost2Ph = state.topology === '2ph-interleaved-boost';
+  const isDualBoostBridgeless = state.topology === 'dual-boost-bridgeless';
+
+  const stage2Title = isTotem2Ph
+    ? 'INTERLEAVED BOOST INDUCTORS (L1 @ 0°, L2 @ 180°)'
+    : isTotem1Ph
+    ? 'SINGLE-PHASE CCM BOOST INDUCTOR (L1)'
+    : isDiodeBoost2Ph
+    ? 'DIODE BRIDGE (DB1–DB4) + INTERLEAVED L1, L2'
+    : 'DUAL-BOOST INDUCTORS (L1 POS, L2 NEG)';
+
+  const stage3Title = isTotem2Ph
+    ? '2-PH SiC/GaN LEGS (Q1–Q4) + 50/60Hz SYNC LEG (S1, S2)'
+    : isTotem1Ph
+    ? 'FAST SiC/GaN LEG (Q1, Q2) + 50/60Hz SYNC LEG (S1, S2)'
+    : isDiodeBoost2Ph
+    ? 'INTERLEAVED BOOST FETs (Q1, Q2) & SiC DIODES (D1, D2)'
+    : 'DUAL-BOOST CELLS (Q1/D1, Q2/D2) + CM RETURN DIODES (DR1, DR2)';
+
+  return (
+    <>
+            {/* Stage Bounding Enclosures (Subtle Dashed Sub-System Zones) */}
+            <rect
+              x="22"
+              y="32"
+              width="270"
+              height="304"
+              rx="5"
+              fill="#0f172a"
+              fillOpacity="0.35"
+              stroke="#06b6d4"
+              strokeWidth="1"
+              strokeDasharray="4 3"
+              strokeOpacity="0.5"
+            />
+            <rect
+              x="865"
+              y="32"
+              width="275"
+              height="304"
+              rx="5"
+              fill="#0f172a"
+              fillOpacity="0.35"
+              stroke="#10b981"
+              strokeWidth="1"
+              strokeDasharray="4 3"
+              strokeOpacity="0.5"
+            />
+
+            {/* Section Header Callouts */}
+            <text x="30" y="23" fill="#06b6d4" fontSize="9" fontWeight="bold">
+              1. INPUT EMI FILTER (DM/CM) & PRE-CHARGE NODES
+            </text>
+            <text x="305" y="23" fill="#38bdf8" fontSize="9" fontWeight="bold">
+              2. {stage2Title}
+            </text>
+            <text x="545" y="23" fill="#a855f7" fontSize="9" fontWeight="bold">
+              3. {stage3Title}
+            </text>
+            <text x="872" y="23" fill="#10b981" fontSize="9" fontWeight="bold">
+              4. DC-LINK BUS CAPACITOR NETWORK (C_HF || C_DC1..N)
+            </text>
+
+            {/* Half-Cycle Conduction Indicator Banner if active */}
+            {halfCycleMode !== 'both' && (
+              <g transform="translate(305, 36)">
+                <rect
+                  x="0"
+                  y="0"
+                  width="545"
+                  height="16"
+                  rx="3"
+                  fill={halfCycleMode === 'pos' ? '#064e3b' : '#78350f'}
+                  stroke={halfCycleMode === 'pos' ? '#10b981' : '#f59e0b'}
+                  strokeWidth="1"
+                />
+                <text
+                  x="272"
+                  y="11"
+                  textAnchor="middle"
+                  fill={halfCycleMode === 'pos' ? '#6ee7b7' : '#fcd34d'}
+                  fontSize="8"
+                  fontWeight="bold"
+                >
+                  {halfCycleMode === 'pos'
+                    ? 'POSITIVE HALF-CYCLE (Vac > 0): Active Conduction Path Highlighted (L → Boost Stage → +VDC_BUS → DC_RTN → N)'
+                    : 'NEGATIVE HALF-CYCLE (Vac < 0): Active Conduction Path Highlighted (N → Boost Stage → +VDC_BUS → DC_RTN → L)'}
+                </text>
+              </g>
+            )}
+
+            {/* ============================================================== */}
+            {/* 1. DETAILED INPUT EMI FILTER & INRUSH PRE-CHARGE STAGE         */}
+            {/* ============================================================== */}
+            {/* AC Mains Source at x=42, y=190 */}
+            <line x1="42" y1="115" x2="42" y2="170" stroke="#38bdf8" strokeWidth="1.8" />
+            <circle cx="42" cy="190" r="19" fill="#0f172a" stroke="#38bdf8" strokeWidth="2" />
+            <path d="M 32 190 Q 37 179 42 190 T 52 190" fill="none" stroke="#38bdf8" strokeWidth="1.8" />
+            <text x="42" y="160" textAnchor="middle" fill="#38bdf8" fontSize="8.5" fontWeight="bold">
+              {state.Vac_rms_V}Vac
+            </text>
+            <text x="42" y="222" textAnchor="middle" fill="#94a3b8" fontSize="7.5">
+              {res.Iin_rms_A.toFixed(1)}Arms
+            </text>
+            <line x1="42" y1="209" x2="42" y2="265" stroke="#94a3b8" strokeWidth="1.8" />
+
+            {/* Line (y=115) & Neutral (y=265) Entry Feeders */}
+            <line x1="42" y1="115" x2="128" y2="115" stroke="#38bdf8" strokeWidth="1.8" />
+            <line x1="42" y1="265" x2="128" y2="265" stroke="#94a3b8" strokeWidth="1.8" />
+            <text x="64" y="108" fill="#38bdf8" fontSize="7.5" fontWeight="bold">
+              AC_L
+            </text>
+            <text x="64" y="277" fill="#94a3b8" fontSize="7.5" fontWeight="bold">
+              AC_N
+            </text>
+
+            {/* DM Capacitor Cx1 (x=82) + Safety Bleeder Resistor R_bleed (x=108) */}
+            <line x1="82" y1="115" x2="82" y2="172" stroke="currentColor" strokeWidth="1.5" />
+            <CapacitorV
+              x={82}
+              y={192}
+              label="Cx1"
+              sublabel={`${res.Cx_each_uF.toFixed(1)}µF X2`}
+              color="#06b6d4"
+            />
+            <line x1="82" y1="212" x2="82" y2="265" stroke="currentColor" strokeWidth="1.5" />
+            <circle cx="82" cy="115" r="2.8" fill="#06b6d4" />
+            <circle cx="82" cy="265" r="2.8" fill="#06b6d4" />
+            <text x="74" y="128" textAnchor="end" fill="#67e8f9" fontSize="6.5">
+              Cx1.1
+            </text>
+            <text x="74" y="258" textAnchor="end" fill="#67e8f9" fontSize="6.5">
+              Cx1.2
+            </text>
+
+            {/* Bleeder Resistor R_bleed across Cx1 at x=112 */}
+            <line x1="112" y1="115" x2="112" y2="170" stroke="#64748b" strokeWidth="1.2" strokeDasharray="2 2" />
+            <rect x="106" y="170" width="12" height="36" rx="2" fill="#0f172a" stroke="#64748b" strokeWidth="1.3" />
+            <text x="112" y="191" textAnchor="middle" fill="#94a3b8" fontSize="6.5">
+              Rb
+            </text>
+            <line x1="112" y1="206" x2="112" y2="265" stroke="#64748b" strokeWidth="1.2" strokeDasharray="2 2" />
+            <circle cx="112" cy="115" r="2.2" fill="#64748b" />
+            <circle cx="112" cy="265" r="2.2" fill="#64748b" />
+
+            {/* Coupled Common-Mode Choke L_CM (x=128..164) on Line (y=115) & Neutral (y=265) */}
+            <path
+              d="M 128 115 Q 134 103 140 115 Q 146 103 152 115 Q 158 103 164 115"
+              fill="none"
+              stroke="#38bdf8"
+              strokeWidth="1.8"
+            />
+            <path
+              d="M 128 265 Q 134 277 140 265 Q 146 277 152 265 Q 158 277 164 265"
+              fill="none"
+              stroke="#94a3b8"
+              strokeWidth="1.8"
+            />
+            {/* Coupled Magnetic Core Bar between Line & Neutral windings */}
+            <line x1="143" y1="122" x2="143" y2="258" stroke="#38bdf8" strokeWidth="1.2" strokeDasharray="4 3" />
+            <line x1="149" y1="122" x2="149" y2="258" stroke="#38bdf8" strokeWidth="1.2" strokeDasharray="4 3" />
+            {/* Phasing Dots */}
+            <circle cx="131" cy="106" r="2.2" fill="#38bdf8" />
+            <circle cx="131" cy="256" r="2.2" fill="#94a3b8" />
+            <text x="146" y="96" textAnchor="middle" fill="#38bdf8" fontSize="7.5" fontWeight="bold">
+              L_CM ({res.Lcm_mH.toFixed(1)}mH)
+            </text>
+
+            {/* Wire from L_CM output (x=164) to Cy1/Cy2 (x=176) and Cx2 (x=212) */}
+            <line x1="164" y1="115" x2="225" y2="115" stroke="#38bdf8" strokeWidth="1.8" />
+            <line x1="164" y1="265" x2="295" y2="265" stroke="#94a3b8" strokeWidth="1.8" />
+
+            {/* Class Y2 Common-Mode Capacitors Cy1 (top) & Cy2 (bottom) at x=176 meeting at PE (y=190) */}
+            <line x1="176" y1="115" x2="176" y2="148" stroke="#10b981" strokeWidth="1.4" />
+            <line x1="169" y1="148" x2="183" y2="148" stroke="#10b981" strokeWidth="2" />
+            <line x1="169" y1="154" x2="183" y2="154" stroke="#10b981" strokeWidth="2" />
+            <line x1="176" y1="154" x2="176" y2="190" stroke="#10b981" strokeWidth="1.4" />
+            <text x="185" y="149" fill="#10b981" fontSize="7" fontWeight="bold">
+              Cy1
+            </text>
+
+            <line x1="176" y1="190" x2="176" y2="226" stroke="#10b981" strokeWidth="1.4" />
+            <line x1="169" y1="226" x2="183" y2="226" stroke="#10b981" strokeWidth="2" />
+            <line x1="169" y1="232" x2="183" y2="232" stroke="#10b981" strokeWidth="2" />
+            <line x1="176" y1="232" x2="176" y2="265" stroke="#10b981" strokeWidth="1.4" />
+            <text x="185" y="236" fill="#10b981" fontSize="7" fontWeight="bold">
+              Cy2
+            </text>
+            <circle cx="176" cy="265" r="2.8" fill="#10b981" />
+
+            {/* Protective Earth (PE) Chassis Ground Connection at (176, 190) -> (156, 190) */}
+            <line x1="176" y1="190" x2="156" y2="190" stroke="#10b981" strokeWidth="1.6" />
+            <line x1="156" y1="190" x2="156" y2="198" stroke="#10b981" strokeWidth="1.6" />
+            <line x1="149" y1="198" x2="163" y2="198" stroke="#10b981" strokeWidth="1.6" />
+            <line x1="152" y1="202" x2="160" y2="202" stroke="#10b981" strokeWidth="1.6" />
+            <text x="156" y="212" textAnchor="middle" fill="#10b981" fontSize="6.5" fontWeight="bold">
+              PE
+            </text>
+
+            {/* Second DM Capacitor Cx2 at x=212 */}
+            <line x1="212" y1="115" x2="212" y2="175" stroke="#06b6d4" strokeWidth="1.4" />
+            <line x1="204" y1="175" x2="220" y2="175" stroke="#06b6d4" strokeWidth="2" />
+            <line x1="204" y1="181" x2="220" y2="181" stroke="#06b6d4" strokeWidth="2" />
+            <line x1="212" y1="181" x2="212" y2="265" stroke="#06b6d4" strokeWidth="1.4" />
+            <circle cx="212" cy="115" r="2.6" fill="#06b6d4" />
+            <circle cx="212" cy="265" r="2.6" fill="#06b6d4" />
+            <text x="212" y="168" textAnchor="middle" fill="#06b6d4" fontSize="7" fontWeight="bold">
+              Cx2
+            </text>
+
+            {/* Inrush Pre-Charge Resistor R_NTC (x=232..270, y=115) + Parallel Bypass Relay K_BYPASS (y=82) */}
+            <rect
+              x="232"
+              y="108"
+              width="38"
+              height="14"
+              rx="2"
+              fill="#0f172a"
+              stroke="#f59e0b"
+              strokeWidth="1.6"
+            />
+            <text x="251" y="118" textAnchor="middle" fill="#f59e0b" fontSize="7.5" fontWeight="bold">
+              R_NTC
+            </text>
+            <text x="251" y="133" textAnchor="middle" fill="#fcd34d" fontSize="6.5">
+              {res.R_precharge_Ohm.toFixed(1)}Ω Pre
+            </text>
+            {/* Bypass Relay Switch K_BYPASS in parallel above R_NTC */}
+            <line x1="225" y1="115" x2="225" y2="82" stroke="#10b981" strokeWidth="1.4" />
+            <line x1="225" y1="82" x2="240" y2="82" stroke="#10b981" strokeWidth="1.4" />
+            <circle cx="240" cy="82" r="2.2" fill="#10b981" />
+            <line x1="240" y1="82" x2="258" y2="74" stroke="#10b981" strokeWidth="1.6" />
+            <circle cx="260" cy="82" r="2.2" fill="#10b981" />
+            <line x1="260" y1="82" x2="275" y2="82" stroke="#10b981" strokeWidth="1.4" />
+            <line x1="275" y1="82" x2="275" y2="115" stroke="#10b981" strokeWidth="1.4" />
+            <text x="251" y="68" textAnchor="middle" fill="#10b981" fontSize="7" fontWeight="bold">
+              K_BYP ({res.t_relay_bypass_ms.toFixed(0)}ms)
+            </text>
+            <circle cx="225" cy="115" r="2.6" fill="#38bdf8" />
+            <line x1="270" y1="115" x2="295" y2="115" stroke="#38bdf8" strokeWidth="1.8" />
+
+            {/* Input Filter Summary Telemetry Label inside Stage 1 box */}
+            <rect x="30" y="302" width="254" height="26" rx="3" fill="#090D16" stroke="#1e293b" strokeWidth="1" />
+            <text x="157" y="313" textAnchor="middle" fill="#67e8f9" fontSize="7.5" fontWeight="bold">
+              INPUT FILTER NODES: Cx1/Cx2={res.Cx_each_uF.toFixed(2)}µF · Lcm={res.Lcm_mH.toFixed(1)}mH
+            </text>
+            <text x="157" y="323" textAnchor="middle" fill="#94a3b8" fontSize="7">
+              Cy1/Cy2={res.Cy_each_nF.toFixed(1)}nF → PE ({res.earthLeakage_mA.toFixed(2)}mA) · I_inrush={res.Iinrush_precharge_pk_A.toFixed(1)}Apk
+            </text>
+
+            {/* ============================================================== */}
+            {/* VARIANT A: 2-PHASE INTERLEAVED BRIDGELESS TOTEM-POLE PFC       */}
+            {/* ============================================================== */}
+            {isTotem2Ph && (
+              <g>
+                {/* AC Line splits at x=305 into Phase 1 (y=145) and Phase 2 (y=195) */}
+                <line x1="295" y1="115" x2="305" y2="115" stroke="#38bdf8" strokeWidth="1.8" />
+                <line x1="305" y1="115" x2="305" y2="195" stroke="#38bdf8" strokeWidth="1.8" />
+                <circle cx="305" cy="145" r="3.2" fill="#38bdf8" />
+
+                {/* Phase 1 Boost Inductor L1 (0° Carrier) at y=145 -> connects to Q1/Q2 midpoint (x=515, y=145) */}
+                <line x1="305" y1="145" x2="346" y2="145" stroke="#38bdf8" strokeWidth="1.8" />
+                <InductorH
+                  x={370}
+                  y={145}
+                  label={`L1=${state.Lpfc_uH}µH`}
+                  sublabel={`ΔIL1=${res.deltaIL_ph_max_A.toFixed(1)}A (0°)`}
+                  color="#38bdf8"
+                />
+                <line x1="394" y1="145" x2="515" y2="145" stroke="#38bdf8" strokeWidth="1.8" />
+                <circle cx="445" cy="145" r="6" fill="none" stroke="#38bdf8" strokeWidth="1.4" />
+                <text x="445" y="134" textAnchor="middle" fill="#38bdf8" fontSize="7.5">
+                  CT1 (i_L1)
+                </text>
+
+                {/* Phase 2 Boost Inductor L2 (180° Carrier) at y=195 -> connects to Q3/Q4 midpoint (x=620, y=195) */}
+                <line x1="305" y1="195" x2="346" y2="195" stroke="#10b981" strokeWidth="1.8" />
+                <InductorH
+                  x={370}
+                  y={195}
+                  label={`L2=${state.Lpfc_uH}µH`}
+                  sublabel="Phase 2 (180° Shift)"
+                  color="#10b981"
+                />
+                <line x1="394" y1="195" x2="620" y2="195" stroke="#10b981" strokeWidth="1.8" />
+                <circle cx="465" cy="195" r="6" fill="none" stroke="#10b981" strokeWidth="1.4" />
+                <text x="465" y="184" textAnchor="middle" fill="#10b981" fontSize="7.5">
+                  CT2 (i_L2)
+                </text>
+
+                {/* DC Bus Rails (+Vdc at y=55, DC_RTN at y=305) */}
+                <line x1="515" y1="55" x2="1085" y2="55" stroke="#f59e0b" strokeWidth="2.4" />
+                <line x1="515" y1="305" x2="1085" y2="305" stroke="currentColor" strokeWidth="2.2" />
+
+                {/* Fast Leg 1 (Q1 High-Side @ y=95, Q2 Low-Side @ y=250) at x=515 */}
+                <line x1="515" y1="55" x2="515" y2="76" stroke="currentColor" strokeWidth="1.7" />
+                <MosfetSymbol x={515} y={95} label="Q1" sublabel={`${state.fsw_kHz}kHz`} color="#06b6d4" scale={0.85} />
+                <line x1="515" y1="114" x2="515" y2="231" stroke="currentColor" strokeWidth="1.7" />
+                <MosfetSymbol x={515} y={250} label="Q2" sublabel="Ph1 (0°)" color="#06b6d4" scale={0.85} />
+                <line x1="515" y1="269" x2="515" y2="305" stroke="currentColor" strokeWidth="1.7" />
+                <circle cx="515" cy="55" r="3.2" fill="#f59e0b" />
+                <circle cx="515" cy="305" r="3.2" fill="#94a3b8" />
+
+                {/* Fast Leg 2 (Q3 High-Side @ y=95, Q4 Low-Side @ y=250) at x=620 */}
+                <line x1="620" y1="55" x2="620" y2="76" stroke="currentColor" strokeWidth="1.7" />
+                <MosfetSymbol x={620} y={95} label="Q3" sublabel={`${state.fsw_kHz}kHz`} color="#10b981" scale={0.85} />
+                <line x1="620" y1="114" x2="620" y2="231" stroke="currentColor" strokeWidth="1.7" />
+                <MosfetSymbol x={620} y={250} label="Q4" sublabel="Ph2 (180°)" color="#10b981" scale={0.85} />
+                <line x1="620" y1="269" x2="620" y2="305" stroke="currentColor" strokeWidth="1.7" />
+                <circle cx="620" cy="55" r="3.2" fill="#f59e0b" />
+                <circle cx="620" cy="305" r="3.2" fill="#94a3b8" />
+
+                {/* Slow Line-Frequency Synchronous Unfolding Leg (S1 @ y=95, S2 @ y=250) at x=745 */}
+                <line x1="745" y1="55" x2="745" y2="76" stroke="currentColor" strokeWidth="1.7" />
+                <MosfetSymbol
+                  x={745}
+                  y={95}
+                  label="S1"
+                  sublabel={halfCycleMode === 'neg' ? 'ON (-Vac)' : `${state.f_line_Hz}Hz Sync`}
+                  color="#a855f7"
+                  scale={0.85}
+                />
+                <line x1="745" y1="114" x2="745" y2="231" stroke="currentColor" strokeWidth="1.7" />
+                <MosfetSymbol
+                  x={745}
+                  y={250}
+                  label="S2"
+                  sublabel={halfCycleMode === 'pos' ? 'ON (+Vac)' : `${state.f_line_Hz}Hz Sync`}
+                  color="#a855f7"
+                  scale={0.85}
+                />
+                <line x1="745" y1="269" x2="745" y2="305" stroke="currentColor" strokeWidth="1.7" />
+                <circle cx="745" cy="55" r="3.2" fill="#f59e0b" />
+                <circle cx="745" cy="305" r="3.2" fill="#94a3b8" />
+
+                {/* AC Neutral wire routes to MIDPOINT of S1/S2 at (745, 172) */}
+                <line x1="295" y1="265" x2="695" y2="265" stroke="#a855f7" strokeWidth="1.8" />
+                <line x1="695" y1="265" x2="695" y2="172" stroke="#a855f7" strokeWidth="1.8" />
+                <line x1="695" y1="172" x2="745" y2="172" stroke="#a855f7" strokeWidth="1.8" />
+                <circle cx="745" cy="172" r="3.8" fill="#a855f7" />
+                <text x="718" y="165" textAnchor="middle" fill="#c084fc" fontSize="8" fontWeight="bold">
+                  N_SW
+                </text>
+              </g>
+            )}
+
+            {/* ============================================================== */}
+            {/* VARIANT B: 1-PHASE BRIDGELESS TOTEM-POLE PFC                   */}
+            {/* ============================================================== */}
+            {isTotem1Ph && (
+              <g>
+                {/* AC Line goes to Single Boost Inductor L1 at y=155 -> connects to Q1/Q2 midpoint (x=535, y=155) */}
+                <line x1="295" y1="115" x2="315" y2="115" stroke="#38bdf8" strokeWidth="1.8" />
+                <line x1="315" y1="115" x2="315" y2="155" stroke="#38bdf8" strokeWidth="1.8" />
+                <line x1="315" y1="155" x2="366" y2="155" stroke="#38bdf8" strokeWidth="1.8" />
+                <InductorH
+                  x={390}
+                  y={155}
+                  label={`L1=${state.Lpfc_uH}µH`}
+                  sublabel={`ΔIL=${res.deltaIL_ph_max_A.toFixed(1)}App`}
+                  color="#38bdf8"
+                />
+                <line x1="414" y1="155" x2="535" y2="155" stroke="#38bdf8" strokeWidth="1.8" />
+                <circle cx="465" cy="155" r="6" fill="none" stroke="#38bdf8" strokeWidth="1.4" />
+                <text x="465" y="143" textAnchor="middle" fill="#38bdf8" fontSize="7.5">
+                  CT1 (i_L)
+                </text>
+
+                {/* DC Bus Rails (+Vdc at y=55, DC_RTN at y=305) */}
+                <line x1="535" y1="55" x2="1085" y2="55" stroke="#f59e0b" strokeWidth="2.4" />
+                <line x1="535" y1="305" x2="1085" y2="305" stroke="currentColor" strokeWidth="2.2" />
+
+                {/* Fast SiC/GaN Switching Leg (Q1 @ y=95, Q2 @ y=250) at x=535 */}
+                <line x1="535" y1="55" x2="535" y2="76" stroke="currentColor" strokeWidth="1.7" />
+                <MosfetSymbol
+                  x={535}
+                  y={95}
+                  label="Q1 (Fast)"
+                  sublabel={`${state.fsw_kHz}kHz SiC/GaN`}
+                  color="#06b6d4"
+                  scale={0.85}
+                />
+                <line x1="535" y1="114" x2="535" y2="231" stroke="currentColor" strokeWidth="1.7" />
+                <MosfetSymbol
+                  x={535}
+                  y={250}
+                  label="Q2 (Fast)"
+                  sublabel={`${state.fsw_kHz}kHz SiC/GaN`}
+                  color="#06b6d4"
+                  scale={0.85}
+                />
+                <line x1="535" y1="269" x2="535" y2="305" stroke="currentColor" strokeWidth="1.7" />
+                <circle cx="535" cy="55" r="3.2" fill="#f59e0b" />
+                <circle cx="535" cy="305" r="3.2" fill="#94a3b8" />
+
+                {/* Slow Line-Frequency Return Leg (S1 @ y=95, S2 @ y=250) at x=705 */}
+                <line x1="705" y1="55" x2="705" y2="76" stroke="currentColor" strokeWidth="1.7" />
+                <MosfetSymbol
+                  x={705}
+                  y={95}
+                  label="S1 (Slow)"
+                  sublabel={`${state.f_line_Hz}Hz Sync`}
+                  color="#a855f7"
+                  scale={0.85}
+                />
+                <line x1="705" y1="114" x2="705" y2="231" stroke="currentColor" strokeWidth="1.7" />
+                <MosfetSymbol
+                  x={705}
+                  y={250}
+                  label="S2 (Slow)"
+                  sublabel={`${state.f_line_Hz}Hz Sync`}
+                  color="#a855f7"
+                  scale={0.85}
+                />
+                <line x1="705" y1="269" x2="705" y2="305" stroke="currentColor" strokeWidth="1.7" />
+                <circle cx="705" cy="55" r="3.2" fill="#f59e0b" />
+                <circle cx="705" cy="305" r="3.2" fill="#94a3b8" />
+
+                {/* AC Neutral wire routes to MIDPOINT of S1/S2 at (705, 180) */}
+                <line x1="295" y1="265" x2="650" y2="265" stroke="#a855f7" strokeWidth="1.8" />
+                <line x1="650" y1="265" x2="650" y2="180" stroke="#a855f7" strokeWidth="1.8" />
+                <line x1="650" y1="180" x2="705" y2="180" stroke="#a855f7" strokeWidth="1.8" />
+              </g>
+            )}
+
+            {/* ============================================================== */}
+            {/* VARIANT C: 2-PHASE INTERLEAVED DIODE-BRIDGE BOOST PFC          */}
+            {/* ============================================================== */}
+            {isDiodeBoost2Ph && (
+              <g>
+                {/* Full-Wave Input Diode Bridge Rectifier (DB1..DB4) at x=315 and x=365 */}
+                <line x1="315" y1="80" x2="405" y2="80" stroke="#38bdf8" strokeWidth="1.8" />
+                <line x1="315" y1="305" x2="1085" y2="305" stroke="currentColor" strokeWidth="2.2" />
+
+                {/* Bridge Leg A (x=315): DB1 (top, y=120) and DB2 (bottom, y=245) */}
+                <line x1="315" y1="80" x2="315" y2="104" stroke="currentColor" strokeWidth="1.6" />
+                <DiodeSymbol x={315} y={120} dir="up" label="DB1" color="#94a3b8" />
+                <line x1="315" y1="136" x2="315" y2="229" stroke="currentColor" strokeWidth="1.6" />
+                <DiodeSymbol x={315} y={245} dir="up" label="DB2" color="#94a3b8" />
+                <line x1="315" y1="261" x2="315" y2="305" stroke="currentColor" strokeWidth="1.6" />
+
+                {/* Bridge Leg B (x=365): DB3 (top, y=120) and DB4 (bottom, y=245) */}
+                <line x1="365" y1="80" x2="365" y2="104" stroke="currentColor" strokeWidth="1.6" />
+                <DiodeSymbol x={365} y={120} dir="up" label="DB3" color="#94a3b8" />
+                <line x1="365" y1="136" x2="365" y2="229" stroke="currentColor" strokeWidth="1.6" />
+                <DiodeSymbol x={365} y={245} dir="up" label="DB4" color="#94a3b8" />
+                <line x1="365" y1="261" x2="365" y2="305" stroke="currentColor" strokeWidth="1.6" />
+                <circle cx="365" cy="80" r="3" fill="#38bdf8" />
+                <circle cx="365" cy="305" r="3" fill="#94a3b8" />
+
+                {/* Connect Pre-charge Out (y=115) to Bridge Leg A midpoint (315, 175) */}
+                <line x1="295" y1="115" x2="295" y2="175" stroke="#38bdf8" strokeWidth="1.8" />
+                <line x1="295" y1="175" x2="315" y2="175" stroke="#38bdf8" strokeWidth="1.8" />
+                <circle cx="315" cy="175" r="3.2" fill="#38bdf8" />
+
+                {/* Connect AC Neutral (y=265) to Bridge Leg B midpoint (365, 195) */}
+                <line x1="295" y1="265" x2="348" y2="265" stroke="#94a3b8" strokeWidth="1.8" />
+                <line x1="348" y1="265" x2="348" y2="195" stroke="#94a3b8" strokeWidth="1.8" />
+                <line x1="348" y1="195" x2="365" y2="195" stroke="#94a3b8" strokeWidth="1.8" />
+                <circle cx="365" cy="195" r="3.2" fill="#94a3b8" />
+
+                {/* Rectified |Vac| splits at x=405 into L1 (y=145, 0°) and L2 (y=200, 180°) */}
+                <line x1="405" y1="80" x2="405" y2="200" stroke="#38bdf8" strokeWidth="1.8" />
+                <circle cx="405" cy="145" r="3.2" fill="#38bdf8" />
+
+                {/* Phase 1 Boost Inductor L1 (y=145) -> Node SW1 (x=575, y=145) */}
+                <line x1="405" y1="145" x2="446" y2="145" stroke="#38bdf8" strokeWidth="1.8" />
+                <InductorH
+                  x={470}
+                  y={145}
+                  label={`L1=${state.Lpfc_uH}µH`}
+                  sublabel={`ΔIL1=${res.deltaIL_ph_max_A.toFixed(1)}A (0°)`}
+                  color="#38bdf8"
+                />
+                <line x1="494" y1="145" x2="575" y2="145" stroke="#38bdf8" strokeWidth="1.8" />
+                <circle cx="528" cy="145" r="5.5" fill="none" stroke="#38bdf8" strokeWidth="1.4" />
+                <text x="528" y="135" textAnchor="middle" fill="#38bdf8" fontSize="7">
+                  CT1 (i_L1)
+                </text>
+
+                {/* Phase 2 Boost Inductor L2 (y=200) -> Node SW2 (x=700, y=200) */}
+                <line x1="405" y1="200" x2="446" y2="200" stroke="#10b981" strokeWidth="1.8" />
+                <InductorH
+                  x={470}
+                  y={200}
+                  label={`L2=${state.Lpfc_uH}µH`}
+                  sublabel="Phase 2 (180° Shift)"
+                  color="#10b981"
+                />
+                <line x1="494" y1="200" x2="700" y2="200" stroke="#10b981" strokeWidth="1.8" />
+                <circle cx="545" cy="200" r="5.5" fill="none" stroke="#10b981" strokeWidth="1.4" />
+                <text x="545" y="190" textAnchor="middle" fill="#10b981" fontSize="7">
+                  CT2 (i_L2)
+                </text>
+
+                {/* Positive Output DC Bus Rail (+Vdc at y=55) */}
+                <line x1="575" y1="55" x2="1085" y2="55" stroke="#f59e0b" strokeWidth="2.4" />
+
+                {/* Phase 1 Cell at x=575: High-Side SiC Boost Diode D1 (y=98) & Low-Side Boost FET Q1 (y=245) */}
+                <line x1="575" y1="55" x2="575" y2="82" stroke="currentColor" strokeWidth="1.7" />
+                <DiodeSymbol x={575} y={98} dir="up" isSchottky label="D1" sublabel="SiC Boost" color="#f59e0b" />
+                <line x1="575" y1="114" x2="575" y2="226" stroke="currentColor" strokeWidth="1.7" />
+                <MosfetSymbol
+                  x={575}
+                  y={245}
+                  label="Q1"
+                  sublabel={`${state.fsw_kHz}kHz (0°)`}
+                  color="#06b6d4"
+                  scale={0.85}
+                />
+                <line x1="575" y1="264" x2="575" y2="305" stroke="currentColor" strokeWidth="1.7" />
+                <circle cx="575" cy="55" r="3.2" fill="#f59e0b" />
+                <circle cx="575" cy="305" r="3.2" fill="#94a3b8" />
+
+                {/* Phase 2 Cell at x=700: High-Side SiC Boost Diode D2 (y=98) & Low-Side Boost FET Q2 (y=250) */}
+                <line x1="700" y1="55" x2="700" y2="82" stroke="currentColor" strokeWidth="1.7" />
+                <DiodeSymbol x={700} y={98} dir="up" isSchottky label="D2" sublabel="SiC Boost" color="#f59e0b" />
+                <line x1="700" y1="114" x2="700" y2="231" stroke="currentColor" strokeWidth="1.7" />
+                <MosfetSymbol
+                  x={700}
+                  y={250}
+                  label="Q2"
+                  sublabel={`${state.fsw_kHz}kHz (180°)`}
+                  color="#10b981"
+                  scale={0.85}
+                />
+                <line x1="700" y1="269" x2="700" y2="305" stroke="currentColor" strokeWidth="1.7" />
+                <circle cx="700" cy="55" r="3.2" fill="#f59e0b" />
+                <circle cx="700" cy="305" r="3.2" fill="#94a3b8" />
+              </g>
+            )}
+
+            {/* ============================================================== */}
+            {/* VARIANT D: DUAL-BOOST SEMI-BRIDGELESS PFC (WITH DR1, DR2)      */}
+            {/* ============================================================== */}
+            {isDualBoostBridgeless && (
+              <g>
+                {/* AC Line feeds L1 (y=145) for Positive Half-Cycle; tap at x=305 goes to Return Diode DR1 */}
+                <line x1="295" y1="115" x2="305" y2="115" stroke="#38bdf8" strokeWidth="1.8" />
+                <line x1="305" y1="115" x2="305" y2="145" stroke="#38bdf8" strokeWidth="1.8" />
+                <circle cx="305" cy="145" r="3.2" fill="#38bdf8" />
+                <line x1="305" y1="145" x2="356" y2="145" stroke="#38bdf8" strokeWidth="1.8" />
+                <InductorH
+                  x={380}
+                  y={145}
+                  label={`L1=${state.Lpfc_uH}µH`}
+                  sublabel="Pos Half-Cycle"
+                  color="#38bdf8"
+                />
+                <line x1="404" y1="145" x2="515" y2="145" stroke="#38bdf8" strokeWidth="1.8" />
+                <circle cx="456" cy="145" r="5.5" fill="none" stroke="#38bdf8" strokeWidth="1.4" />
+                <text x="456" y="135" textAnchor="middle" fill="#38bdf8" fontSize="7">
+                  CT1 (i_L1)
+                </text>
+
+                {/* AC Neutral feeds L2 (y=195) for Negative Half-Cycle; tap at x=325 goes to Return Diode DR2 */}
+                <line x1="295" y1="265" x2="325" y2="265" stroke="#10b981" strokeWidth="1.8" />
+                <circle cx="325" cy="265" r="3.2" fill="#10b981" />
+                <line x1="325" y1="265" x2="325" y2="195" stroke="#10b981" strokeWidth="1.8" />
+                <line x1="325" y1="195" x2="356" y2="195" stroke="#10b981" strokeWidth="1.8" />
+                <InductorH
+                  x={380}
+                  y={195}
+                  label={`L2=${state.Lpfc_uH}µH`}
+                  sublabel="Neg Half-Cycle"
+                  color="#10b981"
+                />
+                <line x1="404" y1="195" x2="620" y2="195" stroke="#10b981" strokeWidth="1.8" />
+                <circle cx="472" cy="195" r="5.5" fill="none" stroke="#10b981" strokeWidth="1.4" />
+                <text x="472" y="185" textAnchor="middle" fill="#10b981" fontSize="7">
+                  CT2 (i_L2)
+                </text>
+
+                {/* DC Bus Rails (+Vdc at y=55, DC_RTN at y=305) */}
+                <line x1="515" y1="55" x2="1085" y2="55" stroke="#f59e0b" strokeWidth="2.4" />
+                <line x1="515" y1="305" x2="1085" y2="305" stroke="currentColor" strokeWidth="2.2" />
+
+                {/* Cell 1 (x=515): High-Side SiC Diode D1 (y=98) & Low-Side Switch Q1 (y=245) */}
+                <line x1="515" y1="55" x2="515" y2="82" stroke="currentColor" strokeWidth="1.7" />
+                <DiodeSymbol x={515} y={98} dir="up" isSchottky label="D1" sublabel="SiC" color="#f59e0b" />
+                <line x1="515" y1="114" x2="515" y2="226" stroke="currentColor" strokeWidth="1.7" />
+                <MosfetSymbol x={515} y={245} label="Q1" sublabel="Pos Boost" color="#06b6d4" scale={0.85} />
+                <line x1="515" y1="264" x2="515" y2="305" stroke="currentColor" strokeWidth="1.7" />
+
+                {/* Cell 2 (x=620): High-Side SiC Diode D2 (y=98) & Low-Side Switch Q2 (y=250) */}
+                <line x1="620" y1="55" x2="620" y2="82" stroke="currentColor" strokeWidth="1.7" />
+                <DiodeSymbol x={620} y={98} dir="up" isSchottky label="D2" sublabel="SiC" color="#f59e0b" />
+                <line x1="620" y1="114" x2="620" y2="231" stroke="currentColor" strokeWidth="1.7" />
+                <MosfetSymbol x={620} y={250} label="Q2" sublabel="Neg Boost" color="#10b981" scale={0.85} />
+                <line x1="620" y1="269" x2="620" y2="305" stroke="currentColor" strokeWidth="1.7" />
+                <circle cx="620" cy="55" r="3.2" fill="#f59e0b" />
+                <circle cx="620" cy="305" r="3.2" fill="#94a3b8" />
+
+                {/* Slow Common-Mode Clamping Return Diodes DR1 (x=715) & DR2 (x=780) */}
+                <line x1="305" y1="145" x2="305" y2="222" stroke="#a855f7" strokeWidth="1.4" strokeDasharray="4 2" />
+                <line x1="305" y1="222" x2="715" y2="222" stroke="#a855f7" strokeWidth="1.5" />
+                <line x1="715" y1="222" x2="715" y2="239" stroke="currentColor" strokeWidth="1.6" />
+                <DiodeSymbol x={715} y={255} dir="up" label="DR1" sublabel="Line Ret" color="#a855f7" />
+                <line x1="715" y1="271" x2="715" y2="305" stroke="currentColor" strokeWidth="1.6" />
+                <circle cx="715" cy="305" r="3" fill="#a855f7" />
+
+                <line x1="325" y1="265" x2="675" y2="265" stroke="#a855f7" strokeWidth="1.5" />
+                <line x1="675" y1="265" x2="675" y2="210" stroke="#a855f7" strokeWidth="1.5" />
+                <line x1="675" y1="210" x2="780" y2="210" stroke="#a855f7" strokeWidth="1.5" />
+                <line x1="780" y1="210" x2="780" y2="239" stroke="currentColor" strokeWidth="1.6" />
+                <DiodeSymbol x={780} y={255} dir="up" label="DR2" sublabel="Neut Ret" color="#a855f7" />
+                <line x1="780" y1="271" x2="780" y2="305" stroke="currentColor" strokeWidth="1.6" />
+                <circle cx="780" cy="305" r="3" fill="#a855f7" />
+              </g>
+            )}
+
+            {/* ============================================================== */}
+            {/* 4. DETAILED DC-LINK HYBRID CAPACITOR BANK & CONNECTION POINTS  */}
+            {/* ============================================================== */}
+            {/* Positive Rail Label (+VDC_BUS) & Negative Rail Label (DC_RTN) */}
+            <text x="875" y="48" fill="#f59e0b" fontSize="8" fontWeight="bold">
+              +VDC_BUS ({state.Vdc_bus_V}V)
+            </text>
+            <text x="875" y="298" fill="#10b981" fontSize="8" fontWeight="bold">
+              DC_RTN / STAR_GND
+            </text>
+
+            {/* Hybrid Multi-Branch DC-Link Bank (e.g. HV Electrolytic + MKP Film / MLCC) */}
+            <HybridCapBankSvg
+              units={cdcUnits}
+              xStart={888}
+              xEnd={1035}
+              yTop={55}
+              yBot={305}
+              summaryText={`ESR=${cdcSol.esrEffAtFsw_mOhm.toFixed(1)}mΩ · Tc=${res.capHotspot_C.toFixed(0)}°C`}
+              summaryY={295}
+              accentColor="#10b981"
+            />
+            <GroundSymbol x={962} y={305} />
+
+            {/* Branch 4C: Output DC Bus Load Terminal (J_OUT) at x=1085 (or Bus Exit in Combined Mode) */}
+            {hideStandaloneLoad ? (
+              <>
+                <circle cx="1085" cy="55" r="4" fill="#f59e0b" />
+                <circle cx="1085" cy="305" r="4" fill="#10b981" />
+                <text x="1085" y="45" textAnchor="middle" fill="#f59e0b" fontSize="8" fontWeight="bold">
+                  TO STAGE 2 +VDC
+                </text>
+                <text x="1085" y="294" textAnchor="middle" fill="#10b981" fontSize="8" fontWeight="bold">
+                  DC_RTN
+                </text>
+              </>
+            ) : (
+              <>
+                <line x1="1085" y1="55" x2="1085" y2="156" stroke="currentColor" strokeWidth="1.8" />
+                <ResistorV
+                  x={1085}
+                  y={180}
+                  label={`Vdc=${state.Vdc_bus_V}V`}
+                  sublabel={`P=${(state.Pout_W / 1e3).toFixed(2)}kW`}
+                  color="#f59e0b"
+                />
+                <line x1="1085" y1="204" x2="1085" y2="305" stroke="currentColor" strokeWidth="1.8" />
+                <circle cx="1085" cy="55" r="3.5" fill="#f59e0b" />
+                <circle cx="1085" cy="305" r="3.5" fill="#10b981" />
+              </>
+            )}
+
+            {/* Bus Capacitor Network Summary Box */}
+            <rect x="873" y="308" width="259" height="22" rx="3" fill="#090D16" stroke="#1e293b" strokeWidth="1" />
+            <text x="1002" y="322" textAnchor="middle" fill="#6ee7b7" fontSize="6.9" fontWeight="bold">
+              {cdcSol.summaryLabel} · Ceff={cdcSol.totalCapEff_uF.toFixed(0)}µF · t_hold={res.tHold_actual_ms.toFixed(1)}ms
+            </text>
+
+            {/* ============================================================== */}
+            {/* 5. CLOSED-LOOP CONTROL, SOGI-PLL & SENSING PATHS               */}
+            {/* ============================================================== */}
+            {/* Vdc Feedback Sense Path from N9 (+VDC_BUS) */}
+            <path
+              d="M 1085 55 L 1148 55 L 1148 405 L 830 405"
+              fill="none"
+              stroke="#10b981"
+              strokeWidth="1.3"
+              strokeDasharray="4 3"
+            />
+            <text x="995" y="397" fill="#10b981" fontSize="8">
+              Kelvin Vdc Sense ({state.Vdc_bus_V}V)
+            </text>
+
+            {/* Vac SOGI-PLL Phase Sense Path from Input Filter */}
+            <path
+              d="M 82 265 L 82 405 L 310 405"
+              fill="none"
+              stroke="#38bdf8"
+              strokeWidth="1.3"
+              strokeDasharray="4 3"
+            />
+            <text x="115" y="397" fill="#38bdf8" fontSize="8">
+              Vac Differential Sense → SOGI-PLL (θ_grid)
+            </text>
+
+            {/* Inductor Current Sense (CT1/CT2) & PWM Gate Drive Links */}
+            <path
+              d="M 455 205 L 455 356"
+              fill="none"
+              stroke="#38bdf8"
+              strokeWidth="1.2"
+              strokeDasharray="3 3"
+            />
+            <text x="459" y="348" fill="#38bdf8" fontSize="7.3">
+              CT1/CT2 (i_L)
+            </text>
+            <path
+              d="M 595 356 L 595 312"
+              fill="none"
+              stroke="#a855f7"
+              strokeWidth="1.2"
+              strokeDasharray="3 3"
+            />
+            <text x="601" y="348" fill="#c084fc" fontSize="7.3">
+              PFC PWM Gate Drive ({state.fsw_kHz}kHz)
+            </text>
+
+            {/* Control Loop Block at Bottom */}
+            <rect
+              x="310"
+              y="356"
+              width="520"
+              height="98"
+              rx="6"
+              fill="#0f172a"
+              stroke="#06b6d4"
+              strokeWidth="1.8"
+            />
+            <text x="570" y="376" textAnchor="middle" fill="#06b6d4" fontSize="10" fontWeight="bold">
+              {isCombinedChild
+                ? sharedMcu
+                  ? `SHARED MCU (STAGE 1): ${state.controlType.toUpperCase()} + SOGI-PLL (${state.fs_ctrl_kHz}kHz)`
+                  : `MCU #1 (PFC): ${state.controlType.toUpperCase()} + SOGI-PLL (${state.fs_ctrl_kHz}kHz)`
+                : `PFC CONTROL SYNTHESIS: ${state.controlType.toUpperCase()} + SOGI-PLL (fs=${state.fs_ctrl_kHz} kHz)`}
+            </text>
+            <text x="570" y="393" textAnchor="middle" fill="#e2e8f0" fontSize="9">
+              Inner I-Loop: fc,i={res.fc_i_actual_kHz.toFixed(2)} kHz (PM={res.pm_i_actual_deg.toFixed(1)}°) | Outer
+              V-Loop: fc,v={res.fc_v_actual_Hz.toFixed(1)} Hz (PM={res.pm_v_actual_deg.toFixed(1)}°)
+            </text>
+            <text x="570" y="410" textAnchor="middle" fill="#38bdf8" fontSize="9">
+              Kp,i={res.Kp_i.toFixed(4)} · Ki,i={res.Ki_i.toFixed(1)} | 2P2Z: b0={res.b0_i.toFixed(4)}, b1=
+              {res.b1_i.toFixed(4)}, b2={res.b2_i.toFixed(4)}
+            </text>
+            <text x="570" y="427" textAnchor="middle" fill="#10b981" fontSize="8.5">
+              η={res.efficiency_pct.toFixed(2)}% | Ploss={res.Ptotal_loss_W.toFixed(1)}W | Net Ripple ΔIin=
+              {res.deltaIin_net_max_A.toFixed(2)}App (t_hold={res.tHold_actual_ms.toFixed(1)}ms)
+            </text>
+            <text x="570" y="443" textAnchor="middle" fill="#f59e0b" fontSize="8.5">
+              PF = {res.powerFactor_true.toFixed(4)} · THDi = {res.THD_est_pct.toFixed(2)}% (IEC 61000-3-2 PASS) · Inrush E ={' '}
+              {res.inrushEnergy_J.toFixed(1)}J
+            </text>
+
+    </>
+  );
+};
 
 export const AcDcSchematicView: React.FC<{
   res: AcDcResults;
@@ -1887,681 +2707,7 @@ export const AcDcSchematicView: React.FC<{
             <rect width="1160" height="490" fill="#090D16" rx="6" />
             <rect width="1160" height="490" fill="url(#acdc-cad-grid)" rx="6" />
 
-            {/* Stage Bounding Enclosures (Subtle Dashed Sub-System Zones) */}
-            <rect
-              x="22"
-              y="32"
-              width="270"
-              height="304"
-              rx="5"
-              fill="#0f172a"
-              fillOpacity="0.35"
-              stroke="#06b6d4"
-              strokeWidth="1"
-              strokeDasharray="4 3"
-              strokeOpacity="0.5"
-            />
-            <rect
-              x="865"
-              y="32"
-              width="275"
-              height="304"
-              rx="5"
-              fill="#0f172a"
-              fillOpacity="0.35"
-              stroke="#10b981"
-              strokeWidth="1"
-              strokeDasharray="4 3"
-              strokeOpacity="0.5"
-            />
-
-            {/* Section Header Callouts */}
-            <text x="30" y="23" fill="#06b6d4" fontSize="9" fontWeight="bold">
-              1. INPUT EMI FILTER (DM/CM) & PRE-CHARGE NODES
-            </text>
-            <text x="305" y="23" fill="#38bdf8" fontSize="9" fontWeight="bold">
-              2. {stage2Title}
-            </text>
-            <text x="545" y="23" fill="#a855f7" fontSize="9" fontWeight="bold">
-              3. {stage3Title}
-            </text>
-            <text x="872" y="23" fill="#10b981" fontSize="9" fontWeight="bold">
-              4. DC-LINK BUS CAPACITOR NETWORK (C_HF || C_DC1..N)
-            </text>
-
-            {/* Half-Cycle Conduction Indicator Banner if active */}
-            {halfCycleMode !== 'both' && (
-              <g transform="translate(305, 36)">
-                <rect
-                  x="0"
-                  y="0"
-                  width="545"
-                  height="16"
-                  rx="3"
-                  fill={halfCycleMode === 'pos' ? '#064e3b' : '#78350f'}
-                  stroke={halfCycleMode === 'pos' ? '#10b981' : '#f59e0b'}
-                  strokeWidth="1"
-                />
-                <text
-                  x="272"
-                  y="11"
-                  textAnchor="middle"
-                  fill={halfCycleMode === 'pos' ? '#6ee7b7' : '#fcd34d'}
-                  fontSize="8"
-                  fontWeight="bold"
-                >
-                  {halfCycleMode === 'pos'
-                    ? 'POSITIVE HALF-CYCLE (Vac > 0): Active Conduction Path Highlighted (L → Boost Stage → +VDC_BUS → DC_RTN → N)'
-                    : 'NEGATIVE HALF-CYCLE (Vac < 0): Active Conduction Path Highlighted (N → Boost Stage → +VDC_BUS → DC_RTN → L)'}
-                </text>
-              </g>
-            )}
-
-            {/* ============================================================== */}
-            {/* 1. DETAILED INPUT EMI FILTER & INRUSH PRE-CHARGE STAGE         */}
-            {/* ============================================================== */}
-            {/* AC Mains Source at x=42, y=190 */}
-            <line x1="42" y1="115" x2="42" y2="170" stroke="#38bdf8" strokeWidth="1.8" />
-            <circle cx="42" cy="190" r="19" fill="#0f172a" stroke="#38bdf8" strokeWidth="2" />
-            <path d="M 32 190 Q 37 179 42 190 T 52 190" fill="none" stroke="#38bdf8" strokeWidth="1.8" />
-            <text x="42" y="160" textAnchor="middle" fill="#38bdf8" fontSize="8.5" fontWeight="bold">
-              {state.Vac_rms_V}Vac
-            </text>
-            <text x="42" y="222" textAnchor="middle" fill="#94a3b8" fontSize="7.5">
-              {res.Iin_rms_A.toFixed(1)}Arms
-            </text>
-            <line x1="42" y1="209" x2="42" y2="265" stroke="#94a3b8" strokeWidth="1.8" />
-
-            {/* Line (y=115) & Neutral (y=265) Entry Feeders */}
-            <line x1="42" y1="115" x2="128" y2="115" stroke="#38bdf8" strokeWidth="1.8" />
-            <line x1="42" y1="265" x2="128" y2="265" stroke="#94a3b8" strokeWidth="1.8" />
-            <text x="64" y="108" fill="#38bdf8" fontSize="7.5" fontWeight="bold">
-              AC_L
-            </text>
-            <text x="64" y="277" fill="#94a3b8" fontSize="7.5" fontWeight="bold">
-              AC_N
-            </text>
-
-            {/* DM Capacitor Cx1 (x=82) + Safety Bleeder Resistor R_bleed (x=108) */}
-            <line x1="82" y1="115" x2="82" y2="172" stroke="currentColor" strokeWidth="1.5" />
-            <CapacitorV
-              x={82}
-              y={192}
-              label="Cx1"
-              sublabel={`${res.Cx_each_uF.toFixed(1)}µF X2`}
-              color="#06b6d4"
-            />
-            <line x1="82" y1="212" x2="82" y2="265" stroke="currentColor" strokeWidth="1.5" />
-            <circle cx="82" cy="115" r="2.8" fill="#06b6d4" />
-            <circle cx="82" cy="265" r="2.8" fill="#06b6d4" />
-            <text x="74" y="128" textAnchor="end" fill="#67e8f9" fontSize="6.5">
-              Cx1.1
-            </text>
-            <text x="74" y="258" textAnchor="end" fill="#67e8f9" fontSize="6.5">
-              Cx1.2
-            </text>
-
-            {/* Bleeder Resistor R_bleed across Cx1 at x=112 */}
-            <line x1="112" y1="115" x2="112" y2="170" stroke="#64748b" strokeWidth="1.2" strokeDasharray="2 2" />
-            <rect x="106" y="170" width="12" height="36" rx="2" fill="#0f172a" stroke="#64748b" strokeWidth="1.3" />
-            <text x="112" y="191" textAnchor="middle" fill="#94a3b8" fontSize="6.5">
-              Rb
-            </text>
-            <line x1="112" y1="206" x2="112" y2="265" stroke="#64748b" strokeWidth="1.2" strokeDasharray="2 2" />
-            <circle cx="112" cy="115" r="2.2" fill="#64748b" />
-            <circle cx="112" cy="265" r="2.2" fill="#64748b" />
-
-            {/* Coupled Common-Mode Choke L_CM (x=128..164) on Line (y=115) & Neutral (y=265) */}
-            <path
-              d="M 128 115 Q 134 103 140 115 Q 146 103 152 115 Q 158 103 164 115"
-              fill="none"
-              stroke="#38bdf8"
-              strokeWidth="1.8"
-            />
-            <path
-              d="M 128 265 Q 134 277 140 265 Q 146 277 152 265 Q 158 277 164 265"
-              fill="none"
-              stroke="#94a3b8"
-              strokeWidth="1.8"
-            />
-            {/* Coupled Magnetic Core Bar between Line & Neutral windings */}
-            <line x1="143" y1="122" x2="143" y2="258" stroke="#38bdf8" strokeWidth="1.2" strokeDasharray="4 3" />
-            <line x1="149" y1="122" x2="149" y2="258" stroke="#38bdf8" strokeWidth="1.2" strokeDasharray="4 3" />
-            {/* Phasing Dots */}
-            <circle cx="131" cy="106" r="2.2" fill="#38bdf8" />
-            <circle cx="131" cy="256" r="2.2" fill="#94a3b8" />
-            <text x="146" y="96" textAnchor="middle" fill="#38bdf8" fontSize="7.5" fontWeight="bold">
-              L_CM ({res.Lcm_mH.toFixed(1)}mH)
-            </text>
-
-            {/* Wire from L_CM output (x=164) to Cy1/Cy2 (x=176) and Cx2 (x=212) */}
-            <line x1="164" y1="115" x2="225" y2="115" stroke="#38bdf8" strokeWidth="1.8" />
-            <line x1="164" y1="265" x2="295" y2="265" stroke="#94a3b8" strokeWidth="1.8" />
-
-            {/* Class Y2 Common-Mode Capacitors Cy1 (top) & Cy2 (bottom) at x=176 meeting at PE (y=190) */}
-            <line x1="176" y1="115" x2="176" y2="148" stroke="#10b981" strokeWidth="1.4" />
-            <line x1="169" y1="148" x2="183" y2="148" stroke="#10b981" strokeWidth="2" />
-            <line x1="169" y1="154" x2="183" y2="154" stroke="#10b981" strokeWidth="2" />
-            <line x1="176" y1="154" x2="176" y2="190" stroke="#10b981" strokeWidth="1.4" />
-            <text x="185" y="149" fill="#10b981" fontSize="7" fontWeight="bold">
-              Cy1
-            </text>
-
-            <line x1="176" y1="190" x2="176" y2="226" stroke="#10b981" strokeWidth="1.4" />
-            <line x1="169" y1="226" x2="183" y2="226" stroke="#10b981" strokeWidth="2" />
-            <line x1="169" y1="232" x2="183" y2="232" stroke="#10b981" strokeWidth="2" />
-            <line x1="176" y1="232" x2="176" y2="265" stroke="#10b981" strokeWidth="1.4" />
-            <text x="185" y="236" fill="#10b981" fontSize="7" fontWeight="bold">
-              Cy2
-            </text>
-            <circle cx="176" cy="265" r="2.8" fill="#10b981" />
-
-            {/* Protective Earth (PE) Chassis Ground Connection at (176, 190) -> (156, 190) */}
-            <line x1="176" y1="190" x2="156" y2="190" stroke="#10b981" strokeWidth="1.6" />
-            <line x1="156" y1="190" x2="156" y2="198" stroke="#10b981" strokeWidth="1.6" />
-            <line x1="149" y1="198" x2="163" y2="198" stroke="#10b981" strokeWidth="1.6" />
-            <line x1="152" y1="202" x2="160" y2="202" stroke="#10b981" strokeWidth="1.6" />
-            <text x="156" y="212" textAnchor="middle" fill="#10b981" fontSize="6.5" fontWeight="bold">
-              PE
-            </text>
-
-            {/* Second DM Capacitor Cx2 at x=212 */}
-            <line x1="212" y1="115" x2="212" y2="175" stroke="#06b6d4" strokeWidth="1.4" />
-            <line x1="204" y1="175" x2="220" y2="175" stroke="#06b6d4" strokeWidth="2" />
-            <line x1="204" y1="181" x2="220" y2="181" stroke="#06b6d4" strokeWidth="2" />
-            <line x1="212" y1="181" x2="212" y2="265" stroke="#06b6d4" strokeWidth="1.4" />
-            <circle cx="212" cy="115" r="2.6" fill="#06b6d4" />
-            <circle cx="212" cy="265" r="2.6" fill="#06b6d4" />
-            <text x="212" y="168" textAnchor="middle" fill="#06b6d4" fontSize="7" fontWeight="bold">
-              Cx2
-            </text>
-
-            {/* Inrush Pre-Charge Resistor R_NTC (x=232..270, y=115) + Parallel Bypass Relay K_BYPASS (y=82) */}
-            <rect
-              x="232"
-              y="108"
-              width="38"
-              height="14"
-              rx="2"
-              fill="#0f172a"
-              stroke="#f59e0b"
-              strokeWidth="1.6"
-            />
-            <text x="251" y="118" textAnchor="middle" fill="#f59e0b" fontSize="7.5" fontWeight="bold">
-              R_NTC
-            </text>
-            <text x="251" y="133" textAnchor="middle" fill="#fcd34d" fontSize="6.5">
-              {res.R_precharge_Ohm.toFixed(1)}Ω Pre
-            </text>
-            {/* Bypass Relay Switch K_BYPASS in parallel above R_NTC */}
-            <line x1="225" y1="115" x2="225" y2="82" stroke="#10b981" strokeWidth="1.4" />
-            <line x1="225" y1="82" x2="240" y2="82" stroke="#10b981" strokeWidth="1.4" />
-            <circle cx="240" cy="82" r="2.2" fill="#10b981" />
-            <line x1="240" y1="82" x2="258" y2="74" stroke="#10b981" strokeWidth="1.6" />
-            <circle cx="260" cy="82" r="2.2" fill="#10b981" />
-            <line x1="260" y1="82" x2="275" y2="82" stroke="#10b981" strokeWidth="1.4" />
-            <line x1="275" y1="82" x2="275" y2="115" stroke="#10b981" strokeWidth="1.4" />
-            <text x="251" y="68" textAnchor="middle" fill="#10b981" fontSize="7" fontWeight="bold">
-              K_BYP ({res.t_relay_bypass_ms.toFixed(0)}ms)
-            </text>
-            <circle cx="225" cy="115" r="2.6" fill="#38bdf8" />
-            <line x1="270" y1="115" x2="295" y2="115" stroke="#38bdf8" strokeWidth="1.8" />
-
-            {/* Input Filter Summary Telemetry Label inside Stage 1 box */}
-            <rect x="30" y="302" width="254" height="26" rx="3" fill="#090D16" stroke="#1e293b" strokeWidth="1" />
-            <text x="157" y="313" textAnchor="middle" fill="#67e8f9" fontSize="7.5" fontWeight="bold">
-              INPUT FILTER NODES: Cx1/Cx2={res.Cx_each_uF.toFixed(2)}µF · Lcm={res.Lcm_mH.toFixed(1)}mH
-            </text>
-            <text x="157" y="323" textAnchor="middle" fill="#94a3b8" fontSize="7">
-              Cy1/Cy2={res.Cy_each_nF.toFixed(1)}nF → PE ({res.earthLeakage_mA.toFixed(2)}mA) · I_inrush={res.Iinrush_precharge_pk_A.toFixed(1)}Apk
-            </text>
-
-            {/* ============================================================== */}
-            {/* VARIANT A: 2-PHASE INTERLEAVED BRIDGELESS TOTEM-POLE PFC       */}
-            {/* ============================================================== */}
-            {isTotem2Ph && (
-              <g>
-                {/* AC Line splits at x=305 into Phase 1 (y=145) and Phase 2 (y=195) */}
-                <line x1="295" y1="115" x2="305" y2="115" stroke="#38bdf8" strokeWidth="1.8" />
-                <line x1="305" y1="115" x2="305" y2="195" stroke="#38bdf8" strokeWidth="1.8" />
-                <circle cx="305" cy="145" r="3.2" fill="#38bdf8" />
-
-                {/* Phase 1 Boost Inductor L1 (0° Carrier) at y=145 -> connects to Q1/Q2 midpoint (x=515, y=145) */}
-                <line x1="305" y1="145" x2="346" y2="145" stroke="#38bdf8" strokeWidth="1.8" />
-                <InductorH
-                  x={370}
-                  y={145}
-                  label={`L1=${state.Lpfc_uH}µH`}
-                  sublabel={`ΔIL1=${res.deltaIL_ph_max_A.toFixed(1)}A (0°)`}
-                  color="#38bdf8"
-                />
-                <line x1="394" y1="145" x2="515" y2="145" stroke="#38bdf8" strokeWidth="1.8" />
-                <circle cx="445" cy="145" r="6" fill="none" stroke="#38bdf8" strokeWidth="1.4" />
-                <text x="445" y="134" textAnchor="middle" fill="#38bdf8" fontSize="7.5">
-                  CT1 (i_L1)
-                </text>
-
-                {/* Phase 2 Boost Inductor L2 (180° Carrier) at y=195 -> connects to Q3/Q4 midpoint (x=620, y=195) */}
-                <line x1="305" y1="195" x2="346" y2="195" stroke="#10b981" strokeWidth="1.8" />
-                <InductorH
-                  x={370}
-                  y={195}
-                  label={`L2=${state.Lpfc_uH}µH`}
-                  sublabel="Phase 2 (180° Shift)"
-                  color="#10b981"
-                />
-                <line x1="394" y1="195" x2="620" y2="195" stroke="#10b981" strokeWidth="1.8" />
-                <circle cx="465" cy="195" r="6" fill="none" stroke="#10b981" strokeWidth="1.4" />
-                <text x="465" y="184" textAnchor="middle" fill="#10b981" fontSize="7.5">
-                  CT2 (i_L2)
-                </text>
-
-                {/* DC Bus Rails (+Vdc at y=55, DC_RTN at y=305) */}
-                <line x1="515" y1="55" x2="1085" y2="55" stroke="#f59e0b" strokeWidth="2.4" />
-                <line x1="515" y1="305" x2="1085" y2="305" stroke="currentColor" strokeWidth="2.2" />
-
-                {/* Fast Leg 1 (Q1 High-Side @ y=95, Q2 Low-Side @ y=250) at x=515 */}
-                <line x1="515" y1="55" x2="515" y2="76" stroke="currentColor" strokeWidth="1.7" />
-                <MosfetSymbol x={515} y={95} label="Q1" sublabel={`${state.fsw_kHz}kHz`} color="#06b6d4" scale={0.85} />
-                <line x1="515" y1="114" x2="515" y2="231" stroke="currentColor" strokeWidth="1.7" />
-                <MosfetSymbol x={515} y={250} label="Q2" sublabel="Ph1 (0°)" color="#06b6d4" scale={0.85} />
-                <line x1="515" y1="269" x2="515" y2="305" stroke="currentColor" strokeWidth="1.7" />
-                <circle cx="515" cy="55" r="3.2" fill="#f59e0b" />
-                <circle cx="515" cy="305" r="3.2" fill="#94a3b8" />
-
-                {/* Fast Leg 2 (Q3 High-Side @ y=95, Q4 Low-Side @ y=250) at x=620 */}
-                <line x1="620" y1="55" x2="620" y2="76" stroke="currentColor" strokeWidth="1.7" />
-                <MosfetSymbol x={620} y={95} label="Q3" sublabel={`${state.fsw_kHz}kHz`} color="#10b981" scale={0.85} />
-                <line x1="620" y1="114" x2="620" y2="231" stroke="currentColor" strokeWidth="1.7" />
-                <MosfetSymbol x={620} y={250} label="Q4" sublabel="Ph2 (180°)" color="#10b981" scale={0.85} />
-                <line x1="620" y1="269" x2="620" y2="305" stroke="currentColor" strokeWidth="1.7" />
-                <circle cx="620" cy="55" r="3.2" fill="#f59e0b" />
-                <circle cx="620" cy="305" r="3.2" fill="#94a3b8" />
-
-                {/* Slow Line-Frequency Synchronous Unfolding Leg (S1 @ y=95, S2 @ y=250) at x=745 */}
-                <line x1="745" y1="55" x2="745" y2="76" stroke="currentColor" strokeWidth="1.7" />
-                <MosfetSymbol
-                  x={745}
-                  y={95}
-                  label="S1"
-                  sublabel={halfCycleMode === 'neg' ? 'ON (-Vac)' : `${state.f_line_Hz}Hz Sync`}
-                  color="#a855f7"
-                  scale={0.85}
-                />
-                <line x1="745" y1="114" x2="745" y2="231" stroke="currentColor" strokeWidth="1.7" />
-                <MosfetSymbol
-                  x={745}
-                  y={250}
-                  label="S2"
-                  sublabel={halfCycleMode === 'pos' ? 'ON (+Vac)' : `${state.f_line_Hz}Hz Sync`}
-                  color="#a855f7"
-                  scale={0.85}
-                />
-                <line x1="745" y1="269" x2="745" y2="305" stroke="currentColor" strokeWidth="1.7" />
-                <circle cx="745" cy="55" r="3.2" fill="#f59e0b" />
-                <circle cx="745" cy="305" r="3.2" fill="#94a3b8" />
-
-                {/* AC Neutral wire routes to MIDPOINT of S1/S2 at (745, 172) */}
-                <line x1="295" y1="265" x2="695" y2="265" stroke="#a855f7" strokeWidth="1.8" />
-                <line x1="695" y1="265" x2="695" y2="172" stroke="#a855f7" strokeWidth="1.8" />
-                <line x1="695" y1="172" x2="745" y2="172" stroke="#a855f7" strokeWidth="1.8" />
-                <circle cx="745" cy="172" r="3.8" fill="#a855f7" />
-                <text x="718" y="165" textAnchor="middle" fill="#c084fc" fontSize="8" fontWeight="bold">
-                  N_SW
-                </text>
-              </g>
-            )}
-
-            {/* ============================================================== */}
-            {/* VARIANT B: 1-PHASE BRIDGELESS TOTEM-POLE PFC                   */}
-            {/* ============================================================== */}
-            {isTotem1Ph && (
-              <g>
-                {/* AC Line goes to Single Boost Inductor L1 at y=155 -> connects to Q1/Q2 midpoint (x=535, y=155) */}
-                <line x1="295" y1="115" x2="315" y2="115" stroke="#38bdf8" strokeWidth="1.8" />
-                <line x1="315" y1="115" x2="315" y2="155" stroke="#38bdf8" strokeWidth="1.8" />
-                <line x1="315" y1="155" x2="366" y2="155" stroke="#38bdf8" strokeWidth="1.8" />
-                <InductorH
-                  x={390}
-                  y={155}
-                  label={`L1=${state.Lpfc_uH}µH`}
-                  sublabel={`ΔIL=${res.deltaIL_ph_max_A.toFixed(1)}App`}
-                  color="#38bdf8"
-                />
-                <line x1="414" y1="155" x2="535" y2="155" stroke="#38bdf8" strokeWidth="1.8" />
-                <circle cx="465" cy="155" r="6" fill="none" stroke="#38bdf8" strokeWidth="1.4" />
-                <text x="465" y="143" textAnchor="middle" fill="#38bdf8" fontSize="7.5">
-                  CT1 (i_L)
-                </text>
-
-                {/* DC Bus Rails (+Vdc at y=55, DC_RTN at y=305) */}
-                <line x1="535" y1="55" x2="1085" y2="55" stroke="#f59e0b" strokeWidth="2.4" />
-                <line x1="535" y1="305" x2="1085" y2="305" stroke="currentColor" strokeWidth="2.2" />
-
-                {/* Fast SiC/GaN Switching Leg (Q1 @ y=95, Q2 @ y=250) at x=535 */}
-                <line x1="535" y1="55" x2="535" y2="76" stroke="currentColor" strokeWidth="1.7" />
-                <MosfetSymbol
-                  x={535}
-                  y={95}
-                  label="Q1 (Fast)"
-                  sublabel={`${state.fsw_kHz}kHz SiC/GaN`}
-                  color="#06b6d4"
-                  scale={0.85}
-                />
-                <line x1="535" y1="114" x2="535" y2="231" stroke="currentColor" strokeWidth="1.7" />
-                <MosfetSymbol
-                  x={535}
-                  y={250}
-                  label="Q2 (Fast)"
-                  sublabel={`${state.fsw_kHz}kHz SiC/GaN`}
-                  color="#06b6d4"
-                  scale={0.85}
-                />
-                <line x1="535" y1="269" x2="535" y2="305" stroke="currentColor" strokeWidth="1.7" />
-                <circle cx="535" cy="55" r="3.2" fill="#f59e0b" />
-                <circle cx="535" cy="305" r="3.2" fill="#94a3b8" />
-
-                {/* Slow Line-Frequency Return Leg (S1 @ y=95, S2 @ y=250) at x=705 */}
-                <line x1="705" y1="55" x2="705" y2="76" stroke="currentColor" strokeWidth="1.7" />
-                <MosfetSymbol
-                  x={705}
-                  y={95}
-                  label="S1 (Slow)"
-                  sublabel={`${state.f_line_Hz}Hz Sync`}
-                  color="#a855f7"
-                  scale={0.85}
-                />
-                <line x1="705" y1="114" x2="705" y2="231" stroke="currentColor" strokeWidth="1.7" />
-                <MosfetSymbol
-                  x={705}
-                  y={250}
-                  label="S2 (Slow)"
-                  sublabel={`${state.f_line_Hz}Hz Sync`}
-                  color="#a855f7"
-                  scale={0.85}
-                />
-                <line x1="705" y1="269" x2="705" y2="305" stroke="currentColor" strokeWidth="1.7" />
-                <circle cx="705" cy="55" r="3.2" fill="#f59e0b" />
-                <circle cx="705" cy="305" r="3.2" fill="#94a3b8" />
-
-                {/* AC Neutral wire routes to MIDPOINT of S1/S2 at (705, 180) */}
-                <line x1="295" y1="265" x2="650" y2="265" stroke="#a855f7" strokeWidth="1.8" />
-                <line x1="650" y1="265" x2="650" y2="180" stroke="#a855f7" strokeWidth="1.8" />
-                <line x1="650" y1="180" x2="705" y2="180" stroke="#a855f7" strokeWidth="1.8" />
-              </g>
-            )}
-
-            {/* ============================================================== */}
-            {/* VARIANT C: 2-PHASE INTERLEAVED DIODE-BRIDGE BOOST PFC          */}
-            {/* ============================================================== */}
-            {isDiodeBoost2Ph && (
-              <g>
-                {/* Full-Wave Input Diode Bridge Rectifier (DB1..DB4) at x=315 and x=365 */}
-                <line x1="315" y1="80" x2="405" y2="80" stroke="#38bdf8" strokeWidth="1.8" />
-                <line x1="315" y1="305" x2="1085" y2="305" stroke="currentColor" strokeWidth="2.2" />
-
-                {/* Bridge Leg A (x=315): DB1 (top, y=120) and DB2 (bottom, y=245) */}
-                <line x1="315" y1="80" x2="315" y2="104" stroke="currentColor" strokeWidth="1.6" />
-                <DiodeSymbol x={315} y={120} dir="up" label="DB1" color="#94a3b8" />
-                <line x1="315" y1="136" x2="315" y2="229" stroke="currentColor" strokeWidth="1.6" />
-                <DiodeSymbol x={315} y={245} dir="up" label="DB2" color="#94a3b8" />
-                <line x1="315" y1="261" x2="315" y2="305" stroke="currentColor" strokeWidth="1.6" />
-
-                {/* Bridge Leg B (x=365): DB3 (top, y=120) and DB4 (bottom, y=245) */}
-                <line x1="365" y1="80" x2="365" y2="104" stroke="currentColor" strokeWidth="1.6" />
-                <DiodeSymbol x={365} y={120} dir="up" label="DB3" color="#94a3b8" />
-                <line x1="365" y1="136" x2="365" y2="229" stroke="currentColor" strokeWidth="1.6" />
-                <DiodeSymbol x={365} y={245} dir="up" label="DB4" color="#94a3b8" />
-                <line x1="365" y1="261" x2="365" y2="305" stroke="currentColor" strokeWidth="1.6" />
-                <circle cx="365" cy="80" r="3" fill="#38bdf8" />
-                <circle cx="365" cy="305" r="3" fill="#94a3b8" />
-
-                {/* Connect Pre-charge Out (y=115) to Bridge Leg A midpoint (315, 175) */}
-                <line x1="295" y1="115" x2="295" y2="175" stroke="#38bdf8" strokeWidth="1.8" />
-                <line x1="295" y1="175" x2="315" y2="175" stroke="#38bdf8" strokeWidth="1.8" />
-                <circle cx="315" cy="175" r="3.2" fill="#38bdf8" />
-
-                {/* Connect AC Neutral (y=265) to Bridge Leg B midpoint (365, 195) */}
-                <line x1="295" y1="265" x2="348" y2="265" stroke="#94a3b8" strokeWidth="1.8" />
-                <line x1="348" y1="265" x2="348" y2="195" stroke="#94a3b8" strokeWidth="1.8" />
-                <line x1="348" y1="195" x2="365" y2="195" stroke="#94a3b8" strokeWidth="1.8" />
-                <circle cx="365" cy="195" r="3.2" fill="#94a3b8" />
-
-                {/* Rectified |Vac| splits at x=405 into L1 (y=145, 0°) and L2 (y=200, 180°) */}
-                <line x1="405" y1="80" x2="405" y2="200" stroke="#38bdf8" strokeWidth="1.8" />
-                <circle cx="405" cy="145" r="3.2" fill="#38bdf8" />
-
-                {/* Phase 1 Boost Inductor L1 (y=145) -> Node SW1 (x=575, y=145) */}
-                <line x1="405" y1="145" x2="446" y2="145" stroke="#38bdf8" strokeWidth="1.8" />
-                <InductorH
-                  x={470}
-                  y={145}
-                  label={`L1=${state.Lpfc_uH}µH`}
-                  sublabel={`ΔIL1=${res.deltaIL_ph_max_A.toFixed(1)}A (0°)`}
-                  color="#38bdf8"
-                />
-                <line x1="494" y1="145" x2="575" y2="145" stroke="#38bdf8" strokeWidth="1.8" />
-
-                {/* Phase 2 Boost Inductor L2 (y=200) -> Node SW2 (x=700, y=200) */}
-                <line x1="405" y1="200" x2="446" y2="200" stroke="#10b981" strokeWidth="1.8" />
-                <InductorH
-                  x={470}
-                  y={200}
-                  label={`L2=${state.Lpfc_uH}µH`}
-                  sublabel="Phase 2 (180° Shift)"
-                  color="#10b981"
-                />
-                <line x1="494" y1="200" x2="700" y2="200" stroke="#10b981" strokeWidth="1.8" />
-
-                {/* Positive Output DC Bus Rail (+Vdc at y=55) */}
-                <line x1="575" y1="55" x2="1085" y2="55" stroke="#f59e0b" strokeWidth="2.4" />
-
-                {/* Phase 1 Cell at x=575: High-Side SiC Boost Diode D1 (y=98) & Low-Side Boost FET Q1 (y=245) */}
-                <line x1="575" y1="55" x2="575" y2="82" stroke="currentColor" strokeWidth="1.7" />
-                <DiodeSymbol x={575} y={98} dir="up" isSchottky label="D1" sublabel="SiC Boost" color="#f59e0b" />
-                <line x1="575" y1="114" x2="575" y2="226" stroke="currentColor" strokeWidth="1.7" />
-                <MosfetSymbol
-                  x={575}
-                  y={245}
-                  label="Q1"
-                  sublabel={`${state.fsw_kHz}kHz (0°)`}
-                  color="#06b6d4"
-                  scale={0.85}
-                />
-                <line x1="575" y1="264" x2="575" y2="305" stroke="currentColor" strokeWidth="1.7" />
-                <circle cx="575" cy="55" r="3.2" fill="#f59e0b" />
-                <circle cx="575" cy="305" r="3.2" fill="#94a3b8" />
-
-                {/* Phase 2 Cell at x=700: High-Side SiC Boost Diode D2 (y=98) & Low-Side Boost FET Q2 (y=250) */}
-                <line x1="700" y1="55" x2="700" y2="82" stroke="currentColor" strokeWidth="1.7" />
-                <DiodeSymbol x={700} y={98} dir="up" isSchottky label="D2" sublabel="SiC Boost" color="#f59e0b" />
-                <line x1="700" y1="114" x2="700" y2="231" stroke="currentColor" strokeWidth="1.7" />
-                <MosfetSymbol
-                  x={700}
-                  y={250}
-                  label="Q2"
-                  sublabel={`${state.fsw_kHz}kHz (180°)`}
-                  color="#10b981"
-                  scale={0.85}
-                />
-                <line x1="700" y1="269" x2="700" y2="305" stroke="currentColor" strokeWidth="1.7" />
-                <circle cx="700" cy="55" r="3.2" fill="#f59e0b" />
-                <circle cx="700" cy="305" r="3.2" fill="#94a3b8" />
-              </g>
-            )}
-
-            {/* ============================================================== */}
-            {/* VARIANT D: DUAL-BOOST SEMI-BRIDGELESS PFC (WITH DR1, DR2)      */}
-            {/* ============================================================== */}
-            {isDualBoostBridgeless && (
-              <g>
-                {/* AC Line feeds L1 (y=145) for Positive Half-Cycle; tap at x=305 goes to Return Diode DR1 */}
-                <line x1="295" y1="115" x2="305" y2="115" stroke="#38bdf8" strokeWidth="1.8" />
-                <line x1="305" y1="115" x2="305" y2="145" stroke="#38bdf8" strokeWidth="1.8" />
-                <circle cx="305" cy="145" r="3.2" fill="#38bdf8" />
-                <line x1="305" y1="145" x2="356" y2="145" stroke="#38bdf8" strokeWidth="1.8" />
-                <InductorH
-                  x={380}
-                  y={145}
-                  label={`L1=${state.Lpfc_uH}µH`}
-                  sublabel="Pos Half-Cycle"
-                  color="#38bdf8"
-                />
-                <line x1="404" y1="145" x2="515" y2="145" stroke="#38bdf8" strokeWidth="1.8" />
-
-                {/* AC Neutral feeds L2 (y=195) for Negative Half-Cycle; tap at x=325 goes to Return Diode DR2 */}
-                <line x1="295" y1="265" x2="325" y2="265" stroke="#10b981" strokeWidth="1.8" />
-                <circle cx="325" cy="265" r="3.2" fill="#10b981" />
-                <line x1="325" y1="265" x2="325" y2="195" stroke="#10b981" strokeWidth="1.8" />
-                <line x1="325" y1="195" x2="356" y2="195" stroke="#10b981" strokeWidth="1.8" />
-                <InductorH
-                  x={380}
-                  y={195}
-                  label={`L2=${state.Lpfc_uH}µH`}
-                  sublabel="Neg Half-Cycle"
-                  color="#10b981"
-                />
-                <line x1="404" y1="195" x2="620" y2="195" stroke="#10b981" strokeWidth="1.8" />
-
-                {/* DC Bus Rails (+Vdc at y=55, DC_RTN at y=305) */}
-                <line x1="515" y1="55" x2="1085" y2="55" stroke="#f59e0b" strokeWidth="2.4" />
-                <line x1="515" y1="305" x2="1085" y2="305" stroke="currentColor" strokeWidth="2.2" />
-
-                {/* Cell 1 (x=515): High-Side SiC Diode D1 (y=98) & Low-Side Switch Q1 (y=245) */}
-                <line x1="515" y1="55" x2="515" y2="82" stroke="currentColor" strokeWidth="1.7" />
-                <DiodeSymbol x={515} y={98} dir="up" isSchottky label="D1" sublabel="SiC" color="#f59e0b" />
-                <line x1="515" y1="114" x2="515" y2="226" stroke="currentColor" strokeWidth="1.7" />
-                <MosfetSymbol x={515} y={245} label="Q1" sublabel="Pos Boost" color="#06b6d4" scale={0.85} />
-                <line x1="515" y1="264" x2="515" y2="305" stroke="currentColor" strokeWidth="1.7" />
-
-                {/* Cell 2 (x=620): High-Side SiC Diode D2 (y=98) & Low-Side Switch Q2 (y=250) */}
-                <line x1="620" y1="55" x2="620" y2="82" stroke="currentColor" strokeWidth="1.7" />
-                <DiodeSymbol x={620} y={98} dir="up" isSchottky label="D2" sublabel="SiC" color="#f59e0b" />
-                <line x1="620" y1="114" x2="620" y2="231" stroke="currentColor" strokeWidth="1.7" />
-                <MosfetSymbol x={620} y={250} label="Q2" sublabel="Neg Boost" color="#10b981" scale={0.85} />
-                <line x1="620" y1="269" x2="620" y2="305" stroke="currentColor" strokeWidth="1.7" />
-                <circle cx="620" cy="55" r="3.2" fill="#f59e0b" />
-                <circle cx="620" cy="305" r="3.2" fill="#94a3b8" />
-
-                {/* Slow Common-Mode Clamping Return Diodes DR1 (x=715) & DR2 (x=780) */}
-                <line x1="305" y1="145" x2="305" y2="222" stroke="#a855f7" strokeWidth="1.4" strokeDasharray="4 2" />
-                <line x1="305" y1="222" x2="715" y2="222" stroke="#a855f7" strokeWidth="1.5" />
-                <line x1="715" y1="222" x2="715" y2="239" stroke="currentColor" strokeWidth="1.6" />
-                <DiodeSymbol x={715} y={255} dir="up" label="DR1" sublabel="Line Ret" color="#a855f7" />
-                <line x1="715" y1="271" x2="715" y2="305" stroke="currentColor" strokeWidth="1.6" />
-                <circle cx="715" cy="305" r="3" fill="#a855f7" />
-
-                <line x1="325" y1="265" x2="675" y2="265" stroke="#a855f7" strokeWidth="1.5" />
-                <line x1="675" y1="265" x2="675" y2="210" stroke="#a855f7" strokeWidth="1.5" />
-                <line x1="675" y1="210" x2="780" y2="210" stroke="#a855f7" strokeWidth="1.5" />
-                <line x1="780" y1="210" x2="780" y2="239" stroke="currentColor" strokeWidth="1.6" />
-                <DiodeSymbol x={780} y={255} dir="up" label="DR2" sublabel="Neut Ret" color="#a855f7" />
-                <line x1="780" y1="271" x2="780" y2="305" stroke="currentColor" strokeWidth="1.6" />
-                <circle cx="780" cy="305" r="3" fill="#a855f7" />
-              </g>
-            )}
-
-            {/* ============================================================== */}
-            {/* 4. DETAILED DC-LINK HYBRID CAPACITOR BANK & CONNECTION POINTS  */}
-            {/* ============================================================== */}
-            {/* Positive Rail Label (+VDC_BUS) & Negative Rail Label (DC_RTN) */}
-            <text x="875" y="48" fill="#f59e0b" fontSize="8" fontWeight="bold">
-              +VDC_BUS ({state.Vdc_bus_V}V)
-            </text>
-            <text x="875" y="298" fill="#10b981" fontSize="8" fontWeight="bold">
-              DC_RTN / STAR_GND
-            </text>
-
-            {/* Hybrid Multi-Branch DC-Link Bank (e.g. HV Electrolytic + MKP Film / MLCC) */}
-            <HybridCapBankSvg
-              units={cdcUnits}
-              xStart={888}
-              xEnd={1035}
-              yTop={55}
-              yBot={305}
-              summaryText={`ESR=${cdcSol.esrEffAtFsw_mOhm.toFixed(1)}mΩ · Tc=${res.capHotspot_C.toFixed(0)}°C`}
-              summaryY={295}
-              accentColor="#10b981"
-            />
-            <GroundSymbol x={962} y={305} />
-
-            {/* Branch 4C: Output DC Bus Load Terminal (J_OUT) at x=1085 */}
-            <line x1="1085" y1="55" x2="1085" y2="156" stroke="currentColor" strokeWidth="1.8" />
-            <ResistorV
-              x={1085}
-              y={180}
-              label={`Vdc=${state.Vdc_bus_V}V`}
-              sublabel={`P=${(state.Pout_W / 1e3).toFixed(2)}kW`}
-              color="#f59e0b"
-            />
-            <line x1="1085" y1="204" x2="1085" y2="305" stroke="currentColor" strokeWidth="1.8" />
-            <circle cx="1085" cy="55" r="3.5" fill="#f59e0b" />
-            <circle cx="1085" cy="305" r="3.5" fill="#10b981" />
-
-            {/* Bus Capacitor Network Summary Box */}
-            <rect x="873" y="308" width="259" height="22" rx="3" fill="#090D16" stroke="#1e293b" strokeWidth="1" />
-            <text x="1002" y="322" textAnchor="middle" fill="#6ee7b7" fontSize="6.9" fontWeight="bold">
-              {cdcSol.summaryLabel} · Ceff={cdcSol.totalCapEff_uF.toFixed(0)}µF · t_hold={res.tHold_actual_ms.toFixed(1)}ms
-            </text>
-
-            {/* ============================================================== */}
-            {/* 5. CLOSED-LOOP CONTROL, SOGI-PLL & SENSING PATHS               */}
-            {/* ============================================================== */}
-            {/* Vdc Feedback Sense Path from N9 (+VDC_BUS) */}
-            <path
-              d="M 1085 55 L 1148 55 L 1148 405 L 830 405"
-              fill="none"
-              stroke="#10b981"
-              strokeWidth="1.3"
-              strokeDasharray="4 3"
-            />
-            <text x="995" y="397" fill="#10b981" fontSize="8">
-              Kelvin Vdc Sense ({state.Vdc_bus_V}V)
-            </text>
-
-            {/* Vac SOGI-PLL Phase Sense Path from Input Filter */}
-            <path
-              d="M 82 265 L 82 405 L 310 405"
-              fill="none"
-              stroke="#38bdf8"
-              strokeWidth="1.3"
-              strokeDasharray="4 3"
-            />
-            <text x="115" y="397" fill="#38bdf8" fontSize="8">
-              Vac Differential Sense → SOGI-PLL (θ_grid)
-            </text>
-
-            {/* Control Loop Block at Bottom */}
-            <rect
-              x="310"
-              y="356"
-              width="520"
-              height="98"
-              rx="6"
-              fill="#0f172a"
-              stroke="#06b6d4"
-              strokeWidth="1.8"
-            />
-            <text x="570" y="376" textAnchor="middle" fill="#06b6d4" fontSize="10.5" fontWeight="bold">
-              PFC CONTROL SYNTHESIS: {state.controlType.toUpperCase()} + SOGI-PLL (fs={state.fs_ctrl_kHz} kHz)
-            </text>
-            <text x="570" y="393" textAnchor="middle" fill="#e2e8f0" fontSize="9">
-              Inner I-Loop: fc,i={res.fc_i_actual_kHz.toFixed(2)} kHz (PM={res.pm_i_actual_deg.toFixed(1)}°) | Outer
-              V-Loop: fc,v={res.fc_v_actual_Hz.toFixed(1)} Hz (PM={res.pm_v_actual_deg.toFixed(1)}°)
-            </text>
-            <text x="570" y="410" textAnchor="middle" fill="#38bdf8" fontSize="9">
-              Kp,i={res.Kp_i.toFixed(4)} · Ki,i={res.Ki_i.toFixed(1)} | 2P2Z: b0={res.b0_i.toFixed(4)}, b1=
-              {res.b1_i.toFixed(4)}, b2={res.b2_i.toFixed(4)}
-            </text>
-            <text x="570" y="427" textAnchor="middle" fill="#10b981" fontSize="8.5">
-              η={res.efficiency_pct.toFixed(2)}% | Ploss={res.Ptotal_loss_W.toFixed(1)}W | Net Ripple ΔIin=
-              {res.deltaIin_net_max_A.toFixed(2)}App (t_hold={res.tHold_actual_ms.toFixed(1)}ms)
-            </text>
-            <text x="570" y="443" textAnchor="middle" fill="#f59e0b" fontSize="8.5">
-              PF = {res.powerFactor_true.toFixed(4)} · THDi = {res.THD_est_pct.toFixed(2)}% (IEC 61000-3-2 PASS) · Inrush E ={' '}
-              {res.inrushEnergy_J.toFixed(1)}J
-            </text>
-
+            <AcDcSchematicSvgContent res={res} halfCycleMode={halfCycleMode} />
             {/* ============================================================== */}
             {/* 6. INTERACTIVE CONNECTION POINT NODE PINS (N1..N10)            */}
             {/* ============================================================== */}
@@ -2679,15 +2825,24 @@ export const CombinedSystemSchematicView: React.FC<{
   acdcRes: AcDcResults;
   dcdcRes: DcDcResults;
   isConnected?: boolean;
+  sharedMcu?: boolean;
+  onToggleSharedMcu?: (shared: boolean) => void;
   reportOnly?: boolean;
-}> = ({ acdcRes, dcdcRes, isConnected = true, reportOnly = false }) => {
+}> = ({
+  acdcRes,
+  dcdcRes,
+  isConnected = true,
+  sharedMcu = true,
+  onToggleSharedMcu,
+  reportOnly = false,
+}) => {
   const acdcState = acdcRes.state;
   const dcdcState = dcdcRes.state;
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [zoom, setZoom] = useState<number>(100);
   const { exportSvg, exportPng } = useSchematicExport(
     svgRef,
-    `combined_${acdcState.topology}_to_${dcdcState.topology}`
+    `combined_${acdcState.topology}_to_${dcdcState.topology}_${sharedMcu ? 'shared_mcu' : 'dual_mcu'}`
   );
   const [paperHtml, setPaperHtml] = useState<string>('');
 
@@ -2698,44 +2853,10 @@ export const CombinedSystemSchematicView: React.FC<{
     clone.removeAttribute('height');
     clone.setAttribute('class', 'w-full h-auto');
     setPaperHtml(clone.outerHTML);
-  }, [reportOnly, acdcRes, dcdcRes, isConnected]);
-
-  const cdcBank = getDefaultHybridCapBank('acdc-cdc', undefined, acdcState);
-  const cdcSol = solveHybridCapBank(cdcBank, {
-    fsw_kHz: acdcRes.f_emi_fundamental_kHz,
-    f_lf_Hz: acdcState.f_line_Hz * 2,
-    I_hf_rms_A: acdcRes.ICdc_hf_rms_A,
-    I_lf_rms_A: acdcRes.ICdc_lf_rms_A,
-    V_op_pk_V: acdcState.Vdc_bus_V * 1.04,
-    Tamb_C: acdcState.capAmbient_C ?? 45,
-  });
-  const cdcUnits = expandHybridCapBankForSpice(cdcBank, 'C_DC', acdcState.Vdc_bus_V * 1.04, 4);
-
-  const coutBank = getDefaultHybridCapBank('dcdc-cout', dcdcState);
-  const coutSol = solveHybridCapBank(coutBank, {
-    fsw_kHz: dcdcRes.fRipple_out_kHz,
-    f_lf_Hz: 0,
-    I_hf_rms_A: dcdcRes.ICo_rms_A,
-    I_lf_rms_A: 0,
-    V_op_pk_V: dcdcState.Vout_V * 1.05,
-    Tamb_C: dcdcState.Tamb_C ?? 45,
-  });
-  const coutUnits = expandHybridCapBankForSpice(coutBank, 'C_OUT', dcdcState.Vout_V * 1.05, 4);
-  const cinBank = getDefaultHybridCapBank('dcdc-cin', dcdcState);
-  const cinSol = solveHybridCapBank(cinBank, {
-    fsw_kHz: dcdcState.fsw_kHz * 2,
-    f_lf_Hz: 0,
-    I_hf_rms_A: Math.max(1, dcdcRes.I_lead_turnoff_A * 0.45),
-    I_lf_rms_A: 0,
-    V_op_pk_V: dcdcState.Vin_max_V,
-    Tamb_C: dcdcState.Tamb_C ?? 45,
-  });
+  }, [reportOnly, acdcRes, dcdcRes, isConnected, sharedMcu]);
 
   const sysEffPct = ((acdcRes.efficiency_pct / 100) * (dcdcRes.efficiency_pct / 100)) * 100;
   const sysLossW = acdcRes.Ptotal_loss_W + dcdcRes.Ptotal_loss_W;
-  const isSync = dcdcState.rectMode === 'sync-fet';
-  const isLLC = dcdcRes.isLLC;
-  const is2PhPfc = acdcRes.nPhases === 2;
   const vdcMismatch = Math.abs(acdcState.Vdc_bus_V - dcdcState.Vin_nom_V) > 2;
 
   return (
@@ -2744,7 +2865,7 @@ export const CombinedSystemSchematicView: React.FC<{
         <div className="px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 bg-slate-50/70 dark:bg-slate-900/50">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
-              Unified 2-Stage System Circuit Diagram (AC-DC PFC → DC-DC)
+              Unified 2-Stage System Circuit Diagram (Exact Stage 1 + Stage 2 + Connected Control)
             </span>
             <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${isConnected && !vdcMismatch ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border-emerald-500/30' : 'bg-amber-500/10 text-amber-600 dark:text-amber-300 border-amber-500/30'}`}>
               {isConnected ? 'DC-LINK CONNECTED TOGETHER' : 'LINKED BUS VIEW'} · {acdcState.Vac_rms_V}Vac → {acdcState.Vdc_bus_V}Vdc → {dcdcState.Vout_V}V @ {dcdcState.Pout_W}W
@@ -2752,6 +2873,36 @@ export const CombinedSystemSchematicView: React.FC<{
           </div>
 
           <div className="flex items-center gap-1.5 flex-wrap">
+            {/* Same MCU vs Separate MCUs Selector */}
+            <div className="inline-flex rounded border border-slate-300 dark:border-slate-700 overflow-hidden text-[10px] font-mono">
+              <button
+                type="button"
+                onClick={() => onToggleSharedMcu?.(true)}
+                disabled={!onToggleSharedMcu}
+                className={`px-2 py-1 cursor-pointer ${
+                  sharedMcu
+                    ? 'bg-emerald-600 text-white font-bold'
+                    : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+                title="Single shared MCU runs both PFC and DC-DC control loops with PWM sync & direct Vdc feedforward"
+              >
+                Same MCU
+              </button>
+              <button
+                type="button"
+                onClick={() => onToggleSharedMcu?.(false)}
+                disabled={!onToggleSharedMcu}
+                className={`px-2 py-1 cursor-pointer border-l border-slate-300 dark:border-slate-700 ${
+                  !sharedMcu
+                    ? 'bg-amber-600 text-white font-bold'
+                    : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+                title="Two separate MCUs linked across an isolated PG_OK / Fault_Trip handshake"
+              >
+                Separate MCUs
+              </button>
+            </div>
+
             <button
               type="button"
               onClick={() => setZoom(100)}
@@ -2793,7 +2944,7 @@ export const CombinedSystemSchematicView: React.FC<{
             <button
               type="button"
               onClick={() => {
-                const asc = generateCombinedSystemLtspiceAsc(acdcState, acdcRes, dcdcState, dcdcRes);
+                const asc = generateCombinedSystemLtspiceAsc(acdcState, acdcRes, dcdcState, dcdcRes, sharedMcu);
                 const blob = new Blob([asc], { type: 'text/plain;charset=us-ascii' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -2810,7 +2961,7 @@ export const CombinedSystemSchematicView: React.FC<{
             <button
               type="button"
               onClick={() => {
-                const bundle = generateCombinedSystemQspiceBundle(acdcState, acdcRes, dcdcState, dcdcRes);
+                const bundle = generateCombinedSystemQspiceBundle(acdcState, acdcRes, dcdcState, dcdcRes, sharedMcu);
                 const copy = new Uint8Array(bundle.zipBytes.length);
                 copy.set(bundle.zipBytes);
                 const blob = new Blob([copy.buffer], { type: 'application/zip' });
@@ -2829,7 +2980,7 @@ export const CombinedSystemSchematicView: React.FC<{
             <button
               type="button"
               onClick={() => {
-                const bundle = generateCombinedSystemPlecsBundle(acdcState, acdcRes, dcdcState, dcdcRes);
+                const bundle = generateCombinedSystemPlecsBundle(acdcState, acdcRes, dcdcState, dcdcRes, sharedMcu);
                 const copy = new Uint8Array(bundle.zipBytes.length);
                 copy.set(bundle.zipBytes);
                 const blob = new Blob([copy.buffer], { type: 'application/zip' });
@@ -2855,7 +3006,7 @@ export const CombinedSystemSchematicView: React.FC<{
         <div style={{ width: reportOnly ? '100%' : `${zoom}%`, minWidth: !reportOnly && zoom > 100 ? '960px' : undefined }} className="mx-auto">
           <svg
             ref={svgRef}
-            viewBox="0 0 1180 730"
+            viewBox="0 0 1190 1135"
             className="w-full h-auto font-mono select-none text-slate-300"
           >
             <defs>
@@ -2863,289 +3014,147 @@ export const CombinedSystemSchematicView: React.FC<{
                 <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1e293b" strokeWidth="0.7" />
               </pattern>
             </defs>
-            <rect width="1180" height="730" fill="#090D16" rx="6" />
-            <rect width="1180" height="730" fill="url(#comb-cad-grid)" rx="6" />
+            <rect width="1190" height="1135" fill="#090D16" rx="6" />
+            <rect width="1190" height="1135" fill="url(#comb-cad-grid)" rx="6" />
 
-            {/* STAGE 1 ENCLOSURE (TOP ROW: AC-DC PFC FRONT-END) */}
+            {/* STAGE 1 ENCLOSURE: EXACT REAL AC-DC PFC CIRCUIT (EMI + CTs + TOPOLOGY + C_DC + CONTROL) */}
             <rect
-              x="20"
-              y="26"
-              width="1140"
-              height="276"
+              x="8"
+              y="18"
+              width="1174"
+              height="462"
               rx="6"
               fill="#0f172a"
-              fillOpacity="0.32"
+              fillOpacity="0.22"
               stroke="#06b6d4"
               strokeWidth="1.2"
               strokeDasharray="5 3"
-              strokeOpacity="0.6"
+              strokeOpacity="0.55"
             />
-            <text x="32" y="19" fill="#06b6d4" fontSize="9.5" fontWeight="bold">
-              STAGE 1: AC-DC PFC FRONT-END ({acdcState.topology.toUpperCase()}) · {acdcState.Vac_rms_V}Vrms → {acdcState.Vdc_bus_V}Vdc · η1={acdcRes.efficiency_pct.toFixed(2)}%
+            <text x="20" y="13" fill="#06b6d4" fontSize="9.5" fontWeight="bold">
+              STAGE 1: AC-DC PFC ({acdcState.topology.toUpperCase()}) · {acdcState.Vac_rms_V}Vrms → {acdcState.Vdc_bus_V}Vdc · η1={acdcRes.efficiency_pct.toFixed(2)}%
             </text>
+            <g transform="translate(12, 18)">
+              <AcDcSchematicSvgContent
+                res={acdcRes}
+                halfCycleMode="both"
+                hideStandaloneLoad
+                isCombinedChild
+                sharedMcu={sharedMcu}
+              />
+            </g>
 
-            {/* AC Mains Source */}
-            <circle cx="62" cy="145" r="21" fill="#0f172a" stroke="#06b6d4" strokeWidth="1.8" />
-            <path d="M 52 145 Q 57 134 62 145 T 72 145" fill="none" stroke="#06b6d4" strokeWidth="1.8" />
-            <text x="62" y="182" textAnchor="middle" fill="#06b6d4" fontSize="8.5" fontWeight="bold">
-              {acdcState.Vac_rms_V}Vrms
-            </text>
-            <text x="62" y="194" textAnchor="middle" fill="#94a3b8" fontSize="7.5">
-              {acdcState.f_line_Hz}Hz
-            </text>
-
-            {/* AC Top/Bottom Rails through EMI Filter */}
-            <line x1="62" y1="124" x2="62" y2="75" stroke="#06b6d4" strokeWidth="1.8" />
-            <line x1="62" y1="75" x2="122" y2="75" stroke="#06b6d4" strokeWidth="1.8" />
-            <InductorH x={146} y={75} label={`Ldm=${acdcRes.Ldm_uH.toFixed(0)}µH`} color="#38bdf8" />
-            <line x1="170" y1="75" x2="215" y2="75" stroke="#06b6d4" strokeWidth="1.8" />
-            <line x1="215" y1="75" x2="215" y2="123" stroke="currentColor" strokeWidth="1.5" />
-            <CapacitorV x={215} y={145} label={`Cx=${acdcRes.Cx_each_uF.toFixed(1)}µF`} color="#06b6d4" />
-            <line x1="215" y1="167" x2="215" y2="220" stroke="currentColor" strokeWidth="1.5" />
-            <line x1="62" y1="166" x2="62" y2="220" stroke="#94a3b8" strokeWidth="1.6" />
-            <line x1="62" y1="220" x2="310" y2="220" stroke="#94a3b8" strokeWidth="1.6" />
-
-            {/* Input Bridge / Bridgeless Legs */}
-            <line x1="215" y1="75" x2="310" y2="75" stroke="#06b6d4" strokeWidth="1.8" />
-            <rect x="305" y="54" width="120" height="195" rx="5" fill="#0f172a" stroke="#38bdf8" strokeWidth="1.3" />
-            <text x="365" y="72" textAnchor="middle" fill="#38bdf8" fontSize="8.5" fontWeight="bold">
-              {acdcState.topology.includes('totem') ? 'TOTEM-POLE' : 'RECTIFIER'}
-            </text>
-            <DiodeSymbol x={340} y={110} dir="up" label="D1" color="#38bdf8" />
-            <DiodeSymbol x={340} y={190} dir="up" label="D2" color="#38bdf8" />
-            <DiodeSymbol x={390} y={110} dir="up" label="D3" color="#38bdf8" />
-            <DiodeSymbol x={390} y={190} dir="up" label="D4" color="#38bdf8" />
-
-            {/* Rectified Rail -> Boost Inductors + Fast Switches */}
-            <line x1="425" y1="75" x2="500" y2="75" stroke="#f59e0b" strokeWidth="1.8" />
-            <InductorH
-              x={524}
-              y={75}
-              label={`Lpfc1=${acdcState.Lpfc_uH.toFixed(0)}µH`}
-              sublabel={is2PhPfc ? 'Phase 1' : undefined}
-              color="#a855f7"
-            />
-            <line x1="548" y1="75" x2="630" y2="75" stroke="#f59e0b" strokeWidth="1.8" />
-            <line x1="630" y1="75" x2="630" y2="178" stroke="currentColor" strokeWidth="1.6" />
-            <MosfetSymbol x={630} y={200} label="Q_PFC1" sublabel={`${acdcRes.sw.Rds_on_25C_mOhm}mΩ`} color="#a855f7" scale={0.85} />
-            <line x1="630" y1="222" x2="630" y2="270" stroke="currentColor" strokeWidth="1.6" />
-            <DiodeSymbol x={715} y={75} dir="right" isSchottky label="D_B1" sublabel="SiC" color="#f59e0b" />
-            <line x1="630" y1="75" x2="695" y2="75" stroke="#f59e0b" strokeWidth="1.8" />
-            <line x1="735" y1="75" x2="860" y2="75" stroke="#f59e0b" strokeWidth="2.2" />
-
-            {is2PhPfc && (
-              <g>
-                <line x1="465" y1="75" x2="465" y2="140" stroke="#f59e0b" strokeWidth="1.5" />
-                <line x1="465" y1="140" x2="500" y2="140" stroke="#f59e0b" strokeWidth="1.5" />
-                <InductorH x={524} y={140} label={`Lpfc2=${acdcState.Lpfc_uH.toFixed(0)}µH`} sublabel="180°" color="#a855f7" />
-                <line x1="548" y1="140" x2="775" y2="140" stroke="#f59e0b" strokeWidth="1.5" />
-                <line x1="775" y1="140" x2="775" y2="178" stroke="currentColor" strokeWidth="1.5" />
-                <MosfetSymbol x={775} y={200} label="Q_PFC2" color="#a855f7" scale={0.85} />
-                <line x1="775" y1="222" x2="775" y2="270" stroke="currentColor" strokeWidth="1.5" />
-                <DiodeSymbol x={825} y={140} dir="right" isSchottky label="D_B2" color="#f59e0b" />
-                <line x1="775" y1="140" x2="805" y2="140" stroke="#f59e0b" strokeWidth="1.5" />
-                <line x1="845" y1="140" x2="860" y2="140" stroke="#f59e0b" strokeWidth="1.5" />
-                <line x1="860" y1="140" x2="860" y2="75" stroke="#f59e0b" strokeWidth="1.8" />
-              </g>
-            )}
-
-            {/* PFC Return Ground Bus */}
-            <line x1="425" y1="270" x2="1080" y2="270" stroke="#10b981" strokeWidth="2.0" />
-            <line x1="425" y1="249" x2="425" y2="270" stroke="#10b981" strokeWidth="1.6" />
-
-            {/* Shared Hybrid DC-Link Capacitor Bank (C_DC) */}
-            <text x="975" y="48" textAnchor="middle" fill="#f59e0b" fontSize="8.5" fontWeight="bold">
-              SHARED +VDC_BUS ({acdcState.Vdc_bus_V}V)
-            </text>
-            <HybridCapBankSvg
-              units={cdcUnits}
-              xStart={885}
-              xEnd={1055}
-              yTop={75}
-              yBot={270}
-              summaryText={`${cdcSol.summaryLabel} · Ceff=${cdcSol.totalCapEff_uF.toFixed(0)}µF`}
-              summaryY={290}
-              accentColor="#10b981"
-            />
-            <line x1="860" y1="75" x2="1080" y2="75" stroke="#f59e0b" strokeWidth="2.4" />
-
-            {/* ================================================================= */}
-            {/* PHYSICAL INTER-STAGE COPPER DC-LINK BUS ROUTING (STAGE 1 -> 2)   */}
-            {/* ================================================================= */}
+            {/* PHYSICAL COPPER INTER-STAGE DC-LINK BUS ROUTING (STAGE 1 -> STAGE 2) */}
             <path
-              d="M 1080 75 L 1132 75 L 1132 332 L 70 332 L 70 400"
+              d="M 1097 73 L 1172 73 L 1172 526 L 16 526 L 16 635 L 36 635"
               fill="none"
               stroke="#f59e0b"
               strokeWidth="2.8"
             />
             <path
-              d="M 1080 270 L 1112 270 L 1112 352 L 50 352 L 50 618 L 195 618"
+              d="M 1097 323 L 1158 323 L 1158 542 L 26 542 L 26 885 L 36 885"
               fill="none"
               stroke="#10b981"
               strokeWidth="2.4"
             />
-            <circle cx="1080" cy="75" r="4" fill="#f59e0b" />
-            <circle cx="1080" cy="270" r="4" fill="#10b981" />
+            <circle cx="1097" cy="73" r="4" fill="#f59e0b" />
+            <circle cx="1097" cy="323" r="4" fill="#10b981" />
 
-            {/* Inter-Stage Handshake Telemetry Pill */}
-            <rect x="405" y="314" width="380" height="32" rx="16" fill="#0f172a" stroke="#f59e0b" strokeWidth="1.5" />
-            <text x="595" y="334" textAnchor="middle" fill="#fde68a" fontSize="9.2" fontWeight="bold">
-              SHARED DC-LINK BUS: {acdcState.Vdc_bus_V} Vdc · ΔVdc = {acdcRes.Vdc_ripple_pp_V.toFixed(1)} Vpp · t_hold = {acdcRes.tHold_actual_ms.toFixed(1)} ms
+            {/* DC-Link Telemetry Callout on Left of Inter-Stage Corridor */}
+            <rect x="44" y="492" width="232" height="28" rx="4" fill="#0f172a" stroke="#f59e0b" strokeWidth="1.3" />
+            <text x="160" y="505" textAnchor="middle" fill="#fde68a" fontSize="8" fontWeight="bold">
+              +VDC_BUS LINK: {acdcState.Vdc_bus_V}Vdc
+            </text>
+            <text x="160" y="515" textAnchor="middle" fill="#94a3b8" fontSize="7">
+              ΔVdc={acdcRes.Vdc_ripple_pp_V.toFixed(1)}Vpp · t_hold={acdcRes.tHold_actual_ms.toFixed(1)}ms
             </text>
 
-            {/* STAGE 2 ENCLOSURE (BOTTOM ROW: ISOLATED DC-DC CONVERTER) */}
+            {/* CONNECTED DIGITAL CONTROL ARCHITECTURE BRIDGE (STAGE 1 <-> STAGE 2) */}
+            {/* Wire from Stage 1 Control Block (x=582, y=472) into Control Bridge, and down into Stage 2 Control Block (x=607, y=957) */}
+            <path
+              d="M 582 472 L 582 486"
+              fill="none"
+              stroke={sharedMcu ? '#10b981' : '#f59e0b'}
+              strokeWidth="2"
+              strokeDasharray="4 2"
+            />
+            <path
+              d="M 607 536 L 607 564 L 845 564 L 845 995 L 785 995"
+              fill="none"
+              stroke={sharedMcu ? '#10b981' : '#f59e0b'}
+              strokeWidth="1.8"
+              strokeDasharray="4 3"
+            />
+            <text x="852" y="765" fill={sharedMcu ? '#6ee7b7' : '#fcd34d'} fontSize="7.5" transform="rotate(90, 852, 765)">
+              {sharedMcu ? 'Shared MCU Internal Sync + Vdc_ff' : 'Isolated PG_OK + Fault_Trip Link'}
+            </text>
+
+            {sharedMcu ? (
+              <g>
+                <rect x="298" y="486" width="590" height="50" rx="6" fill="#064e3b" fillOpacity="0.85" stroke="#10b981" strokeWidth="1.8" />
+                <text x="593" y="505" textAnchor="middle" fill="#6ee7b7" fontSize="9.5" fontWeight="bold">
+                  SAME SHARED MCU (SINGLE DUAL-STAGE CONTROLLER · ePWM SYNC + DIRECT Vdc FEEDFORWARD)
+                </text>
+                <text x="593" y="520" textAnchor="middle" fill="#d1fae5" fontSize="8">
+                  Common Primary-Referenced ADC (Vac, i_L1/L2, Vdc_bus) + Isolated Gate Drivers to Stage 2 · Zero Inter-MCU Latency
+                </text>
+                <text x="593" y="531" textAnchor="middle" fill="#a7f3d0" fontSize="7.5">
+                  Phase-Locked Carriers: PFC ({acdcState.fsw_kHz}kHz) ↔ DC-DC ({dcdcState.fsw_kHz}kHz) | Unified Fault Trip Matrix
+                </text>
+              </g>
+            ) : (
+              <g>
+                <rect x="298" y="486" width="590" height="50" rx="6" fill="#451a03" fillOpacity="0.82" stroke="#f59e0b" strokeWidth="1.8" />
+                <line x1="593" y1="488" x2="593" y2="534" stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="3 2" />
+                <rect x="546" y="497" width="94" height="28" rx="4" fill="#0f172a" stroke="#fbbf24" strokeWidth="1.2" />
+                <text x="593" y="509" textAnchor="middle" fill="#fcd34d" fontSize="7.5" fontWeight="bold">
+                  ISO HANDSHAKE
+                </text>
+                <text x="593" y="520" textAnchor="middle" fill="#fde68a" fontSize="6.8">
+                  PG_OK / Fault (~100µs)
+                </text>
+                <text x="422" y="506" textAnchor="middle" fill="#38bdf8" fontSize="9" fontWeight="bold">
+                  MCU #1: AC-DC PFC CONTROLLER
+                </text>
+                <text x="422" y="521" textAnchor="middle" fill="#cbd5e1" fontSize="7.5">
+                  SOGI-PLL + i_L1/L2 + Vdc Loop ({acdcState.fs_ctrl_kHz}kHz)
+                </text>
+                <text x="764" y="506" textAnchor="middle" fill="#a855f7" fontSize="9" fontWeight="bold">
+                  MCU #2: DC-DC CONTROLLER
+                </text>
+                <text x="764" y="521" textAnchor="middle" fill="#cbd5e1" fontSize="7.5">
+                  {dcdcState.controlType.toUpperCase()} + Independent Vdc Sense ({dcdcState.fs_digital_kHz}kHz)
+                </text>
+              </g>
+            )}
+
+            {/* STAGE 2 ENCLOSURE: EXACT REAL ISOLATED DC-DC CIRCUIT (Cin + BRIDGE + CLAMP + TX + RECT + Cout + CONTROL) */}
             <rect
-              x="20"
-              y="374"
-              width="1140"
-              height="276"
+              x="8"
+              y="568"
+              width="1174"
+              height="504"
               rx="6"
               fill="#0f172a"
-              fillOpacity="0.32"
+              fillOpacity="0.22"
               stroke="#10b981"
               strokeWidth="1.2"
               strokeDasharray="5 3"
-              strokeOpacity="0.6"
+              strokeOpacity="0.55"
             />
-            <text x="32" y="367" fill="#10b981" fontSize="9.5" fontWeight="bold">
-              STAGE 2: ISOLATED DC-DC CONVERTER ({dcdcState.topology.toUpperCase()} · {dcdcState.txType.toUpperCase()}) · {dcdcState.Vin_nom_V}Vdc → {dcdcState.Vout_V}Vdc @ {dcdcState.Pout_W}W · η2={dcdcRes.efficiency_pct.toFixed(2)}%
+            <text x="20" y="563" fill="#10b981" fontSize="9.5" fontWeight="bold">
+              STAGE 2: ISOLATED DC-DC ({dcdcState.topology.toUpperCase()} · {dcdcState.txType.toUpperCase()}) · {dcdcState.Vin_nom_V}Vdc → {dcdcState.Vout_V}Vdc @ {dcdcState.Pout_W}W · η2={dcdcRes.efficiency_pct.toFixed(2)}%
             </text>
-
-            {/* Primary Bus & Cin Decoupling */}
-            <line x1="70" y1="400" x2="295" y2="400" stroke="#f59e0b" strokeWidth="2.4" />
-            <line x1="125" y1="400" x2="125" y2="485" stroke="currentColor" strokeWidth="1.5" />
-            <CapacitorV x={125} y={507} label="Cin_hf" sublabel={`${cinSol.totalCapEff_uF.toFixed(0)}µF`} color="#06b6d4" />
-            <line x1="125" y1="529" x2="125" y2="618" stroke="currentColor" strokeWidth="1.5" />
-            <circle cx="70" cy="400" r="3.5" fill="#f59e0b" />
-
-            {/* Primary Full-Bridge / Half-Bridge Legs */}
-            <line x1="195" y1="400" x2="195" y2="430" stroke="currentColor" strokeWidth="1.6" />
-            <MosfetSymbol x={195} y={452} label="Q1" color="#06b6d4" scale={0.85} />
-            <line x1="195" y1="474" x2="195" y2="540" stroke="currentColor" strokeWidth="1.6" />
-            <MosfetSymbol x={195} y={562} label="Q2" color="#06b6d4" scale={0.85} />
-            <line x1="195" y1="584" x2="195" y2="618" stroke="currentColor" strokeWidth="1.6" />
-
-            <line x1="195" y1="618" x2="295" y2="618" stroke="#10b981" strokeWidth="2.0" />
-            <GroundSymbol x={245} y={618} />
-
-            {dcdcState.topology !== 'llc-hb' ? (
-              <g>
-                <line x1="295" y1="400" x2="295" y2="430" stroke="currentColor" strokeWidth="1.6" />
-                <MosfetSymbol x={295} y={452} label="Q3" color="#38bdf8" scale={0.85} />
-                <line x1="295" y1="474" x2="295" y2="540" stroke="currentColor" strokeWidth="1.6" />
-                <MosfetSymbol x={295} y={562} label="Q4" color="#38bdf8" scale={0.85} />
-                <line x1="295" y1="584" x2="295" y2="618" stroke="currentColor" strokeWidth="1.6" />
-              </g>
-            ) : (
-              <g>
-                <line x1="295" y1="400" x2="295" y2="440" stroke="currentColor" strokeWidth="1.6" />
-                <CapacitorV x={295} y={462} label="Cb1" color="#f59e0b" />
-                <line x1="295" y1="484" x2="295" y2="540" stroke="currentColor" strokeWidth="1.6" />
-                <CapacitorV x={295} y={562} label="Cb2" color="#f59e0b" />
-                <line x1="295" y1="584" x2="295" y2="618" stroke="currentColor" strokeWidth="1.6" />
-              </g>
-            )}
-
-            {/* Resonant / Leakage Tank */}
-            <line x1="195" y1="495" x2="355" y2="495" stroke="#38bdf8" strokeWidth="1.8" />
-            <InductorH x={380} y={495} label={`Llk=${dcdcState.Llk_uH}µH`} color="#38bdf8" />
-            <line x1="405" y1="495" x2="435" y2="495" stroke="#38bdf8" strokeWidth="1.8" />
-            {isLLC ? (
-              <>
-                <CapacitorH x={452} y={495} label={`Cr=${dcdcState.Cr_nF}nF`} color="#f59e0b" />
-                <line x1="468" y1="495" x2="520" y2="495" stroke="#38bdf8" strokeWidth="1.8" />
-              </>
-            ) : (
-              <line x1="435" y1="495" x2="520" y2="495" stroke="#38bdf8" strokeWidth="1.8" />
-            )}
-            <line x1="295" y1="535" x2="520" y2="535" stroke="#a855f7" strokeWidth="1.8" />
-
-            {/* Isolation Transformer */}
-            <rect x="515" y="458" width="95" height="108" rx="5" fill="#090D16" stroke="#475569" strokeWidth="1.3" />
-            <line x1="556" y1="470" x2="556" y2="554" stroke="#94a3b8" strokeWidth="2.2" />
-            <line x1="564" y1="470" x2="564" y2="554" stroke="#94a3b8" strokeWidth="2.2" />
-            <path d="M 538 488 A 7 7 0 0 1 538 502 A 7 7 0 0 1 538 516 A 7 7 0 0 1 538 530" fill="none" stroke="#38bdf8" strokeWidth="2" />
-            <path d="M 584 488 A 7 7 0 0 0 584 502 A 7 7 0 0 0 584 516 A 7 7 0 0 0 584 530" fill="none" stroke="#10b981" strokeWidth="2" />
-            <text x="562" y="451" textAnchor="middle" fill="#cbd5e1" fontSize="8.5" fontWeight="bold">
-              TX {dcdcRes.Np_actual}:{dcdcRes.Ns_actual}T
-            </text>
-            <text x="562" y="578" textAnchor="middle" fill="#94a3b8" fontSize="7.8">
-              {dcdcRes.core.name}
-            </text>
-
-            {/* Secondary Rectifier -> Output Filter Lo */}
-            <line x1="610" y1="488" x2="675" y2="488" stroke="#10b981" strokeWidth="1.8" />
-            <line x1="610" y1="530" x2="735" y2="530" stroke="#10b981" strokeWidth="1.8" />
-            <line x1="675" y1="425" x2="785" y2="425" stroke="#f59e0b" strokeWidth="2.0" />
-            <line x1="675" y1="425" x2="675" y2="440" stroke="currentColor" strokeWidth="1.5" />
-            {isSync ? (
-              <MosfetSymbol x={675} y={458} label="SR1" color="#10b981" scale={0.78} />
-            ) : (
-              <DiodeSymbol x={675} y={458} dir="up" isSchottky label="D1" color="#10b981" />
-            )}
-            <line x1="675" y1="476" x2="675" y2="554" stroke="currentColor" strokeWidth="1.5" />
-            {isSync ? (
-              <MosfetSymbol x={675} y={572} label="SR2" color="#10b981" scale={0.78} />
-            ) : (
-              <DiodeSymbol x={675} y={572} dir="up" isSchottky label="D2" color="#10b981" />
-            )}
-            <line x1="675" y1="590" x2="675" y2="618" stroke="currentColor" strokeWidth="1.5" />
-
-            <line x1="735" y1="425" x2="735" y2="440" stroke="currentColor" strokeWidth="1.5" />
-            {isSync ? (
-              <MosfetSymbol x={735} y={458} label="SR3" color="#10b981" scale={0.78} />
-            ) : (
-              <DiodeSymbol x={735} y={458} dir="up" isSchottky label="D3" color="#10b981" />
-            )}
-            <line x1="735" y1="476" x2="735" y2="554" stroke="currentColor" strokeWidth="1.5" />
-            {isSync ? (
-              <MosfetSymbol x={735} y={572} label="SR4" color="#10b981" scale={0.78} />
-            ) : (
-              <DiodeSymbol x={735} y={572} dir="up" isSchottky label="D4" color="#10b981" />
-            )}
-            <line x1="735" y1="590" x2="735" y2="618" stroke="currentColor" strokeWidth="1.5" />
-
-            <line x1="675" y1="618" x2="1125" y2="618" stroke="currentColor" strokeWidth="1.8" />
-            <GroundSymbol x={795} y={618} />
-
-            {/* Output Filter Inductor Lo */}
-            <InductorH x={810} y={425} label={`Lo=${dcdcState.Lo_uH}µH`} color="#38bdf8" />
-            <line x1="835" y1="425" x2="1125" y2="425" stroke="#f59e0b" strokeWidth="2.2" />
-
-            {/* Hybrid Output Capacitor Bank (C_OUT) */}
-            <text x="975" y="405" textAnchor="middle" fill="#f59e0b" fontSize="8.5" fontWeight="bold">
-              +VOUT ({dcdcState.Vout_V}V @ {dcdcRes.Iout_total_A.toFixed(1)}A)
-            </text>
-            <HybridCapBankSvg
-              units={coutUnits}
-              xStart={885}
-              xEnd={1055}
-              yTop={425}
-              yBot={618}
-              summaryText={`${coutSol.summaryLabel} · ESR=${coutSol.esrEffAtFsw_mOhm.toFixed(1)}mΩ`}
-              summaryY={638}
-              accentColor="#38bdf8"
-            />
-
-            {/* System Output Load Resistor */}
-            <line x1="1108" y1="425" x2="1108" y2="495" stroke="currentColor" strokeWidth="1.8" />
-            <ResistorV
-              x={1108}
-              y={519}
-              label={`R_LOAD`}
-              sublabel={`${dcdcState.Pout_W}W`}
-              color="#f59e0b"
-            />
-            <line x1="1108" y1="543" x2="1108" y2="618" stroke="currentColor" strokeWidth="1.8" />
-            <circle cx="1108" cy="425" r="3.5" fill="#f59e0b" />
-            <circle cx="1108" cy="618" r="3.5" fill="#10b981" />
+            <g transform="translate(0, 575)">
+              <DcDcSchematicSvgContent res={dcdcRes} isCombinedChild sharedMcu={sharedMcu} />
+            </g>
 
             {/* SYSTEM-WIDE TELEMETRY FOOTER BAR */}
-            <rect x="20" y="666" width="1140" height="46" rx="6" fill="#0f172a" stroke="#06b6d4" strokeWidth="1.5" />
-            <text x="590" y="685" textAnchor="middle" fill="#06b6d4" fontSize="10" fontWeight="bold">
-              COMBINED 2-STAGE POWER SYSTEM: {acdcState.Vac_rms_V}Vrms AC → {acdcState.Vdc_bus_V}V DC-LINK → {dcdcState.Vout_V}Vdc ({dcdcState.Pout_W}W)
+            <rect x="8" y="1080" width="1174" height="46" rx="6" fill="#0f172a" stroke="#06b6d4" strokeWidth="1.5" />
+            <text x="595" y="1099" textAnchor="middle" fill="#06b6d4" fontSize="10" fontWeight="bold">
+              COMBINED 2-STAGE POWER SYSTEM ({sharedMcu ? 'SAME SHARED MCU' : 'SEPARATE MCUs'}): {acdcState.Vac_rms_V}Vrms AC → {acdcState.Vdc_bus_V}V DC-LINK → {dcdcState.Vout_V}Vdc ({dcdcState.Pout_W}W)
             </text>
-            <text x="590" y="702" textAnchor="middle" fill="#e2e8f0" fontSize="9">
+            <text x="595" y="1116" textAnchor="middle" fill="#e2e8f0" fontSize="9">
               Overall Efficiency η_sys = {sysEffPct.toFixed(2)}% | Total Loss = {sysLossW.toFixed(1)} W | PF = {acdcRes.powerFactor_true.toFixed(4)} | ΔVout = {dcdcRes.Vout_ripple_mVpp.toFixed(1)} mVpp
             </text>
           </svg>
@@ -3158,8 +3167,15 @@ export const CombinedSystemSchematicView: React.FC<{
 export const CombinedReportSchematicSvg: React.FC<{
   acdcRes: AcDcResults;
   dcdcRes: DcDcResults;
-}> = ({ acdcRes, dcdcRes }) => (
-  <CombinedSystemSchematicView acdcRes={acdcRes} dcdcRes={dcdcRes} isConnected reportOnly />
+  sharedMcu?: boolean;
+}> = ({ acdcRes, dcdcRes, sharedMcu = true }) => (
+  <CombinedSystemSchematicView
+    acdcRes={acdcRes}
+    dcdcRes={dcdcRes}
+    isConnected
+    sharedMcu={sharedMcu}
+    reportOnly
+  />
 );
 
 
