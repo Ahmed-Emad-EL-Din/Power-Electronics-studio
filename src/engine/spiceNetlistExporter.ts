@@ -34,7 +34,11 @@ export type { PlecsBundle } from './plecsExporter';
  * for the active Isolated DC-DC stage (PSFB or LLC) with exact manufacturer
  * .SUBCKT semiconductor models and floating high-side gate drive references.
  */
-export function generateDcDcSpiceNetlist(state: DcDcDesignState, res: DcDcResults): string {
+export function generateDcDcSpiceNetlist(
+  state: DcDcDesignState,
+  res: DcDcResults,
+  simStopTime_us?: number
+): string {
   const fswHz = state.fsw_kHz * 1e3;
   const Tsw = 1 / fswHz;
   const Thalf = Tsw / 2;
@@ -54,7 +58,10 @@ export function generateDcDcSpiceNetlist(state: DcDcDesignState, res: DcDcResult
   const Lpri_uH = Math.max(50, state.Lm_uH);
   const Lsec_uH = Lpri_uH / (n * n);
   const Rload_Ohm = (state.Vout_V * state.Vout_V) / Math.max(1, state.Pout_W);
-  const tStop_us = Math.round(Math.max(500, (1e6 / fswHz) * 60));
+  const tStop_us =
+    typeof simStopTime_us === 'number' && Number.isFinite(simStopTime_us) && simStopTime_us > 0
+      ? Math.max(50, Math.round(simStopTime_us))
+      : Math.round(Math.max(500, (1e6 / fswHz) * 60));
   const Tsw_ns = Math.round(Tsw * 1e9);
 
   const cinBank = getDefaultHybridCapBank('dcdc-cin', state);
@@ -219,7 +226,16 @@ export function generateDcDcSpiceNetlist(state: DcDcDesignState, res: DcDcResult
  * Generates an LTspice / QSPICE compatible .cir switching SPICE netlist
  * for the active AC-DC PFC Front-End stage with manufacturer .SUBCKT models.
  */
-export function generateAcDcSpiceNetlist(state: AcDcDesignState, res: AcDcResults): string {
+export function generateAcDcSpiceNetlist(
+  state: AcDcDesignState,
+  res: AcDcResults,
+  simStopTime_ms?: number
+): string {
+  const tStop_ms =
+    typeof simStopTime_ms === 'number' && Number.isFinite(simStopTime_ms) && simStopTime_ms > 0
+      ? Number(Math.max(1, simStopTime_ms).toFixed(2))
+      : Number(((2 / Math.max(45, state.f_line_Hz)) * 1e3).toFixed(1));
+  const tMeasStart_ms = Number((tStop_ms * 0.5).toFixed(2));
   const Vac_pk = state.Vac_rms_V * Math.SQRT2;
   const fswHz = state.fsw_kHz * 1e3;
   const swModel = generateManufacturerMosfetSubckt(res.sw, 1);
@@ -286,9 +302,9 @@ export function generateAcDcSpiceNetlist(state: AcDcDesignState, res: AcDcResult
     ``,
     `.ic V(v_dc)=${state.Vdc_bus_V.toFixed(1)}`,
     `.options reltol=1m`,
-    `.tran 0 ${(2 / state.f_line_Hz * 1e3).toFixed(1)}m 0 250n`,
-    `.meas TRAN Vdc_avg AVG V(v_dc)`,
-    `.meas TRAN Vdc_pp PP V(v_dc)`,
+    `.tran 0 ${tStop_ms}m 0 250n`,
+    `.meas TRAN Vdc_avg AVG V(v_dc) FROM ${tMeasStart_ms}m TO ${tStop_ms}m`,
+    `.meas TRAN Vdc_pp PP V(v_dc) FROM ${tMeasStart_ms}m TO ${tStop_ms}m`,
     `.end`
   );
 
@@ -304,8 +320,14 @@ export function generateCombinedSystemSpiceNetlist(
   acdcRes: AcDcResults,
   dcdcState: DcDcDesignState,
   dcdcRes: DcDcResults,
-  sharedMcu = true
+  sharedMcu = true,
+  simStopTime_ms?: number
 ): string {
+  const tStop_ms =
+    typeof simStopTime_ms === 'number' && Number.isFinite(simStopTime_ms) && simStopTime_ms > 0
+      ? Number(Math.max(1, simStopTime_ms).toFixed(2))
+      : Number(((1 / Math.max(45, acdcState.f_line_Hz)) * 1e3).toFixed(1));
+  const tMeasStart_ms = Number((tStop_ms * 0.5).toFixed(2));
   const Vac_pk = acdcState.Vac_rms_V * Math.SQRT2;
   const fswPfcHz = acdcState.fsw_kHz * 1e3;
   const fswDcHz = dcdcState.fsw_kHz * 1e3;
@@ -468,9 +490,9 @@ export function generateCombinedSystemSpiceNetlist(
     ``,
     `.ic V(v_dc)=${acdcState.Vdc_bus_V.toFixed(1)} V(v_out)=${(dcdcState.Vout_V * 0.94).toFixed(2)}`,
     `.options reltol=1m`,
-    `.tran 0 ${(1 / acdcState.f_line_Hz * 1e3).toFixed(1)}m 0 100n`,
-    `.meas TRAN Vdc_avg AVG V(v_dc)`,
-    `.meas TRAN Vout_avg AVG V(v_out)`,
+    `.tran 0 ${tStop_ms}m 0 100n`,
+    `.meas TRAN Vdc_avg AVG V(v_dc) FROM ${tMeasStart_ms}m TO ${tStop_ms}m`,
+    `.meas TRAN Vout_avg AVG V(v_out) FROM ${tMeasStart_ms}m TO ${tStop_ms}m`,
     `.backanno`,
     `.end`
   );

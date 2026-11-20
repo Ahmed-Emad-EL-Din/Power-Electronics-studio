@@ -53,6 +53,9 @@ import {
   ProjectOutputMode,
   SystemLinkConfig,
   computeCoupledStagePatches,
+  getDefaultAcDcSimTimeMs,
+  getDefaultCombinedSimTimeMs,
+  getDefaultDcDcSimTimeUs,
   solveSystemCascade,
 } from './engine/systemCascadeEngine';
 import {
@@ -1029,13 +1032,27 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
     URL.revokeObjectURL(url);
   };
 
+  const effectiveDcdcSimTimeUs =
+    systemLink.dcdcSimTime_us ?? getDefaultDcDcSimTimeUs(dcdcState.fsw_kHz);
+  const effectiveAcdcSimTimeMs =
+    systemLink.acdcSimTime_ms ?? getDefaultAcDcSimTimeMs(acdcState.f_line_Hz);
+  const effectiveCombinedSimTimeMs =
+    systemLink.combinedSimTime_ms ?? getDefaultCombinedSimTimeMs(acdcState.f_line_Hz);
+
   const handleExportActiveSpice = () => {
     const isCombined = domainTab === 'combined' || (outputMode === 'combined' && domainTab === 'small-signal');
     const text = isCombined
-      ? generateCombinedSystemSpiceNetlist(acdcState, acdcRes, dcdcState, dcdcRes, sharedMcu)
+      ? generateCombinedSystemSpiceNetlist(
+          acdcState,
+          acdcRes,
+          dcdcState,
+          dcdcRes,
+          sharedMcu,
+          effectiveCombinedSimTimeMs
+        )
       : domainTab === 'acdc'
-      ? generateAcDcSpiceNetlist(acdcState, acdcRes)
-      : generateDcDcSpiceNetlist(dcdcState, dcdcRes);
+      ? generateAcDcSpiceNetlist(acdcState, acdcRes, effectiveAcdcSimTimeMs)
+      : generateDcDcSpiceNetlist(dcdcState, dcdcRes, effectiveDcdcSimTimeUs);
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1052,10 +1069,17 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
   const handleExportActiveLtspiceAsc = () => {
     const isCombined = domainTab === 'combined' || (outputMode === 'combined' && domainTab === 'small-signal');
     const text = isCombined
-      ? generateCombinedSystemLtspiceAsc(acdcState, acdcRes, dcdcState, dcdcRes, sharedMcu)
+      ? generateCombinedSystemLtspiceAsc(
+          acdcState,
+          acdcRes,
+          dcdcState,
+          dcdcRes,
+          sharedMcu,
+          effectiveCombinedSimTimeMs
+        )
       : domainTab === 'acdc'
-      ? generateAcDcLtspiceAsc(acdcState, acdcRes)
-      : generateDcDcLtspiceAsc(dcdcState, dcdcRes);
+      ? generateAcDcLtspiceAsc(acdcState, acdcRes, effectiveAcdcSimTimeMs)
+      : generateDcDcLtspiceAsc(dcdcState, dcdcRes, effectiveDcdcSimTimeUs);
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1072,10 +1096,17 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
   const handleExportActiveQspiceZip = () => {
     const isCombined = domainTab === 'combined' || (outputMode === 'combined' && domainTab === 'small-signal');
     const bundle = isCombined
-      ? generateCombinedSystemQspiceBundle(acdcState, acdcRes, dcdcState, dcdcRes, sharedMcu)
+      ? generateCombinedSystemQspiceBundle(
+          acdcState,
+          acdcRes,
+          dcdcState,
+          dcdcRes,
+          sharedMcu,
+          effectiveCombinedSimTimeMs
+        )
       : domainTab === 'acdc'
-      ? generateAcDcQspiceBundle(acdcState, acdcRes)
-      : generateDcDcQspiceBundle(dcdcState, dcdcRes);
+      ? generateAcDcQspiceBundle(acdcState, acdcRes, effectiveAcdcSimTimeMs)
+      : generateDcDcQspiceBundle(dcdcState, dcdcRes, effectiveDcdcSimTimeUs);
     const blob = new Blob([new Uint8Array(bundle.zipBytes)], { type: 'application/zip' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1088,10 +1119,17 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
   const handleExportActivePlecsZip = () => {
     const isCombined = domainTab === 'combined' || (outputMode === 'combined' && domainTab === 'small-signal');
     const bundle = isCombined
-      ? generateCombinedSystemPlecsBundle(acdcState, acdcRes, dcdcState, dcdcRes, sharedMcu)
+      ? generateCombinedSystemPlecsBundle(
+          acdcState,
+          acdcRes,
+          dcdcState,
+          dcdcRes,
+          sharedMcu,
+          effectiveCombinedSimTimeMs
+        )
       : domainTab === 'acdc'
-      ? generateAcDcPlecsBundle(acdcState, acdcRes)
-      : generateDcDcPlecsBundle(dcdcState, dcdcRes);
+      ? generateAcDcPlecsBundle(acdcState, acdcRes, effectiveAcdcSimTimeMs)
+      : generateDcDcPlecsBundle(dcdcState, dcdcRes, effectiveDcdcSimTimeUs);
     const blob = new Blob([new Uint8Array(bundle.zipBytes)], { type: 'application/zip' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1869,6 +1907,18 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
               jumpNonce={jumpState.nonce}
               outputMode={outputMode}
               sharedMcu={sharedMcu}
+              dcdcSimTimeUs={systemLink.dcdcSimTime_us}
+              onChangeDcdcSimTimeUs={(v) =>
+                setSystemLink((s) => ({ ...s, dcdcSimTime_us: v }))
+              }
+              acdcSimTimeMs={systemLink.acdcSimTime_ms}
+              onChangeAcdcSimTimeMs={(v) =>
+                setSystemLink((s) => ({ ...s, acdcSimTime_ms: v }))
+              }
+              combinedSimTimeMs={systemLink.combinedSimTime_ms}
+              onChangeCombinedSimTimeMs={(v) =>
+                setSystemLink((s) => ({ ...s, combinedSimTime_ms: v }))
+              }
             />
           ) : domainTab === 'combined' ? (
             <div className="space-y-4">
@@ -2105,6 +2155,74 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
                     <Save className="w-3.5 h-3.5" />
                     Save Slot
                   </button>
+                </div>
+              </div>
+
+              {/* Simulation Stop Time Setting for Exports */}
+              <div className="px-3 py-2.5 rounded-lg border border-slate-200 dark:border-white/[0.1] bg-[#f5f7fa] dark:bg-[#1a1e28] space-y-2 text-xs font-mono">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-semibold text-slate-700 dark:text-[#eef0f5]">
+                    Simulation Stop Time (SPICE / QSPICE / LTspice / PLECS)
+                  </span>
+                  <span className="text-[10px] text-slate-500">
+                    Saved in project JSON &amp; applied to exports
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <label className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#11141c]">
+                    <span className="text-[11px] text-slate-500">DC-DC (µs)</span>
+                    <input
+                      type="number"
+                      min={50}
+                      max={50000}
+                      step={100}
+                      value={effectiveDcdcSimTimeUs}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        setSystemLink((s) => ({
+                          ...s,
+                          dcdcSimTime_us: Number.isFinite(v) && v >= 50 ? Math.round(v) : undefined,
+                        }));
+                      }}
+                      className="w-20 bg-transparent text-right font-bold text-slate-900 dark:text-white outline-none"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#11141c]">
+                    <span className="text-[11px] text-slate-500">AC-DC (ms)</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={500}
+                      step={5}
+                      value={effectiveAcdcSimTimeMs}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        setSystemLink((s) => ({
+                          ...s,
+                          acdcSimTime_ms: Number.isFinite(v) && v > 0 ? v : undefined,
+                        }));
+                      }}
+                      className="w-20 bg-transparent text-right font-bold text-slate-900 dark:text-white outline-none"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#11141c]">
+                    <span className="text-[11px] text-slate-500">Combined (ms)</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={500}
+                      step={5}
+                      value={effectiveCombinedSimTimeMs}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        setSystemLink((s) => ({
+                          ...s,
+                          combinedSimTime_ms: Number.isFinite(v) && v > 0 ? v : undefined,
+                        }));
+                      }}
+                      className="w-20 bg-transparent text-right font-bold text-slate-900 dark:text-white outline-none"
+                    />
+                  </label>
                 </div>
               </div>
 

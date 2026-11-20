@@ -59,7 +59,12 @@ import {
   generateDcDcQspiceBundle,
   generateDcDcSpiceNetlist,
 } from './spiceNetlistExporter';
-import { extractQspiceComponents, findQspiceComponentOverlaps } from './qspiceExporter';
+import {
+  extractQspiceComponents,
+  findQspiceComponentOverlaps,
+  findQspiceUnnamedWireNets,
+  findQspiceWirePinCollisions,
+} from './qspiceExporter';
 import {
   clearAiProviderConfig,
   getDefaultAiProviderConfig,
@@ -1509,14 +1514,45 @@ test('Combined AC-DC -> DC-DC system exports (PLECS, LTspice, QSPICE, SPICE) and
   }
 });
 
-test('QSPICE .qsch spacing eliminates hybrid bank & gate-driver overlaps and pairs transformer coils closely', () => {
-  for (const preset of DCDC_PRESETS.slice(0, 3)) {
+test('QSPICE .qsch spacing eliminates hybrid bank & gate-driver overlaps, prevents wire-pin shorts, and pairs transformer coils closely', () => {
+  for (const preset of DCDC_PRESETS) {
     const dcRes = solveDcDcDesign(preset.state);
     const bundle = generateDcDcQspiceBundle(preset.state, dcRes);
     const overlaps = findQspiceComponentOverlaps(bundle.qschContent);
     assert.deepEqual(overlaps, [], `Expected zero QSPICE component overlaps for ${preset.id}`);
+    assert.deepEqual(
+      findQspiceWirePinCollisions(bundle.qschContent),
+      [],
+      `Expected zero QSPICE wire-pin collisions for ${preset.id}`
+    );
+    assert.deepEqual(
+      findQspiceComponentOverlaps(bundle.cblockQschContent),
+      [],
+      `Expected zero QSPICE _cblock component overlaps for ${preset.id}`
+    );
+    assert.deepEqual(
+      findQspiceWirePinCollisions(bundle.cblockQschContent),
+      [],
+      `Expected zero QSPICE _cblock wire-pin collisions for ${preset.id}`
+    );
 
     const comps = extractQspiceComponents(bundle.qschContent);
+    const q1 = comps.find((c) => c.ref === 'Q1');
+    const cins = comps.filter((c) => c.ref.startsWith('C_IN_')).sort((a, b) => a.x - b.x);
+    assert.ok(q1 && cins.length >= 1, `Expected Q1 and C_IN banks for ${preset.id}`);
+    for (const cin of cins) {
+      assert.ok(
+        cin.x <= q1.x - 1800,
+        `Expected ${cin.ref} (x=${cin.x}) well left of Q1 (x=${q1.x}) for ${preset.id}`
+      );
+    }
+    for (let i = 1; i < cins.length; i++) {
+      assert.ok(
+        cins[i].x - cins[i - 1].x >= 1600,
+        `Expected >=1600 pitch between C_IN banks for ${preset.id}`
+      );
+    }
+
     const lpri = comps.find((c) => c.ref === 'L_PRI');
     const lsec = comps.find((c) => c.ref === 'L_SEC1');
     assert.ok(lpri && lsec, 'Expected L_PRI and L_SEC1');
@@ -1527,19 +1563,43 @@ test('QSPICE .qsch spacing eliminates hybrid bank & gate-driver overlaps and pai
 
     const couts = comps.filter((c) => c.ref.startsWith('C_OUT_')).sort((a, b) => a.x - b.x);
     for (let i = 1; i < couts.length; i++) {
-      assert.ok(couts[i].x - couts[i - 1].x >= 1100, 'Expected >=1100 pitch between C_OUT banks');
+      assert.ok(couts[i].x - couts[i - 1].x >= 1600, 'Expected >=1600 pitch between C_OUT banks');
     }
+  }
+
+  for (const preset of ACDC_PRESETS) {
+    const acRes = solveAcDcDesign(preset.state);
+    const acBundle = generateAcDcQspiceBundle(preset.state, acRes);
+    assert.deepEqual(
+      findQspiceComponentOverlaps(acBundle.qschContent),
+      [],
+      `Expected zero AC-DC QSPICE overlaps for ${preset.id}`
+    );
+    assert.deepEqual(
+      findQspiceWirePinCollisions(acBundle.qschContent),
+      [],
+      `Expected zero AC-DC QSPICE wire-pin collisions for ${preset.id}`
+    );
+    assert.deepEqual(
+      findQspiceComponentOverlaps(acBundle.cblockQschContent),
+      [],
+      `Expected zero AC-DC _cblock overlaps for ${preset.id}`
+    );
+    assert.deepEqual(
+      findQspiceWirePinCollisions(acBundle.cblockQschContent),
+      [],
+      `Expected zero AC-DC _cblock wire-pin collisions for ${preset.id}`
+    );
   }
 
   const acState = ACDC_PRESETS[0].state;
   const acRes = solveAcDcDesign(acState);
-  const acBundle = generateAcDcQspiceBundle(acState, acRes);
-  assert.deepEqual(findQspiceComponentOverlaps(acBundle.qschContent), [], 'Expected zero AC-DC QSPICE overlaps');
-
   const dcState = DCDC_PRESETS[0].state;
   const dcRes = solveDcDcDesign(dcState);
   const combBundle = generateCombinedSystemQspiceBundle(acState, acRes, dcState, dcRes, true);
   assert.deepEqual(findQspiceComponentOverlaps(combBundle.qschContent), [], 'Expected zero Combined QSPICE overlaps');
+  assert.deepEqual(findQspiceWirePinCollisions(combBundle.qschContent), [], 'Expected zero Combined QSPICE wire-pin collisions');
+  assert.ok(combBundle.qschContent.includes('INOM_PK='), 'Combined QSPICE .param must define INOM_PK for PFC B_IREF');
 });
 
 test('Combined Same MCU vs Separate MCUs selection propagates across firmware header and all simulation exports', () => {
@@ -1570,6 +1630,147 @@ test('Combined Same MCU vs Separate MCUs selection propagates across firmware he
 
   const qspSep = generateCombinedSystemQspiceBundle(acState, acRes, dcState, dcRes, false);
   assert.ok(qspSep.qschContent.includes('SEPARATE MCUs'));
+});
+
+test('QSPICE schematics have zero unnamed wire nets (no V(n01)/V(n02)) and preserve g1/g2/pri_hot/pri_lk/v_rect_sec labels', () => {
+  for (const preset of DCDC_PRESETS) {
+    const res = solveDcDcDesign(preset.state);
+    const bundle = generateDcDcQspiceBundle(preset.state, res);
+    assert.deepEqual(
+      findQspiceUnnamedWireNets(bundle.qschContent),
+      [],
+      `Expected zero unnamed QSPICE wire nets for DC-DC ${preset.id}`
+    );
+    assert.deepEqual(
+      findQspiceUnnamedWireNets(bundle.cblockQschContent),
+      [],
+      `Expected zero unnamed QSPICE wire nets for DC-DC _cblock ${preset.id}`
+    );
+    for (const reqNet of ['g1', 'g2', 'pri_hot', 'pri_lk', 'isns_node', 'v_out']) {
+      assert.ok(
+        bundle.qschContent.includes(`"${reqNet}"»`),
+        `Expected explicit net port "${reqNet}" in DC-DC QSPICE for ${preset.id}`
+      );
+    }
+    if (!res.isLLC) {
+      assert.ok(
+        bundle.qschContent.includes('"v_rect_sec"»'),
+        `Expected explicit net port "v_rect_sec" (no Stage 1 v_rect collision) in ${preset.id}`
+      );
+    }
+  }
+
+  for (const preset of ACDC_PRESETS) {
+    const res = solveAcDcDesign(preset.state);
+    const bundle = generateAcDcQspiceBundle(preset.state, res);
+    assert.deepEqual(
+      findQspiceUnnamedWireNets(bundle.qschContent),
+      [],
+      `Expected zero unnamed QSPICE wire nets for AC-DC ${preset.id}`
+    );
+    assert.deepEqual(
+      findQspiceUnnamedWireNets(bundle.cblockQschContent),
+      [],
+      `Expected zero unnamed QSPICE wire nets for AC-DC _cblock ${preset.id}`
+    );
+    for (const reqNet of ['ac_in', 'ac_dm', 'v_rect', 'sw1', 'v_dc']) {
+      assert.ok(
+        bundle.qschContent.includes(`"${reqNet}"»`),
+        `Expected explicit net port "${reqNet}" in AC-DC QSPICE for ${preset.id}`
+      );
+    }
+  }
+
+  const combBundle = generateCombinedSystemQspiceBundle(
+    ACDC_PRESETS[0].state,
+    solveAcDcDesign(ACDC_PRESETS[0].state),
+    DCDC_PRESETS[0].state,
+    solveDcDcDesign(DCDC_PRESETS[0].state),
+    true
+  );
+  assert.deepEqual(
+    findQspiceUnnamedWireNets(combBundle.qschContent),
+    [],
+    'Expected zero unnamed QSPICE wire nets in Combined .qsch'
+  );
+  assert.ok(combBundle.qschContent.includes('"v_rect"»'), 'Expected Stage 1 v_rect in Combined .qsch');
+  assert.ok(combBundle.qschContent.includes('"v_rect_sec"»'), 'Expected Stage 2 v_rect_sec in Combined .qsch');
+});
+
+test('User-configurable simulation stop time propagates across SPICE, LTspice, QSPICE, PLECS, and project JSON', () => {
+  const acState = ACDC_PRESETS[0].state;
+  const acRes = solveAcDcDesign(acState);
+  const dcState = DCDC_PRESETS[0].state;
+  const dcRes = solveDcDcDesign(dcState);
+
+  // DC-DC custom stop time (1800 us)
+  const dcCir = generateDcDcSpiceNetlist(dcState, dcRes, 1800);
+  const dcAsc = generateDcDcLtspiceAsc(dcState, dcRes, 1800);
+  const dcQsp = generateDcDcQspiceBundle(dcState, dcRes, 1800);
+  const dcPlecs = generateDcDcPlecsBundle(dcState, dcRes, 1800);
+  assert.ok(dcCir.includes('.tran 0 1800u 0'), 'DC-DC .cir should reflect 1800u stop time');
+  assert.ok(dcCir.includes('FROM 1296u TO 1800u'), 'DC-DC .cir .meas window should scale with 1800u');
+  assert.ok(dcAsc.includes('.tran 0 1800u 0'), 'DC-DC .asc should reflect 1800u stop time');
+  assert.ok(dcQsp.qschContent.includes('.tran 0 1800u 0'), 'DC-DC .qsch should reflect 1800u stop time');
+  assert.ok(dcQsp.cblockQschContent.includes('.tran 0 1800u 0'), 'DC-DC _cblock.qsch should reflect 1800u stop time');
+  assert.match(
+    dcQsp.qrawContent,
+    /Abscissa:\s+0\.000000000000000e\+00\s+1\.80+e-3/,
+    'DC-DC .qraw Abscissa max should reflect 1800 us (1.8e-3 s)'
+  );
+  assert.ok(dcPlecs.plecsText.includes('SimulationTime "0.0018"'), 'DC-DC .plecs SimulationTime should reflect 0.0018s');
+
+  // AC-DC custom short stop time (12 ms) must use Tstart=0 so waveform data is recorded
+  const acCir = generateAcDcSpiceNetlist(acState, acRes, 12);
+  const acAsc = generateAcDcLtspiceAsc(acState, acRes, 12);
+  const acQsp = generateAcDcQspiceBundle(acState, acRes, 12);
+  const acPlecs = generateAcDcPlecsBundle(acState, acRes, 12);
+  assert.ok(acCir.includes('.tran 0 12m 0 250n'), 'AC-DC .cir should use Tstart=0 and 12m Tstop');
+  assert.ok(acAsc.includes('.tran 0 12m 0 250n'), 'AC-DC .asc should use Tstart=0 and 12m Tstop');
+  assert.ok(acQsp.qschContent.includes('.tran 0 12m 0 250n'), 'AC-DC .qsch should use Tstart=0 and 12m Tstop');
+  assert.ok(acQsp.cblockQschContent.includes('.tran 0 12m 0 250n'), 'AC-DC _cblock.qsch should use Tstart=0 and 12m Tstop');
+  assert.ok(acPlecs.plecsText.includes('SimulationTime "0.0120"'), 'AC-DC .plecs SimulationTime should reflect 0.0120s');
+
+  // Combined custom stop time (25 ms)
+  const combCir = generateCombinedSystemSpiceNetlist(acState, acRes, dcState, dcRes, true, 25);
+  const combAsc = generateCombinedSystemLtspiceAsc(acState, acRes, dcState, dcRes, true, 25);
+  const combQsp = generateCombinedSystemQspiceBundle(acState, acRes, dcState, dcRes, true, 25);
+  const combPlecs = generateCombinedSystemPlecsBundle(acState, acRes, dcState, dcRes, true, 25);
+  assert.ok(combCir.includes('.tran 0 25m 0 100n'), 'Combined .cir should reflect 25m');
+  assert.ok(combAsc.includes('.tran 0 25m 0 100n'), 'Combined .asc should reflect 25m');
+  assert.ok(combQsp.qschContent.includes('.tran 0 25m 0 100n'), 'Combined .qsch should reflect 25m');
+  assert.ok(combPlecs.plecsText.includes('SimulationTime "0.0250"'), 'Combined .plecs should reflect 0.0250s');
+
+  // Project JSON persistence of simulation times
+  const snapshot = {
+    dcdcState: dcState,
+    acdcState: acState,
+    inductorConfigs: {},
+    capacitorConfigs: {},
+    systemLink: {
+      outputMode: 'combined' as const,
+      linkBusVoltage: true,
+      linkLoadPower: true,
+      sharedMcu: true,
+      dcdcSimTime_us: 1800,
+      acdcSimTime_ms: 12,
+      combinedSimTime_ms: 25,
+    },
+  };
+  const proj = buildProjectFile('SimTime Test', snapshot);
+  const parsed = parseImportedProjectJson(JSON.stringify(proj), {
+    dcdcState: dcState,
+    acdcState: acState,
+    inductorConfigs: {},
+    capacitorConfigs: {},
+    systemLink: { outputMode: 'combined', linkBusVoltage: true, linkLoadPower: true, sharedMcu: true },
+  });
+  assert.ok(parsed.ok, 'Expected imported project JSON to parse cleanly');
+  if (parsed.ok) {
+    assert.equal(parsed.project.systemLink.dcdcSimTime_us, 1800);
+    assert.equal(parsed.project.systemLink.acdcSimTime_ms, 12);
+    assert.equal(parsed.project.systemLink.combinedSimTime_ms, 25);
+  }
 });
 
 
