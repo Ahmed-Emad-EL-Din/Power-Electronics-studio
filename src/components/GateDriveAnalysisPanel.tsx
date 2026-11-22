@@ -429,12 +429,12 @@ export const GateDriveAnalysisPanel: React.FC<GateDriveAnalysisPanelProps> = ({
   const plotH = svgH - padT - padB;
 
   return (
-    <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-4">
+    <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-4">
       {/* HEADER BAR */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <Cpu className="w-4 h-4 text-cyan-400" />
+            <Cpu className="w-4 h-4 text-blue-400" />
             <h3 className="text-sm font-bold font-mono text-slate-900 dark:text-slate-100">
               Gate Drive Current (I_g) &amp; Power (P_g) Analysis Module
             </h3>
@@ -457,7 +457,7 @@ export const GateDriveAnalysisPanel: React.FC<GateDriveAnalysisPanelProps> = ({
             </span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Calculates required <strong className="text-cyan-400">Peak / Miller / Average Gate Current (I_g)</strong>,{' '}
+            Calculates required <strong className="text-blue-400">Peak / Miller / Average Gate Current (I_g)</strong>,{' '}
             <strong className="text-amber-400">Partitioned Gate Drive Power (P_g)</strong>, and{' '}
             <strong className="text-purple-400">C_gd·dV/dt Shoot-Through Immunity</strong> for{' '}
             <span className="font-mono text-slate-300">
@@ -492,7 +492,7 @@ export const GateDriveAnalysisPanel: React.FC<GateDriveAnalysisPanelProps> = ({
             <button
               type="button"
               onClick={onOpenPartDrawer}
-              className="px-2.5 py-1 text-[11px] font-mono bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 rounded inline-flex items-center gap-1 font-semibold cursor-pointer"
+              className="px-2.5 py-1 text-[11px] font-mono bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/40 text-blue-300 rounded inline-flex items-center gap-1 font-semibold cursor-pointer"
             >
               <ExternalLink className="w-3 h-3" /> LCSC Gate Drivers &amp; FETs
             </button>
@@ -506,7 +506,7 @@ export const GateDriveAnalysisPanel: React.FC<GateDriveAnalysisPanelProps> = ({
         <div className="lg:col-span-5 bg-slate-50 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-lg p-3.5 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5] inline-flex items-center gap-1.5">
-              <Sliders className="w-3.5 h-3.5 text-cyan-500" /> Gate Drive Network &amp; IC Configuration
+              <Sliders className="w-3.5 h-3.5 text-blue-500" /> Gate Drive Network &amp; IC Configuration
             </span>
             <span className="text-[11px] font-mono text-slate-400">
               R_g,int = {gateAnalysis.Rg_int_eff_Ohm.toFixed(2)} Ω
@@ -573,7 +573,7 @@ export const GateDriveAnalysisPanel: React.FC<GateDriveAnalysisPanelProps> = ({
               <div className="flex justify-between items-center text-[11px] font-mono">
                 <span className="text-slate-400">Turn-On V_gs,on</span>
                 <div className="inline-flex items-center gap-1">
-                  <span className="text-cyan-400 font-bold tabular-nums">+{state.Vgs_drive_V.toFixed(1)} V</span>
+                  <span className="text-blue-400 font-bold tabular-nums">+{state.Vgs_drive_V.toFixed(1)} V</span>
                   <LockToggleButton
                     compact
                     locked={dcdcLocked.Vgs_drive_V}
@@ -590,7 +590,7 @@ export const GateDriveAnalysisPanel: React.FC<GateDriveAnalysisPanelProps> = ({
                 step={0.5}
                 value={state.Vgs_drive_V}
                 onChange={(e) => setDcdcField('Vgs_drive_V', Number(e.target.value))}
-                className="w-full accent-cyan-500 cursor-pointer"
+                className="w-full accent-blue-500 cursor-pointer"
               />
             </div>
 
@@ -673,7 +673,7 @@ export const GateDriveAnalysisPanel: React.FC<GateDriveAnalysisPanelProps> = ({
                     type="checkbox"
                     checked={splitRgEnabled}
                     onChange={(e) => splitRgLock.setManual(e.target.checked)}
-                    className="rounded accent-cyan-500"
+                    className="rounded accent-blue-500"
                   />
                   Split Diode (R_off = {gateAnalysis.Rg_off_ext_Ohm} Ω)
                 </label>
@@ -688,7 +688,7 @@ export const GateDriveAnalysisPanel: React.FC<GateDriveAnalysisPanelProps> = ({
                     step={0.05}
                     value={rgOffRatio}
                     onChange={(e) => rgOffRatioLock.setManual(Number(e.target.value))}
-                    className="w-full accent-cyan-500 cursor-pointer"
+                    className="w-full accent-blue-500 cursor-pointer"
                   />
                   <LockToggleButton compact locked={rgOffRatioLock.locked} onToggle={rgOffRatioLock.toggleLock} label="Rg Off Ratio" />
                 </div>
@@ -719,13 +719,13 @@ export const GateDriveAnalysisPanel: React.FC<GateDriveAnalysisPanelProps> = ({
         {/* Right KPI Cards (7 cols) */}
         <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-3">
           {/* Card 1: Gate Current (Ig) Requirements */}
-          <div className="bg-slate-50 dark:bg-slate-900/70 border border-cyan-500/30 rounded-lg p-3.5 flex flex-col justify-between space-y-2">
+          <div className="bg-slate-50 dark:bg-slate-900/70 border border-blue-500/30 rounded-lg p-3.5 flex flex-col justify-between space-y-2">
             <div>
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-slate-900 dark:text-[#eef0f5]">
                   1. Required Gate Drive Current (I_g)
                 </span>
-                <span className="px-2 py-0.5 text-[10px] font-mono rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                <span className="px-2 py-0.5 text-[10px] font-mono rounded bg-blue-500/15 text-blue-300 border border-blue-500/30">
                   Q_g,pos = {gateAnalysis.Qg_pos_nC.toFixed(1)} nC
                 </span>
               </div>
@@ -733,7 +733,7 @@ export const GateDriveAnalysisPanel: React.FC<GateDriveAnalysisPanelProps> = ({
               <div className="mt-2 grid grid-cols-2 gap-2 text-xs font-mono">
                 <div className="p-2 rounded bg-slate-950/70 border border-slate-800">
                   <div className="text-[10px] text-slate-400">Peak Source / Sink I_g,pk</div>
-                  <div className="text-sm font-bold text-cyan-400">
+                  <div className="text-sm font-bold text-blue-400">
                     +{gateAnalysis.Ig_pk_on_A.toFixed(2)} A / -{gateAnalysis.Ig_pk_off_A.toFixed(2)} A
                   </div>
                   <div className="text-[10px] text-slate-500">
@@ -755,7 +755,7 @@ export const GateDriveAnalysisPanel: React.FC<GateDriveAnalysisPanelProps> = ({
             <div className="border-t border-slate-800 pt-2 text-xs font-mono space-y-1">
               <div className="flex justify-between">
                 <span className="text-slate-400">Miller Plateau Current (On / Off):</span>
-                <span className="text-cyan-300 font-semibold">
+                <span className="text-blue-300 font-semibold">
                   +{gateAnalysis.Ig_miller_on_A.toFixed(2)} A / -{gateAnalysis.Ig_miller_off_A.toFixed(2)} A
                 </span>
               </div>
@@ -817,7 +817,7 @@ export const GateDriveAnalysisPanel: React.FC<GateDriveAnalysisPanelProps> = ({
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">Driver IC Internal Dissipation P_g,IC:</span>
-                <span className="text-cyan-300 font-semibold">
+                <span className="text-blue-300 font-semibold">
                   {gateAnalysis.Pg_ic_pri_total_W.toFixed(2)} W ({gateAnalysis.Pg_ic_per_pos_W.toFixed(2)} W/IC)
                 </span>
               </div>
@@ -839,7 +839,7 @@ export const GateDriveAnalysisPanel: React.FC<GateDriveAnalysisPanelProps> = ({
                   <strong className={gateAnalysis.millerSafe ? 'text-emerald-400' : 'text-rose-400'}>
                     V_gs,bounce = {gateAnalysis.Vgs_miller_bounce_V.toFixed(2)} V
                   </strong>{' '}
-                  vs Hot Threshold <strong className="text-cyan-300">V_th(Tj) = {gateAnalysis.Vth_hot_V.toFixed(2)} V</strong>
+                  vs Hot Threshold <strong className="text-blue-300">V_th(Tj) = {gateAnalysis.Vth_hot_V.toFixed(2)} V</strong>
                 </span>
               </div>
               <div className="text-[11px] text-slate-400">
@@ -848,7 +848,7 @@ export const GateDriveAnalysisPanel: React.FC<GateDriveAnalysisPanelProps> = ({
                   ζ_gate = {gateAnalysis.zeta_gate_on.toFixed(2)}
                 </strong>{' '}
                 (L_gate={gateLoopInductance_nH}nH, C_iss={(gateAnalysis.Ciss_eff_pF * state.nParallelPri / 1e3).toFixed(2)}nF) ·
-                Rec. Local C_decouple ≥ <strong className="text-cyan-300">{gateAnalysis.C_decouple_rec_uF} µF</strong> C0G/X7R
+                Rec. Local C_decouple ≥ <strong className="text-blue-300">{gateAnalysis.C_decouple_rec_uF} µF</strong> C0G/X7R
               </div>
             </div>
           </div>
@@ -864,7 +864,7 @@ export const GateDriveAnalysisPanel: React.FC<GateDriveAnalysisPanelProps> = ({
               onClick={() => setActiveChartTab('qg-curve')}
               className={`px-3 py-1.5 text-xs font-mono rounded inline-flex items-center gap-1.5 cursor-pointer ${
                 activeChartTab === 'qg-curve'
-                  ? 'bg-cyan-600 text-white font-semibold'
+                  ? 'bg-blue-600 text-white font-semibold'
                   : 'bg-slate-100 dark:bg-slate-900 text-slate-400 border border-slate-800'
               }`}
             >
@@ -884,7 +884,7 @@ export const GateDriveAnalysisPanel: React.FC<GateDriveAnalysisPanelProps> = ({
           </div>
 
           <div className="text-[11px] font-mono text-slate-400">
-            Q_gs = <strong className="text-cyan-300">{(gateAnalysis.Qgs_dev_nC * state.nParallelPri).toFixed(1)} nC</strong> ·
+            Q_gs = <strong className="text-blue-300">{(gateAnalysis.Qgs_dev_nC * state.nParallelPri).toFixed(1)} nC</strong> ·
             Q_gd (Miller) = <strong className="text-amber-300">{gateAnalysis.Qgd_pos_nC.toFixed(1)} nC</strong> ·
             Q_od = <strong className="text-emerald-300">{(gateAnalysis.Qg_overdrive_nC * state.nParallelPri).toFixed(1)} nC</strong>
           </div>
@@ -1019,7 +1019,7 @@ export const GateDriveAnalysisPanel: React.FC<GateDriveAnalysisPanelProps> = ({
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
         <div className="xl:col-span-5 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg p-3.5 space-y-2">
           <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5] flex items-center gap-1.5">
-            <Flame className="w-3.5 h-3.5 text-cyan-500" /> Governing Gate Current &amp; Power Equations
+            <Flame className="w-3.5 h-3.5 text-blue-500" /> Governing Gate Current &amp; Power Equations
           </div>
           <div className="p-2 rounded bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
             <MathFormula tex="I_{g,\text{avg}} = N_{\text{sw}} Q_g f_{\text{sw}}, \quad I_{g,\text{pk,on/off}} = \frac{V_{\text{gs,on}} - V_{\text{gs,off}}}{R_{\text{drv}} + R_{g,\text{ext}} + R_{g,\text{int}}}" />
@@ -1064,7 +1064,7 @@ export const GateDriveAnalysisPanel: React.FC<GateDriveAnalysisPanelProps> = ({
                   return (
                     <tr
                       key={ic.id}
-                      className={isSelected ? 'bg-cyan-500/10' : 'hover:bg-slate-900/40'}
+                      className={isSelected ? 'bg-blue-500/10' : 'hover:bg-slate-900/40'}
                     >
                       <td className="py-2 pr-2">
                         <div className="font-bold text-slate-200">{ic.mpn}</div>
@@ -1074,13 +1074,13 @@ export const GateDriveAnalysisPanel: React.FC<GateDriveAnalysisPanelProps> = ({
                             href={`https://www.lcsc.com/search?q=${encodeURIComponent(ic.lcsc)}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-cyan-400 underline"
+                            className="text-blue-400 underline"
                           >
                             {ic.lcsc}
                           </a>
                         </div>
                       </td>
-                      <td className="py-2 pr-2 text-cyan-300">
+                      <td className="py-2 pr-2 text-blue-300">
                         +{ic.I_source_pk_A}A / -{ic.I_sink_pk_A}A
                       </td>
                       <td className="py-2 pr-2">
@@ -1106,8 +1106,8 @@ export const GateDriveAnalysisPanel: React.FC<GateDriveAnalysisPanelProps> = ({
                           onClick={() => driverLock.setManual(ic.id)}
                           className={`px-2 py-0.5 text-[10px] rounded cursor-pointer ${
                             isSelected
-                              ? 'bg-cyan-600 text-white font-semibold'
-                              : 'bg-slate-800 text-slate-300 hover:bg-cyan-600 hover:text-white'
+                              ? 'bg-blue-600 text-white font-semibold'
+                              : 'bg-slate-800 text-slate-300 hover:bg-blue-600 hover:text-white'
                           }`}
                         >
                           {isSelected ? 'Selected' : 'Select IC'}

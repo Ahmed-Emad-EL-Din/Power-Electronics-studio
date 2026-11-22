@@ -28,13 +28,13 @@ export const LockToggleButton: React.FC<LockToggleButtonProps> = ({
       }
       aria-label={locked ? `Unlock ${label}` : `Lock ${label}`}
       className={`inline-flex items-center gap-0.5 ${
-        compact ? 'px-1 py-0.5 text-[9px]' : 'px-1.5 py-0.5 text-[10px]'
+        compact ? 'px-1.5 py-0.5 text-[9px]' : 'px-1.5 py-0.5 text-[10px]'
       } rounded border font-medium transition-colors cursor-pointer shrink-0 ${
         locked
           ? 'bg-amber-500/10 border-amber-500/45 text-amber-700 dark:text-amber-300'
           : recentlyAutoUpdated
           ? 'bg-emerald-500/10 border-emerald-500/45 text-emerald-700 dark:text-emerald-300'
-          : 'bg-slate-100 dark:bg-[#151C2B] border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-cyan-500/60 hover:text-cyan-600 dark:hover:text-cyan-300'
+          : 'bg-slate-100 dark:bg-[#1c202b] border-slate-200 dark:border-white/[0.1] text-slate-500 dark:text-[#a1a8b8] hover:border-blue-500/60 hover:text-blue-600 dark:hover:text-blue-400'
       }`}
     >
       {locked ? (
@@ -80,9 +80,9 @@ export function AutoSolverBanner<K extends string>({
   const unlockedCount = Math.max(0, totalCount - lockedCount);
 
   return (
-    <div className="bg-slate-50 dark:bg-[#090C12] border border-slate-200 dark:border-slate-800 rounded-md p-3 space-y-2">
+    <div className="bg-slate-50 dark:bg-[#090a0d] border border-slate-200 dark:border-white/[0.08] rounded-lg p-3 space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-semibold text-slate-800 dark:text-slate-100">
+        <span className="text-xs font-semibold text-slate-800 dark:text-[#eef0f6]">
           Constraint Solver
         </span>
         <button
@@ -91,14 +91,14 @@ export function AutoSolverBanner<K extends string>({
           className={`px-2 py-0.5 rounded border text-[11px] font-medium transition-colors cursor-pointer shrink-0 whitespace-nowrap ${
             autoOptimize
               ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-700 dark:text-emerald-300'
-              : 'bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+              : 'bg-slate-200 dark:bg-[#1c202b] border-slate-300 dark:border-white/[0.1] text-slate-600 dark:text-[#a1a8b8]'
           }`}
         >
           Auto-solve: {autoOptimize ? 'On' : 'Off'}
         </button>
       </div>
 
-      <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-400">
+      <p className="text-[11px] leading-snug text-slate-600 dark:text-[#a1a8b8]">
         <span className="font-mono tabular-nums font-semibold text-amber-700 dark:text-amber-400">
           {lockedCount}
         </span>{' '}
@@ -115,15 +115,15 @@ export function AutoSolverBanner<K extends string>({
           onClick={onOptimizeNow}
           disabled={unlockedCount === 0}
           title="Recalculate all unlocked parameters immediately for optimal operation"
-          className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-white text-[11px] font-medium transition-colors cursor-pointer whitespace-nowrap"
+          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-[11px] font-medium transition-colors cursor-pointer whitespace-nowrap"
         >
-          <SlidersHorizontal className="w-3 h-3" />
+          <SlidersHorizontal className="w-3 h-3" aria-hidden="true" />
           Optimize
         </button>
         <button
           type="button"
           onClick={onLockSpecsOnly}
-          className="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#131A26] hover:border-slate-400 dark:hover:border-slate-600 text-[11px] font-medium text-slate-700 dark:text-slate-300 transition-colors cursor-pointer whitespace-nowrap"
+          className="px-2 py-1 rounded-md border border-slate-200 dark:border-white/[0.1] bg-white dark:bg-[#1c202b] hover:border-slate-400 dark:hover:border-white/[0.2] text-[11px] font-medium text-slate-700 dark:text-[#a1a8b8] transition-colors cursor-pointer whitespace-nowrap"
           title="Lock top-level specs and unlock design parameters"
         >
           Specs Only
@@ -131,14 +131,14 @@ export function AutoSolverBanner<K extends string>({
         <button
           type="button"
           onClick={onUnlockAll}
-          className="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#131A26] hover:border-slate-400 dark:hover:border-slate-600 text-[11px] font-medium text-slate-700 dark:text-slate-300 transition-colors cursor-pointer whitespace-nowrap"
+          className="px-2 py-1 rounded-md border border-slate-200 dark:border-white/[0.1] bg-white dark:bg-[#1c202b] hover:border-slate-400 dark:hover:border-white/[0.2] text-[11px] font-medium text-slate-700 dark:text-[#a1a8b8] transition-colors cursor-pointer whitespace-nowrap"
         >
           Unlock All
         </button>
         <button
           type="button"
           onClick={onLockAll}
-          className="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#131A26] hover:border-slate-400 dark:hover:border-slate-600 text-[11px] font-medium text-slate-700 dark:text-slate-300 transition-colors cursor-pointer whitespace-nowrap"
+          className="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1c202b] hover:border-slate-400 dark:hover:border-slate-600 text-[11px] font-medium text-slate-700 dark:text-slate-300 transition-colors cursor-pointer whitespace-nowrap"
         >
           Lock All
         </button>

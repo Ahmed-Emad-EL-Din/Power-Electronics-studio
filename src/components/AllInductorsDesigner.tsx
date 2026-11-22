@@ -83,7 +83,7 @@ const InductorWindingDiagramSvg: React.FC<{ sol: CustomInductorSolution }> = ({ 
         : material.category === 'high-flux'
         ? '#4f46e5'
         : material.category === 'sendust-koolmu'
-        ? '#0f172a'
+        ? '#14171f'
         : '#64748b';
 
     return (
@@ -103,7 +103,7 @@ const InductorWindingDiagramSvg: React.FC<{ sol: CustomInductorSolution }> = ({ 
           cy={cy}
           r={innerR}
           fill="currentColor"
-          className="text-white dark:text-[#0E131D]"
+          className="text-white dark:text-[#14171f]"
           stroke={coreFill}
           strokeWidth={1.5}
         />
@@ -432,7 +432,7 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
   return (
     <div className="space-y-4">
       {/* 1. ALL INDUCTORS IN CIRCUIT OVERVIEW TABLE */}
-      <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+      <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
         <div className="px-4 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 flex flex-wrap items-center justify-between gap-2">
           <div>
             <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
@@ -482,7 +482,7 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
                     onClick={() => setSelectedId(req.id)}
                     className={`cursor-pointer transition-colors ${
                       isSelected
-                        ? 'bg-cyan-50/70 dark:bg-cyan-950/25'
+                        ? 'bg-blue-50/70 dark:bg-blue-950/25'
                         : 'hover:bg-slate-50 dark:hover:bg-slate-900/40'
                     }`}
                   >
@@ -497,7 +497,7 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
                     <td className="py-2.5 px-3 tabular-nums text-slate-700 dark:text-slate-300">
                       {req.quantity}×
                     </td>
-                    <td className="py-2.5 px-3 tabular-nums font-semibold text-cyan-600 dark:text-cyan-400">
+                    <td className="py-2.5 px-3 tabular-nums font-semibold text-blue-600 dark:text-blue-400">
                       {req.targetL_uH >= 1000
                         ? `${(req.targetL_uH / 1000).toFixed(2)} mH`
                         : `${req.targetL_uH.toFixed(1)} µH`}
@@ -568,11 +568,11 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
       </div>
 
       {/* 2. SELECTED INDUCTOR WORKBENCH HEADER */}
-      <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-3">
+      <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <Magnet className="w-4 h-4 text-cyan-500" />
+              <Magnet className="w-4 h-4 text-blue-500" />
               <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                 {activeReq.designator} — {activeReq.name} ({activeReq.quantity}× in circuit)
               </h3>
@@ -590,7 +590,7 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
                 onClick={() => updateActiveCfg((p) => ({ ...p, buildMode: 'custom' }))}
                 className={`px-3 py-1.5 text-xs font-medium inline-flex items-center gap-1.5 cursor-pointer transition-colors ${
                   activeCfg.buildMode === 'custom'
-                    ? 'bg-cyan-600 text-white'
+                    ? 'bg-blue-600 text-white'
                     : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
@@ -602,7 +602,7 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
                 onClick={() => updateActiveCfg((p) => ({ ...p, buildMode: 'ready' }))}
                 className={`px-3 py-1.5 text-xs font-medium inline-flex items-center gap-1.5 cursor-pointer transition-colors ${
                   activeCfg.buildMode === 'ready'
-                    ? 'bg-cyan-600 text-white'
+                    ? 'bg-blue-600 text-white'
                     : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
@@ -630,7 +630,7 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 pt-2 border-t border-slate-200 dark:border-slate-800 text-xs font-mono">
           <div>
             <div className="text-[10px] text-slate-500 uppercase">Target L</div>
-            <div className="font-semibold text-cyan-600 dark:text-cyan-400 tabular-nums">
+            <div className="font-semibold text-blue-600 dark:text-blue-400 tabular-nums">
               {sol.req.targetL_uH.toFixed(1)} µH
             </div>
           </div>
@@ -686,9 +686,9 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
         <div className="space-y-4">
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
             {/* Left Controls: Lockable Engineering Design Knobs */}
-            <div className="xl:col-span-5 bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-3">
+            <div className="xl:col-span-5 bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-3">
               <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
-                <div className="text-xs font-mono font-bold uppercase text-cyan-600 dark:text-cyan-400">
+                <div className="text-xs font-mono font-bold uppercase text-blue-600 dark:text-blue-400">
                   Core, Turns &amp; Wire Synthesis (Lock / Auto)
                 </div>
                 <button
@@ -700,7 +700,7 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
                       overrides: {},
                     }))
                   }
-                  className="text-[11px] font-medium text-cyan-600 dark:text-cyan-400 hover:underline cursor-pointer"
+                  className="text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
                 >
                   Auto-Solve All Optimal
                 </button>
@@ -829,7 +829,7 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
                     max={Math.max(25, Math.ceil(sol.turnsN * 1.8))}
                     value={sol.turnsN}
                     onChange={(e) => setOverride('turnsN', Math.max(1, Number(e.target.value)), 'turnsN')}
-                    className="w-full mt-1 h-1.5 accent-cyan-500 cursor-pointer"
+                    className="w-full mt-1 h-1.5 accent-blue-500 cursor-pointer"
                   />
                 </div>
 
@@ -874,7 +874,7 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
                                 overrides: { ...prev.overrides, airGap_mm: undefined },
                               }))
                             }
-                            className="px-1.5 py-1 text-[10px] font-mono bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-cyan-700 dark:text-cyan-300 whitespace-nowrap cursor-pointer"
+                            className="px-1.5 py-1 text-[10px] font-mono bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded text-blue-700 dark:text-blue-300 whitespace-nowrap cursor-pointer"
                             title="Recompute optimal air gap for target inductance"
                           >
                             Auto
@@ -888,7 +888,7 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
                         max={4.5}
                         value={Math.min(4.5, sol.airGap_mm)}
                         onChange={(e) => setOverride('airGap_mm', Math.max(0.05, Number(e.target.value)), 'airGap_mm')}
-                        className="w-full mt-1 h-1.5 accent-cyan-500 cursor-pointer"
+                        className="w-full mt-1 h-1.5 accent-blue-500 cursor-pointer"
                       />
                       <div className="text-[10px] font-mono text-slate-500 mt-0.5 tabular-nums">
                         Fringing F = {sol.fringingFactor.toFixed(2)}× · P_gap = {sol.P_gap_fringing_W.toFixed(2)}W
@@ -963,7 +963,7 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
                       onClick={() => setOverride('useLitz', !sol.useLitz)}
                       className={`px-2 py-1 text-[11px] font-mono rounded border whitespace-nowrap cursor-pointer ${
                         sol.useLitz
-                          ? 'bg-cyan-600/15 border-cyan-500 text-cyan-700 dark:text-cyan-300 font-semibold'
+                          ? 'bg-blue-600/15 border-blue-500 text-blue-700 dark:text-blue-300 font-semibold'
                           : 'bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400'
                       }`}
                       title="Switch between solid magnet wire strands and AWG 38 HF Litz bundle"
@@ -1017,9 +1017,9 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
             </div>
 
             {/* Middle: 2D Scaled Cross-Section + Winding House Spec Sheet */}
-            <div className="xl:col-span-4 bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg p-4 flex flex-col justify-between">
+            <div className="xl:col-span-4 bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-4 flex flex-col justify-between">
               <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2 mb-2">
-                <span className="text-xs font-mono font-bold uppercase text-cyan-600 dark:text-cyan-400 flex items-center gap-1.5">
+                <span className="text-xs font-mono font-bold uppercase text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
                   <Layers className="w-3.5 h-3.5" /> Scaled Geometry &amp; Winding Cross-Section
                 </span>
                 <span
@@ -1070,8 +1070,8 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
             </div>
 
             {/* Right: Magnetic Flux, Losses, Saturation & Thermal Telemetry */}
-            <div className="xl:col-span-3 bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-2.5">
-              <div className="text-xs font-mono font-bold uppercase text-cyan-600 dark:text-cyan-400 border-b border-slate-200 dark:border-slate-800 pb-2">
+            <div className="xl:col-span-3 bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-2.5">
+              <div className="text-xs font-mono font-bold uppercase text-blue-600 dark:text-blue-400 border-b border-slate-200 dark:border-slate-800 pb-2">
                 Electromagnetic &amp; Thermal Verification
               </div>
 
@@ -1135,7 +1135,7 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">L @ I_dc ({activeReq.I_dc_A.toFixed(1)}A):</span>
-                  <span className="font-semibold tabular-nums text-cyan-600 dark:text-cyan-400">{sol.L_at_Idc_uH.toFixed(1)} µH</span>
+                  <span className="font-semibold tabular-nums text-blue-600 dark:text-blue-400">{sol.L_at_Idc_uH.toFixed(1)} µH</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">L @ I_pk ({activeReq.I_pk_A.toFixed(1)}A):</span>
@@ -1176,7 +1176,7 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
                       <div className="h-2 w-full rounded overflow-hidden flex bg-slate-200 dark:bg-slate-800">
                         <div style={{ width: `${dcPct}%` }} className="bg-amber-500" title={`Cu DC: ${dcPct.toFixed(0)}%`} />
                         <div style={{ width: `${acPct}%` }} className="bg-orange-500" title={`Cu AC+Gap: ${acPct.toFixed(0)}%`} />
-                        <div style={{ width: `${corePct}%` }} className="bg-cyan-500" title={`Core: ${corePct.toFixed(0)}%`} />
+                        <div style={{ width: `${corePct}%` }} className="bg-blue-500" title={`Core: ${corePct.toFixed(0)}%`} />
                       </div>
                       <div className="flex justify-between text-[10px] text-slate-500">
                         <span>Cu {((sol.P_cu_total_W / tot) * 100).toFixed(0)}%</span>
@@ -1202,10 +1202,10 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
           </div>
 
           {/* MULTI-CORE × MATERIAL PARETO AUTO-RANKER */}
-          <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-3">
+          <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-2.5">
               <div>
-                <div className="text-xs font-mono font-bold uppercase text-cyan-700 dark:text-cyan-400">
+                <div className="text-xs font-mono font-bold uppercase text-blue-700 dark:text-blue-400">
                   Pareto Core × Material Auto-Ranker ({activeReq.designator})
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
@@ -1228,7 +1228,7 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
                       onClick={() => setOptGoal(g.id)}
                       className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
                         optGoal === g.id
-                          ? 'bg-cyan-600/20 text-cyan-700 dark:text-cyan-300 font-semibold'
+                          ? 'bg-blue-600/20 text-blue-700 dark:text-blue-300 font-semibold'
                           : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                       }`}
                     >
@@ -1273,7 +1273,7 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
                         key={`${row.core.id}-${row.material.id}`}
                         className={
                           isEquipped
-                            ? 'bg-cyan-500/10'
+                            ? 'bg-blue-500/10'
                             : 'hover:bg-slate-50 dark:hover:bg-slate-900/50'
                         }
                       >
@@ -1361,7 +1361,7 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
                             }
                             className={`px-2 py-0.5 rounded text-[10px] font-semibold cursor-pointer ${
                               isEquipped
-                                ? 'bg-cyan-600 text-white'
+                                ? 'bg-blue-600 text-white'
                                 : 'bg-slate-100 dark:bg-slate-800 hover:bg-emerald-600 hover:text-white text-slate-700 dark:text-slate-200'
                             }`}
                           >
@@ -1377,9 +1377,9 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
           </div>
 
           {/* INDUCTOR WINDOW FIT BUDGET & 1-CLICK FIX SOLVER */}
-          <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-2.5">
+          <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase text-cyan-700 dark:text-cyan-400">
+              <div className="flex items-center gap-2 text-xs font-mono font-bold uppercase text-blue-700 dark:text-blue-400">
                 <Wrench className="w-3.5 h-3.5" />
                 <span>Inductor Window Fit Budget &amp; Packing Assistant</span>
               </div>
@@ -1414,10 +1414,10 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
               const insPct = ((sol.insulationPackingArea_mm2 / scaleMax) * 100).toFixed(1);
               const safeLimPct = ((sol.maxSafeArea_mm2 / scaleMax) * 100).toFixed(1);
               return (
-                <div className="relative h-5 w-full bg-slate-100 dark:bg-[#090C12] border border-slate-200 dark:border-slate-800 rounded overflow-hidden flex">
+                <div className="relative h-5 w-full bg-slate-100 dark:bg-[#090a0d] border border-slate-200 dark:border-slate-800 rounded overflow-hidden flex">
                   <div
                     style={{ width: `${cuPct}%` }}
-                    className="h-full bg-cyan-600 flex items-center justify-center text-[10px] font-mono text-white font-semibold truncate px-1"
+                    className="h-full bg-blue-600 flex items-center justify-center text-[10px] font-mono text-white font-semibold truncate px-1"
                     title={`Pure Copper Area: ${sol.rawCopperAreaTotal_mm2.toFixed(0)} mm²`}
                   >
                     Cu {sol.rawCopperAreaTotal_mm2.toFixed(0)}mm²
@@ -1472,7 +1472,7 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
                         },
                       }))
                     }
-                    className="text-left p-2.5 rounded border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/50 hover:border-cyan-500 transition-colors cursor-pointer"
+                    className="text-left p-2.5 rounded border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/50 hover:border-blue-500 transition-colors cursor-pointer"
                   >
                     <div className="flex items-center justify-between gap-2 text-xs font-mono font-semibold text-slate-900 dark:text-slate-100">
                       <span>{fix.title}</span>
@@ -1533,10 +1533,10 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
       {/* MODE B: CHOOSE READY OFF-THE-SHELF COMMERCIAL INDUCTOR (COTS)        */}
       {/* ==================================================================== */}
       {activeCfg.buildMode === 'ready' && (
-        <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+        <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 flex flex-wrap items-center justify-between gap-2">
             <div>
-              <div className="text-xs font-mono font-bold uppercase text-cyan-600 dark:text-cyan-400">
+              <div className="text-xs font-mono font-bold uppercase text-blue-600 dark:text-blue-400">
                 Off-The-Shelf Commercial Inductor Catalog Matcher ({activeReq.designator})
               </div>
               <div className="text-[11px] text-slate-500 dark:text-slate-400">
@@ -1564,7 +1564,7 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
                     onClick={() => setCotsFilterMount(m)}
                     className={`px-2.5 py-1 cursor-pointer ${
                       cotsFilterMount === m
-                        ? 'bg-cyan-600 text-white font-semibold'
+                        ? 'bg-blue-600 text-white font-semibold'
                         : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400'
                     }`}
                   >
@@ -1614,7 +1614,7 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
                           {cand.configLabel}
                         </td>
                         <td className="py-2.5 px-3 tabular-nums">
-                          <div className="font-semibold text-cyan-600 dark:text-cyan-400">{cand.eff_L_uH.toFixed(1)} µH</div>
+                          <div className="font-semibold text-blue-600 dark:text-blue-400">{cand.eff_L_uH.toFixed(1)} µH</div>
                           <div className="text-[10px] text-slate-500">
                             {cand.L_error_pct >= 0 ? '+' : ''}
                             {cand.L_error_pct.toFixed(0)}% vs req
@@ -1665,7 +1665,7 @@ export const AllInductorsDesigner: React.FC<AllInductorsDesignerProps> = ({
                             className={`px-2.5 py-1 rounded text-xs font-medium inline-flex items-center gap-1 cursor-pointer transition-colors ${
                               isEquipped
                                 ? 'bg-emerald-600 text-white'
-                                : 'bg-cyan-600 hover:bg-cyan-500 text-white'
+                                : 'bg-blue-600 hover:bg-blue-500 text-white'
                             }`}
                           >
                             {isEquipped ? (

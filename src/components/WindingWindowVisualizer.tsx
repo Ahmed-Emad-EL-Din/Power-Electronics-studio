@@ -826,12 +826,12 @@ export const WindingWindowVisualizer: React.FC<WindingWindowVisualizerProps> = (
   const svgH = 380;
 
   return (
-    <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-4">
+    <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-4">
       {/* HEADER BAR */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
         <div>
           <div className="flex flex-wrap items-center gap-2.5">
-            <Layers className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+            <Layers className="w-4 h-4 text-blue-600 dark:text-blue-400" />
             <h3 className="text-sm font-bold font-mono text-slate-900 dark:text-slate-100">
               2D Transformer Winding Window, Fit Solver &amp; Spatial MMF F(x) Visualizer
             </h3>
@@ -852,7 +852,7 @@ export const WindingWindowVisualizer: React.FC<WindingWindowVisualizerProps> = (
             </span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Physical cross-section of <strong className="text-cyan-700 dark:text-cyan-400">{core.name}</strong> (
+            Physical cross-section of <strong className="text-blue-700 dark:text-blue-400">{core.name}</strong> (
             <span className="font-mono tabular-nums">
               b_w = {windowAnalysis.bw_mm} mm × h_w = {windowAnalysis.hw_mm} mm · b_eff = {windowAnalysis.b_eff_mm.toFixed(1)} mm
             </span>
@@ -883,7 +883,7 @@ export const WindingWindowVisualizer: React.FC<WindingWindowVisualizerProps> = (
             <button
               type="button"
               onClick={() => setDcdcField('coreId', rankedTransformerCores[0].core.id)}
-              className="px-2.5 py-1 text-[11px] font-mono bg-cyan-600/15 hover:bg-cyan-600/25 border border-cyan-500/40 text-cyan-700 dark:text-cyan-300 rounded inline-flex items-center gap-1 font-semibold cursor-pointer"
+              className="px-2.5 py-1 text-[11px] font-mono bg-blue-600/15 hover:bg-blue-600/25 border border-blue-500/40 text-blue-700 dark:text-blue-300 rounded inline-flex items-center gap-1 font-semibold cursor-pointer"
               title="Equip top-ranked core by combined core+copper loss, window fill, and volume"
             >
               Auto-Pick {rankedTransformerCores[0].core.name.split(' (')[0]}
@@ -897,7 +897,7 @@ export const WindingWindowVisualizer: React.FC<WindingWindowVisualizerProps> = (
         {/* Left Controls (5 cols) */}
         <div className="lg:col-span-5 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg p-3.5 space-y-3">
           <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5] flex items-center gap-1.5">
-            <Sliders className="w-3.5 h-3.5 text-cyan-500" /> Winding Form, Gap Strategy &amp; Bobbin Controls
+            <Sliders className="w-3.5 h-3.5 text-blue-500" /> Winding Form, Gap Strategy &amp; Bobbin Controls
           </div>
 
           <div className="grid grid-cols-2 gap-2.5">
@@ -1009,7 +1009,7 @@ export const WindingWindowVisualizer: React.FC<WindingWindowVisualizerProps> = (
               <div className="flex justify-between items-center text-[10px] font-mono">
                 <span className="text-slate-500 dark:text-slate-400">Margin Tape</span>
                 <div className="inline-flex items-center gap-1">
-                  <span className="text-cyan-700 dark:text-cyan-400 font-bold tabular-nums">
+                  <span className="text-blue-700 dark:text-blue-400 font-bold tabular-nums">
                     {marginTape_mm.toFixed(1)}mm
                   </span>
                   <LockToggleButton
@@ -1027,7 +1027,7 @@ export const WindingWindowVisualizer: React.FC<WindingWindowVisualizerProps> = (
                 step={0.5}
                 value={marginTape_mm}
                 onChange={(e) => marginTapeLock.setManual(Number(e.target.value))}
-                className="w-full accent-cyan-600 cursor-pointer"
+                className="w-full accent-blue-600 cursor-pointer"
               />
             </div>
 
@@ -1134,10 +1134,10 @@ export const WindingWindowVisualizer: React.FC<WindingWindowVisualizerProps> = (
           </div>
 
           <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
-            <div className="text-[10px] font-mono uppercase text-cyan-700 dark:text-cyan-400">
+            <div className="text-[10px] font-mono uppercase text-blue-700 dark:text-blue-400">
               Layer Height &amp; Packing
             </div>
-            <div className="text-sm font-mono font-bold text-cyan-700 dark:text-cyan-300 tabular-nums">
+            <div className="text-sm font-mono font-bold text-blue-700 dark:text-blue-300 tabular-nums">
               Pri {windowAnalysis.d_bundle_pri_mm}mm · Sec {windowAnalysis.d_bundle_sec_mm}mm
             </div>
             <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 tabular-nums">
@@ -1181,7 +1181,7 @@ export const WindingWindowVisualizer: React.FC<WindingWindowVisualizerProps> = (
       <div className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-lg p-3.5 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
-            <Wrench className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
+            <Wrench className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
             <span>Window Fit Budget &amp; Build-Out Solver Assistant</span>
           </div>
           <div className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400">
@@ -1210,7 +1210,7 @@ export const WindingWindowVisualizer: React.FC<WindingWindowVisualizerProps> = (
           const safeLimitPct = ((b.safeLimit_mm / scaleMax) * 100).toFixed(2);
           return (
             <div className="space-y-1.5">
-              <div className="relative h-6 w-full bg-white dark:bg-[#090C12] border border-slate-300 dark:border-slate-800 rounded overflow-hidden flex">
+              <div className="relative h-6 w-full bg-white dark:bg-[#090a0d] border border-slate-300 dark:border-slate-800 rounded overflow-hidden flex">
                 <div
                   style={{ width: pct(b.bobbin_mm) }}
                   className="h-full bg-slate-500 flex items-center justify-center text-[10px] font-mono text-white font-semibold truncate px-0.5"
@@ -1317,7 +1317,7 @@ export const WindingWindowVisualizer: React.FC<WindingWindowVisualizerProps> = (
                   key={act.id}
                   type="button"
                   onClick={act.apply}
-                  className="text-left p-2.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#0E131D] hover:border-cyan-500 dark:hover:border-cyan-400 transition-colors cursor-pointer flex flex-col justify-between gap-1.5"
+                  className="text-left p-2.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#14171f] hover:border-blue-500 dark:hover:border-blue-400 transition-colors cursor-pointer flex flex-col justify-between gap-1.5"
                 >
                   <div>
                     <div className="flex items-center justify-between gap-2">
@@ -1332,7 +1332,7 @@ export const WindingWindowVisualizer: React.FC<WindingWindowVisualizerProps> = (
                       {act.tradeoffNote}
                     </p>
                   </div>
-                  <div className="flex items-center justify-between text-[10px] font-mono text-cyan-700 dark:text-cyan-400 border-t border-slate-100 dark:border-slate-800 pt-1">
+                  <div className="flex items-center justify-between text-[10px] font-mono text-blue-700 dark:text-blue-400 border-t border-slate-100 dark:border-slate-800 pt-1">
                     <span>
                       Build: {act.predictedBuild_mm} mm
                       {act.unlocksField ? ` · Overrides ${act.unlocksField}` : ''}
@@ -1360,8 +1360,8 @@ export const WindingWindowVisualizer: React.FC<WindingWindowVisualizerProps> = (
                   onClick={() => setDcdcField('coreId', row.core.id)}
                   className={`text-left p-2 rounded border transition-colors cursor-pointer ${
                     isActive
-                      ? 'bg-cyan-500/10 border-cyan-500/60'
-                      : 'bg-white dark:bg-[#0E131D] border-slate-200 dark:border-slate-700 hover:border-cyan-500/50'
+                      ? 'bg-blue-500/10 border-blue-500/60'
+                      : 'bg-white dark:bg-[#14171f] border-slate-200 dark:border-slate-700 hover:border-blue-500/50'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-1 text-[11px] font-mono font-semibold text-slate-900 dark:text-slate-100">
@@ -1383,7 +1383,7 @@ export const WindingWindowVisualizer: React.FC<WindingWindowVisualizerProps> = (
       </div>
 
       {/* ROW 2: 2D CORE WINDOW CROSS-SECTION + SPATIAL MMF PROFILE F(x) */}
-      <div className="bg-[#090C12] border border-slate-800 rounded-lg p-3 space-y-2">
+      <div className="bg-[#090a0d] border border-slate-800 rounded-lg p-3 space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="text-[11px] font-mono text-slate-400">
             Interactive 2D Winding Cross-Section (Scroll Wheel to Zoom · Drag to Pan)
@@ -1392,18 +1392,18 @@ export const WindingWindowVisualizer: React.FC<WindingWindowVisualizerProps> = (
             <button
               type="button"
               onClick={() => setWinZoom((z) => Math.min(4, Number((z * 1.25).toFixed(2))))}
-              className="px-2 py-1 hover:bg-cyan-500/20 text-slate-200 inline-flex items-center gap-0.5 cursor-pointer"
+              className="px-2 py-1 hover:bg-blue-500/20 text-slate-200 inline-flex items-center gap-0.5 cursor-pointer"
               title="Zoom In (+)"
             >
-              <ZoomIn className="w-3.5 h-3.5 text-cyan-400" /> +
+              <ZoomIn className="w-3.5 h-3.5 text-blue-400" /> +
             </button>
             <button
               type="button"
               onClick={() => setWinZoom((z) => Math.max(0.6, Number((z / 1.25).toFixed(2))))}
-              className="px-2 py-1 border-l border-slate-700 hover:bg-cyan-500/20 text-slate-200 inline-flex items-center gap-0.5 cursor-pointer"
+              className="px-2 py-1 border-l border-slate-700 hover:bg-blue-500/20 text-slate-200 inline-flex items-center gap-0.5 cursor-pointer"
               title="Zoom Out (-)"
             >
-              <ZoomOut className="w-3.5 h-3.5 text-cyan-400" /> −
+              <ZoomOut className="w-3.5 h-3.5 text-blue-400" /> −
             </button>
             <button
               type="button"
@@ -1411,7 +1411,7 @@ export const WindingWindowVisualizer: React.FC<WindingWindowVisualizerProps> = (
                 setWinZoom(1.0);
                 setWinPan({ x: 0, y: 0 });
               }}
-              className="px-2 py-1 border-l border-slate-700 hover:bg-cyan-500/20 text-cyan-400 font-bold inline-flex items-center gap-1 cursor-pointer"
+              className="px-2 py-1 border-l border-slate-700 hover:bg-blue-500/20 text-blue-400 font-bold inline-flex items-center gap-1 cursor-pointer"
               title="Reset View (100%)"
             >
               <RotateCcw className="w-3 h-3" /> {(winZoom * 100).toFixed(0)}%
@@ -1421,7 +1421,7 @@ export const WindingWindowVisualizer: React.FC<WindingWindowVisualizerProps> = (
 
         <svg
           viewBox={`${(svgW * (1 - 1 / winZoom)) / 2 - winPan.x} ${(svgH * (1 - 1 / winZoom)) / 2 - winPan.y} ${svgW / winZoom} ${svgH / winZoom}`}
-          className="w-full h-auto select-none font-mono cursor-grab active:cursor-grabbing bg-[#070b14] rounded border border-slate-800/80"
+          className="w-full h-auto select-none font-mono cursor-grab active:cursor-grabbing bg-[#090a0d] rounded border border-slate-800/80"
           onWheel={(e) => {
             e.preventDefault();
             const factor = e.deltaY < 0 ? 1.18 : 1 / 1.18;
@@ -1729,7 +1729,7 @@ export const WindingWindowVisualizer: React.FC<WindingWindowVisualizerProps> = (
 
                 {/* Right Side Legend & Layer Inspector Panel */}
                 <g transform="translate(645, 22)">
-                  <rect x={0} y={0} width={220} height={330} rx={6} fill="#0f172a" stroke="#1e293b" />
+                  <rect x={0} y={0} width={220} height={330} rx={6} fill="#14171f" stroke="#1e293b" />
                   <text x={12} y={22} className="fill-cyan-400 text-[11px] font-bold">
                     LAYER STACKUP ({windowAnalysis.layers.length} LAYERS)
                   </text>

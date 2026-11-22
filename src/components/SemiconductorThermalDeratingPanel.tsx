@@ -210,7 +210,7 @@ export const SemiconductorThermalDeratingPanel: React.FC<
   const isWarningTemp = res.Tj_pri_C > tjLimit - 15 && !isOverTemp;
 
   return (
-    <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-4">
+    <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-4">
       {/* HEADER BAR */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
         <div>
@@ -245,7 +245,7 @@ export const SemiconductorThermalDeratingPanel: React.FC<
           </div>
           <p className="text-[11px] font-mono text-slate-500 dark:text-slate-400 mt-0.5">
             Dynamically adjusts <strong className="text-amber-400">Conduction Loss P_cond(Tj)</strong> and{' '}
-            <strong className="text-cyan-400">Switching + Qrr Loss P_sw(Tj)</strong> via self-consistent Cauer thermal feedback across{' '}
+            <strong className="text-blue-400">Switching + Qrr Loss P_sw(Tj)</strong> via self-consistent Cauer thermal feedback across{' '}
             <strong className="text-slate-200">R_th,jc ({res.priDevice.Rth_JC_CW} °C/W)</strong> +{' '}
             <strong className="text-slate-200">R_th,TIM ({rthTim.toFixed(2)} °C/W)</strong> +{' '}
             <strong className="text-emerald-400">R_th,hs ({state.Rth_heatsink_CW.toFixed(2)} °C/W)</strong> at{' '}
@@ -396,7 +396,7 @@ export const SemiconductorThermalDeratingPanel: React.FC<
             <div className="flex justify-between items-center text-[11px] font-mono mb-1 gap-1">
               <span className="text-slate-400 font-semibold">TIM Interface R_th,cs (°C/W)</span>
               <div className="flex items-center gap-1.5">
-                <span className="text-cyan-400 font-bold">{rthTim.toFixed(2)} °C/W</span>
+                <span className="text-blue-400 font-bold">{rthTim.toFixed(2)} °C/W</span>
                 <LockToggleButton
                   compact
                   locked={dcdcLocked.Rth_TIM_CW}
@@ -414,7 +414,7 @@ export const SemiconductorThermalDeratingPanel: React.FC<
                 step={0.02}
                 value={rthTim}
                 onChange={(e) => setField('Rth_TIM_CW', Number(e.target.value))}
-                className="flex-1 accent-cyan-500 cursor-pointer"
+                className="flex-1 accent-blue-500 cursor-pointer"
               />
               <input
                 type="number"
@@ -434,7 +434,7 @@ export const SemiconductorThermalDeratingPanel: React.FC<
                   onClick={() => setField('Rth_TIM_CW', p.rth)}
                   className={`px-1.5 py-0.5 text-[9.5px] font-mono rounded border cursor-pointer transition-colors ${
                     Math.abs(rthTim - p.rth) < 0.015
-                      ? 'bg-cyan-600 text-white border-cyan-500 font-bold'
+                      ? 'bg-blue-600 text-white border-blue-500 font-bold'
                       : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
                   }`}
                 >
@@ -520,7 +520,7 @@ export const SemiconductorThermalDeratingPanel: React.FC<
             2. Switching + Qrr Thermal Adjustment
           </div>
           <div className="flex items-baseline gap-2 mt-0.5">
-            <span className="text-lg font-mono font-bold text-cyan-400">
+            <span className="text-lg font-mono font-bold text-blue-400">
               {res.Psw_pri_W.toFixed(2)} W
             </span>
             <span className="text-xs font-mono text-rose-400 font-semibold">
@@ -620,14 +620,14 @@ export const SemiconductorThermalDeratingPanel: React.FC<
           </div>
 
           <div className="text-[10px] text-slate-400 flex flex-col items-center">
-            <span className="text-cyan-400 font-semibold">R_th,TIM = {rthTim.toFixed(2)} °C/W</span>
-            <span className="w-full border-b border-dashed border-cyan-500/50 my-1" />
+            <span className="text-blue-400 font-semibold">R_th,TIM = {rthTim.toFixed(2)} °C/W</span>
+            <span className="w-full border-b border-dashed border-blue-500/50 my-1" />
             <span>ΔT = {(res.Tcase_pri_C - res.Tsink_pri_C).toFixed(1)}°C</span>
           </div>
 
-          <div className="p-2 rounded bg-cyan-500/15 border border-cyan-500/40">
-            <div className="text-[10px] text-cyan-300 uppercase">Heatsink Surface T_s</div>
-            <div className="text-sm font-bold text-cyan-400">{res.Tsink_pri_C.toFixed(1)} °C</div>
+          <div className="p-2 rounded bg-blue-500/15 border border-blue-500/40">
+            <div className="text-[10px] text-blue-300 uppercase">Heatsink Surface T_s</div>
+            <div className="text-sm font-bold text-blue-400">{res.Tsink_pri_C.toFixed(1)} °C</div>
             <div className="text-[9px] text-slate-400">Sec Tj: {res.Tj_sec_C.toFixed(1)}°C</div>
           </div>
 

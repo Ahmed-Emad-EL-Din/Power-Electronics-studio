@@ -47,7 +47,7 @@ export const MosfetSymbol: React.FC<MosfetProps> = ({
       cx="0"
       cy="0"
       r="16"
-      fill="#0f172a"
+      fill="#14171f"
       fillOpacity="0.65"
       stroke={color}
       strokeWidth="1.2"
@@ -424,11 +424,11 @@ const HybridCapBankSvg: React.FC<HybridCapBankSvgProps> = ({
 const WHITE_PAPER_COLOR_MAP: Record<string, string> = {
   '#090d16': '#ffffff',
   '#0b0e17': '#ffffff',
-  '#0f172a': '#f8fafc',
+  '#14171f': '#f8fafc',
   '#1e293b': '#e2e8f0',
-  '#cbd5e1': '#0f172a',
-  '#e2e8f0': '#0f172a',
-  '#f8fafc': '#0f172a',
+  '#cbd5e1': '#14171f',
+  '#e2e8f0': '#14171f',
+  '#f8fafc': '#14171f',
   '#94a3b8': '#475569',
   '#64748b': '#475569',
   '#06b6d4': '#0369a1',
@@ -447,7 +447,7 @@ const WHITE_PAPER_COLOR_MAP: Record<string, string> = {
 export function cloneSvgForWhitePaper(svgEl: SVGSVGElement): { clone: SVGSVGElement; vbW: number; vbH: number } {
   const clone = svgEl.cloneNode(true) as SVGSVGElement;
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-  clone.setAttribute('style', 'color: #0f172a; font-family: "IBM Plex Mono", ui-monospace, monospace;');
+  clone.setAttribute('style', 'color: #14171f; font-family: "IBM Plex Mono", ui-monospace, monospace;');
 
   let vbW = 1120;
   let vbH = 510;
@@ -475,8 +475,8 @@ export function cloneSvgForWhitePaper(svgEl: SVGSVGElement): { clone: SVGSVGElem
     const mappedStroke = mapColor(stroke);
     if (mappedFill) el.setAttribute('fill', mappedFill);
     if (mappedStroke) el.setAttribute('stroke', mappedStroke);
-    if (fill === 'currentColor') el.setAttribute('fill', '#0f172a');
-    if (stroke === 'currentColor') el.setAttribute('stroke', '#0f172a');
+    if (fill === 'currentColor') el.setAttribute('fill', '#14171f');
+    if (stroke === 'currentColor') el.setAttribute('stroke', '#14171f');
     // Ensure dark enclosure opacity boxes stay light & crisp on paper
     if (mappedFill === '#f8fafc' && el.getAttribute('fill-opacity')) {
       el.setAttribute('fill-opacity', '0.7');
@@ -631,7 +631,7 @@ const DcDcSchematicSvgContent: React.FC<{
           <>
             <line x1="36" y1="60" x2="36" y2="162" />
             <line x1="36" y1="206" x2="36" y2="310" />
-            <circle cx="36" cy="184" r="21" fill="#0f172a" stroke="#06b6d4" strokeWidth="2" />
+            <circle cx="36" cy="184" r="21" fill="#14171f" stroke="#06b6d4" strokeWidth="2" />
             <text x="36" y="181" textAnchor="middle" stroke="none" fill="#06b6d4" fontSize="9.5" fontWeight="bold">
               Vin
             </text>
@@ -737,7 +737,7 @@ const DcDcSchematicSvgContent: React.FC<{
                   width="210"
                   height="38"
                   rx="4"
-                  fill="#0f172a"
+                  fill="#14171f"
                   stroke="#06b6d4"
                   strokeWidth="1.3"
                   strokeDasharray="4 2"
@@ -1067,7 +1067,7 @@ const DcDcSchematicSvgContent: React.FC<{
                   width="135"
                   height="34"
                   rx="4"
-                  fill="#0f172a"
+                  fill="#14171f"
                   stroke="#38bdf8"
                   strokeWidth="1.3"
                 />
@@ -1087,7 +1087,7 @@ const DcDcSchematicSvgContent: React.FC<{
                   width="135"
                   height="34"
                   rx="4"
-                  fill="#0f172a"
+                  fill="#14171f"
                   stroke="#f59e0b"
                   strokeWidth="1.3"
                 />
@@ -1206,7 +1206,7 @@ const DcDcSchematicSvgContent: React.FC<{
               width="355"
               height="95"
               rx="6"
-              fill="#0f172a"
+              fill="#14171f"
               stroke="#06b6d4"
               strokeWidth="1.8"
             />
@@ -1299,7 +1299,7 @@ export const DcDcSchematicView: React.FC<{ res: DcDcResults }> = ({ res }) => {
   const isSync = state.rectMode === 'sync-fet';
 
   return (
-    <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+    <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
       {/* Compact Header Bar */}
       <div className="px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 bg-slate-50/70 dark:bg-slate-900/50">
         <div className="flex items-center gap-2 flex-wrap">
@@ -1341,7 +1341,7 @@ export const DcDcSchematicView: React.FC<{ res: DcDcResults }> = ({ res }) => {
           <button
             type="button"
             onClick={exportSvg}
-            className="px-2 py-1 text-[11px] font-mono bg-cyan-600 text-white rounded hover:bg-cyan-500 inline-flex items-center gap-1 whitespace-nowrap shrink-0"
+            className="px-2 py-1 text-[11px] font-mono bg-blue-600 text-white rounded hover:bg-blue-500 inline-flex items-center gap-1 whitespace-nowrap shrink-0"
           >
             <Download className="w-3 h-3" /> SVG
           </button>
@@ -1491,7 +1491,7 @@ const AcDcSchematicSvgContent: React.FC<{
               width="270"
               height="304"
               rx="5"
-              fill="#0f172a"
+              fill="#14171f"
               fillOpacity="0.35"
               stroke="#06b6d4"
               strokeWidth="1"
@@ -1504,7 +1504,7 @@ const AcDcSchematicSvgContent: React.FC<{
               width="275"
               height="304"
               rx="5"
-              fill="#0f172a"
+              fill="#14171f"
               fillOpacity="0.35"
               stroke="#10b981"
               strokeWidth="1"
@@ -1559,7 +1559,7 @@ const AcDcSchematicSvgContent: React.FC<{
             {/* ============================================================== */}
             {/* AC Mains Source at x=42, y=190 */}
             <line x1="42" y1="115" x2="42" y2="170" stroke="#38bdf8" strokeWidth="1.8" />
-            <circle cx="42" cy="190" r="19" fill="#0f172a" stroke="#38bdf8" strokeWidth="2" />
+            <circle cx="42" cy="190" r="19" fill="#14171f" stroke="#38bdf8" strokeWidth="2" />
             <path d="M 32 190 Q 37 179 42 190 T 52 190" fill="none" stroke="#38bdf8" strokeWidth="1.8" />
             <text x="42" y="160" textAnchor="middle" fill="#38bdf8" fontSize="8.5" fontWeight="bold">
               {state.Vac_rms_V}Vac
@@ -1600,7 +1600,7 @@ const AcDcSchematicSvgContent: React.FC<{
 
             {/* Bleeder Resistor R_bleed across Cx1 at x=112 */}
             <line x1="112" y1="115" x2="112" y2="170" stroke="#64748b" strokeWidth="1.2" strokeDasharray="2 2" />
-            <rect x="106" y="170" width="12" height="36" rx="2" fill="#0f172a" stroke="#64748b" strokeWidth="1.3" />
+            <rect x="106" y="170" width="12" height="36" rx="2" fill="#14171f" stroke="#64748b" strokeWidth="1.3" />
             <text x="112" y="191" textAnchor="middle" fill="#94a3b8" fontSize="6.5">
               Rb
             </text>
@@ -1680,7 +1680,7 @@ const AcDcSchematicSvgContent: React.FC<{
               width="38"
               height="14"
               rx="2"
-              fill="#0f172a"
+              fill="#14171f"
               stroke="#f59e0b"
               strokeWidth="1.6"
             />
@@ -2188,7 +2188,7 @@ const AcDcSchematicSvgContent: React.FC<{
               width="520"
               height="98"
               rx="6"
-              fill="#0f172a"
+              fill="#14171f"
               stroke="#06b6d4"
               strokeWidth="1.8"
             />
@@ -2477,7 +2477,7 @@ export const AcDcSchematicView: React.FC<{
               width="32"
               height="13"
               rx="3"
-              fill={isSelected ? node.color : '#0f172a'}
+              fill={isSelected ? node.color : '#14171f'}
               stroke={node.color}
               strokeWidth="1.1"
             />
@@ -2498,7 +2498,7 @@ export const AcDcSchematicView: React.FC<{
   };
 
   return (
-    <div className={reportOnly ? 'bg-white border border-slate-300 rounded p-2' : 'bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden'}>
+    <div className={reportOnly ? 'bg-white border border-slate-300 rounded p-2' : 'bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden'}>
       {/* Top Toolbar: Live Topology Switcher, Conduction Path & Export */}
       {!reportOnly && (
       <div className="px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 bg-slate-50/70 dark:bg-slate-900/50">
@@ -2517,7 +2517,7 @@ export const AcDcSchematicView: React.FC<{
             onClick={() => setShowPinBadges((v) => !v)}
             className={`px-2 py-1 text-[10px] font-mono font-semibold rounded border transition-colors cursor-pointer ${
               showPinBadges
-                ? 'bg-cyan-500/15 border-cyan-500 text-cyan-600 dark:text-cyan-300'
+                ? 'bg-blue-500/15 border-blue-500 text-blue-600 dark:text-blue-300'
                 : 'bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-500'
             }`}
           >
@@ -2530,7 +2530,7 @@ export const AcDcSchematicView: React.FC<{
               onClick={() => setHalfCycleMode('both')}
               className={`px-2 py-1 cursor-pointer ${
                 halfCycleMode === 'both'
-                  ? 'bg-cyan-600 text-white font-bold'
+                  ? 'bg-blue-600 text-white font-bold'
                   : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400'
               }`}
             >
@@ -2586,7 +2586,7 @@ export const AcDcSchematicView: React.FC<{
           <button
             type="button"
             onClick={exportSvg}
-            className="px-2 py-1 text-[11px] font-mono bg-cyan-600 text-white rounded hover:bg-cyan-500 inline-flex items-center gap-1"
+            className="px-2 py-1 text-[11px] font-mono bg-blue-600 text-white rounded hover:bg-blue-500 inline-flex items-center gap-1"
           >
             <Download className="w-3 h-3" /> SVG
           </button>
@@ -2674,15 +2674,15 @@ export const AcDcSchematicView: React.FC<{
                 onClick={() => onTopologyChange(item.id)}
                 className={`px-2.5 py-1 rounded text-[11px] font-mono transition-colors cursor-pointer ${
                   state.topology === item.id
-                    ? 'bg-cyan-600 text-white font-bold shadow-xs'
-                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-cyan-500/50'
+                    ? 'bg-blue-600 text-white font-bold shadow-xs'
+                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-blue-500/50'
                 }`}
               >
                 {item.label}
               </button>
             ))}
           </div>
-          <span className="text-[10px] font-mono text-cyan-600 dark:text-cyan-400">
+          <span className="text-[10px] font-mono text-blue-600 dark:text-blue-400">
             Click any N1–N10 pin on the schematic to inspect filter & bus capacitor connections
           </span>
         </div>
@@ -2724,7 +2724,7 @@ export const AcDcSchematicView: React.FC<{
             <span className="text-xs font-medium text-slate-900 dark:text-[#eef0f5]">
               Component Connection Point &amp; Pin Netlist Inspector
             </span>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-600 dark:text-cyan-300 border border-cyan-500/30">
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-300 border border-blue-500/30">
               Selected: {activeNode.code}
             </span>
           </div>
@@ -2736,9 +2736,9 @@ export const AcDcSchematicView: React.FC<{
                 onClick={() => setSelectedNodeId(n.id)}
                 className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors cursor-pointer ${
                   selectedNodeId === n.id
-                    ? 'bg-cyan-600 text-white font-bold'
+                    ? 'bg-blue-600 text-white font-bold'
                     : n.stage === 'input-filter'
-                    ? 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/20'
+                    ? 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/30 hover:bg-blue-500/20'
                     : n.stage === 'bus-cap'
                     ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/20'
                     : 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/30 hover:bg-purple-500/20'
@@ -2752,7 +2752,7 @@ export const AcDcSchematicView: React.FC<{
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 text-xs font-mono">
           {/* Selected Node Pin Connections */}
-          <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded p-3">
+          <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded p-3">
             <div className="text-[10px] uppercase text-slate-500 mb-1 flex items-center justify-between">
               <span>Active Node & Connected Component Pins</span>
               <span
@@ -2783,11 +2783,11 @@ export const AcDcSchematicView: React.FC<{
           </div>
 
           {/* Live Electrical Telemetry at Node */}
-          <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded p-3">
+          <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded p-3">
             <div className="text-[10px] uppercase text-slate-500 mb-1">
               Live Node Electrical Telemetry
             </div>
-            <div className="text-cyan-600 dark:text-cyan-400 font-bold mb-1.5">{activeNode.telemetry}</div>
+            <div className="text-blue-600 dark:text-blue-400 font-bold mb-1.5">{activeNode.telemetry}</div>
             <div className="text-[11px] text-slate-600 dark:text-slate-400">
               {activeNode.stage === 'input-filter'
                 ? `DM Corner: ${res.fc_dm_kHz.toFixed(1)} kHz | EMI Fund: ${res.f_emi_fundamental_kHz.toFixed(0)} kHz | Required Atten: ${res.RequiredAtt_dB.toFixed(1)} dB`
@@ -2798,7 +2798,7 @@ export const AcDcSchematicView: React.FC<{
           </div>
 
           {/* Hardware Layout & Parasitic Inductance Rule */}
-          <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded p-3">
+          <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded p-3">
             <div className="text-[10px] uppercase text-amber-600 dark:text-amber-400 font-bold mb-1">
               PCB Layout & Connection Point Guideline
             </div>
@@ -2860,7 +2860,7 @@ export const CombinedSystemSchematicView: React.FC<{
   const vdcMismatch = Math.abs(acdcState.Vdc_bus_V - dcdcState.Vin_nom_V) > 2;
 
   return (
-    <div className={reportOnly ? 'bg-white border border-slate-300 rounded p-2' : 'bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden'}>
+    <div className={reportOnly ? 'bg-white border border-slate-300 rounded p-2' : 'bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden'}>
       {!reportOnly && (
         <div className="px-3.5 py-2.5 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 bg-slate-50/70 dark:bg-slate-900/50">
           <div className="flex items-center gap-2 flex-wrap">
@@ -2930,7 +2930,7 @@ export const CombinedSystemSchematicView: React.FC<{
             <button
               type="button"
               onClick={exportPng}
-              className="px-2.5 py-1 text-[11px] font-mono bg-cyan-600 hover:bg-cyan-500 text-white rounded inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
+              className="px-2.5 py-1 text-[11px] font-mono bg-blue-600 hover:bg-blue-500 text-white rounded inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
             >
               <ImageIcon className="w-3 h-3" /> PNG
             </button>
@@ -3024,7 +3024,7 @@ export const CombinedSystemSchematicView: React.FC<{
               width="1174"
               height="462"
               rx="6"
-              fill="#0f172a"
+              fill="#14171f"
               fillOpacity="0.22"
               stroke="#06b6d4"
               strokeWidth="1.2"
@@ -3061,7 +3061,7 @@ export const CombinedSystemSchematicView: React.FC<{
             <circle cx="1097" cy="323" r="4" fill="#10b981" />
 
             {/* DC-Link Telemetry Callout on Left of Inter-Stage Corridor */}
-            <rect x="44" y="492" width="232" height="28" rx="4" fill="#0f172a" stroke="#f59e0b" strokeWidth="1.3" />
+            <rect x="44" y="492" width="232" height="28" rx="4" fill="#14171f" stroke="#f59e0b" strokeWidth="1.3" />
             <text x="160" y="505" textAnchor="middle" fill="#fde68a" fontSize="8" fontWeight="bold">
               +VDC_BUS LINK: {acdcState.Vdc_bus_V}Vdc
             </text>
@@ -3106,7 +3106,7 @@ export const CombinedSystemSchematicView: React.FC<{
               <g>
                 <rect x="298" y="486" width="590" height="50" rx="6" fill="#451a03" fillOpacity="0.82" stroke="#f59e0b" strokeWidth="1.8" />
                 <line x1="593" y1="488" x2="593" y2="534" stroke="#f59e0b" strokeWidth="1.5" strokeDasharray="3 2" />
-                <rect x="546" y="497" width="94" height="28" rx="4" fill="#0f172a" stroke="#fbbf24" strokeWidth="1.2" />
+                <rect x="546" y="497" width="94" height="28" rx="4" fill="#14171f" stroke="#fbbf24" strokeWidth="1.2" />
                 <text x="593" y="509" textAnchor="middle" fill="#fcd34d" fontSize="7.5" fontWeight="bold">
                   ISO HANDSHAKE
                 </text>
@@ -3135,7 +3135,7 @@ export const CombinedSystemSchematicView: React.FC<{
               width="1174"
               height="504"
               rx="6"
-              fill="#0f172a"
+              fill="#14171f"
               fillOpacity="0.22"
               stroke="#10b981"
               strokeWidth="1.2"
@@ -3150,7 +3150,7 @@ export const CombinedSystemSchematicView: React.FC<{
             </g>
 
             {/* SYSTEM-WIDE TELEMETRY FOOTER BAR */}
-            <rect x="8" y="1080" width="1174" height="46" rx="6" fill="#0f172a" stroke="#06b6d4" strokeWidth="1.5" />
+            <rect x="8" y="1080" width="1174" height="46" rx="6" fill="#14171f" stroke="#06b6d4" strokeWidth="1.5" />
             <text x="595" y="1099" textAnchor="middle" fill="#06b6d4" fontSize="10" fontWeight="bold">
               COMBINED 2-STAGE POWER SYSTEM ({sharedMcu ? 'SAME SHARED MCU' : 'SEPARATE MCUs'}): {acdcState.Vac_rms_V}Vrms AC → {acdcState.Vdc_bus_V}V DC-LINK → {dcdcState.Vout_V}Vdc ({dcdcState.Pout_W}W)
             </text>

@@ -436,10 +436,10 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
   return (
     <div className="space-y-4">
       {/* 0. HYBRID MULTI-BRANCH CAPACITOR BANK COMPOSER (Cin / Cout / Cdc) */}
-      <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+      <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <Layers className="w-4 h-4 text-cyan-500 shrink-0" />
+            <Layers className="w-4 h-4 text-blue-500 shrink-0" />
             <div>
               <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
                 Hardware Hybrid Capacitor Bank Composer (Parallel Multi-Technology Matrix)
@@ -458,7 +458,7 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
                   onClick={() => setHybridRole('dcdc-cin')}
                   className={`px-2.5 py-1 rounded text-xs font-mono border cursor-pointer ${
                     hybridRole === 'dcdc-cin'
-                      ? 'bg-cyan-600 border-cyan-600 text-white font-semibold'
+                      ? 'bg-blue-600 border-blue-600 text-white font-semibold'
                       : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300'
                   }`}
                 >
@@ -469,7 +469,7 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
                   onClick={() => setHybridRole('dcdc-cout')}
                   className={`px-2.5 py-1 rounded text-xs font-mono border cursor-pointer ${
                     hybridRole === 'dcdc-cout'
-                      ? 'bg-cyan-600 border-cyan-600 text-white font-semibold'
+                      ? 'bg-blue-600 border-blue-600 text-white font-semibold'
                       : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300'
                   }`}
                 >
@@ -477,7 +477,7 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
                 </button>
               </>
             ) : (
-              <span className="px-2.5 py-1 rounded text-xs font-mono bg-cyan-600 text-white font-semibold">
+              <span className="px-2.5 py-1 rounded text-xs font-mono bg-blue-600 text-white font-semibold">
                 C_DC (HV DC-Link Bank)
               </span>
             )}
@@ -501,7 +501,7 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
                   key={p.id}
                   type="button"
                   onClick={() => applyHybridPreset(p.id)}
-                  className="px-2.5 py-1 rounded text-[11px] font-mono bg-slate-100 hover:bg-cyan-50 dark:bg-slate-900 dark:hover:bg-cyan-950/40 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 hover:border-cyan-500 cursor-pointer"
+                  className="px-2.5 py-1 rounded text-[11px] font-mono bg-slate-100 hover:bg-blue-50 dark:bg-slate-900 dark:hover:bg-blue-950/40 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 hover:border-blue-500 cursor-pointer"
                 >
                   {p.label}
                 </button>
@@ -523,7 +523,7 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2.5 text-xs font-mono">
             <div className="p-2.5 rounded border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50">
               <div className="text-[10px] text-slate-500 uppercase">Active Topology</div>
-              <div className="font-semibold text-cyan-600 dark:text-cyan-400 truncate" title={hybridSol.summaryLabel}>
+              <div className="font-semibold text-blue-600 dark:text-blue-400 truncate" title={hybridSol.summaryLabel}>
                 {hybridSol.summaryLabel}
               </div>
               <div className="text-[10px] text-slate-500">{hybridSol.totalUnits} total units</div>
@@ -700,7 +700,7 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
                       />
                     </td>
                     <td className="py-2 px-2.5 tabular-nums">
-                      <div className="font-semibold text-cyan-600 dark:text-cyan-400">
+                      <div className="font-semibold text-blue-600 dark:text-blue-400">
                         {br.I_total_branch_A.toFixed(2)} A ({br.rippleShare_pct.toFixed(0)}%)
                       </div>
                       <div className={`text-[10px] ${
@@ -786,7 +786,7 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
       </div>
 
       {/* 1. ALL CIRCUIT CAPACITORS MATRIX */}
-      <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+      <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
         <div className="px-4 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 flex flex-wrap items-center justify-between gap-2">
           <div>
             <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
@@ -828,7 +828,7 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
                     onClick={() => setSelectedId(req.id)}
                     className={`cursor-pointer transition-colors ${
                       isSelected
-                        ? 'bg-cyan-50/70 dark:bg-cyan-950/25'
+                        ? 'bg-blue-50/70 dark:bg-blue-950/25'
                         : 'hover:bg-slate-50 dark:hover:bg-slate-900/40'
                     }`}
                   >
@@ -837,7 +837,7 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
                       <div className="text-[10px] font-sans text-slate-500 truncate max-w-[200px]">{req.name}</div>
                     </td>
                     <td className="py-2.5 px-3 tabular-nums">
-                      <div className="text-cyan-600 dark:text-cyan-400 font-semibold">{formatCapValue(req.targetC_uF)}</div>
+                      <div className="text-blue-600 dark:text-blue-400 font-semibold">{formatCapValue(req.targetC_uF)}</div>
                       <div className="text-[10px] text-slate-500">{req.V_op_pk_V.toFixed(0)} Vpk</div>
                     </td>
                     <td className="py-2.5 px-3 tabular-nums text-slate-800 dark:text-slate-200">
@@ -891,11 +891,11 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
       </div>
 
       {/* 2. SELECTED CAPACITOR WORKBENCH HEADER */}
-      <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-3">
+      <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
-              <BatteryCharging className="w-4 h-4 text-cyan-500" />
+              <BatteryCharging className="w-4 h-4 text-blue-500" />
               <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                 {activeReq.designator} — {activeReq.name}
               </h3>
@@ -910,7 +910,7 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
                 onClick={() => updateActiveCfg((p) => ({ ...p, viewMode: 'builder' }))}
                 className={`px-3 py-1.5 text-xs font-medium inline-flex items-center gap-1.5 cursor-pointer transition-colors ${
                   activeCfg.viewMode === 'builder'
-                    ? 'bg-cyan-600 text-white'
+                    ? 'bg-blue-600 text-white'
                     : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300'
                 }`}
               >
@@ -922,7 +922,7 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
                 onClick={() => updateActiveCfg((p) => ({ ...p, viewMode: 'catalog' }))}
                 className={`px-3 py-1.5 text-xs font-medium inline-flex items-center gap-1.5 cursor-pointer transition-colors ${
                   activeCfg.viewMode === 'catalog'
-                    ? 'bg-cyan-600 text-white'
+                    ? 'bg-blue-600 text-white'
                     : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300'
                 }`}
               >
@@ -993,7 +993,7 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
                   className={`px-2.5 py-1 rounded text-[11px] font-medium inline-flex items-center gap-1.5 cursor-pointer transition-colors ${
                     idx === 0
                       ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                      : 'bg-white dark:bg-[#131A26] border border-slate-300 dark:border-slate-700 hover:border-cyan-500 text-slate-800 dark:text-slate-200'
+                      : 'bg-white dark:bg-[#1c202b] border border-slate-300 dark:border-slate-700 hover:border-blue-500 text-slate-800 dark:text-slate-200'
                   }`}
                   title={fix.impact}
                 >
@@ -1016,9 +1016,9 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
         <div className="space-y-4">
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
             {/* Controls Card */}
-            <div className="xl:col-span-5 bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-3">
+            <div className="xl:col-span-5 bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-3">
               <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
-                <div className="text-xs font-mono font-bold uppercase text-cyan-600 dark:text-cyan-400">
+                <div className="text-xs font-mono font-bold uppercase text-blue-600 dark:text-blue-400">
                   Bank Synthesis Controls (Lock / Auto)
                 </div>
                 <button
@@ -1030,7 +1030,7 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
                       overrides: {},
                     }))
                   }
-                  className="text-[11px] font-medium text-cyan-600 dark:text-cyan-400 hover:underline cursor-pointer"
+                  className="text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
                 >
                   Auto-Solve Optimal Matrix
                 </button>
@@ -1157,7 +1157,7 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
               <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs font-mono border-t border-slate-200 dark:border-slate-800 pt-2.5">
                 <div className="flex justify-between">
                   <span className="text-slate-500">Bank C_total:</span>
-                  <span className="font-semibold text-cyan-600 dark:text-cyan-400 tabular-nums">{formatCapValue(sol.bank_C_uF)}</span>
+                  <span className="font-semibold text-blue-600 dark:text-blue-400 tabular-nums">{formatCapValue(sol.bank_C_uF)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Bank V_rated:</span>
@@ -1185,7 +1185,7 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
             </div>
 
             {/* Impedance vs Frequency Chart */}
-            <div className="xl:col-span-7 bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg p-4">
+            <div className="xl:col-span-7 bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-4">
               <InteractiveChart
                 title={`Capacitor Bank Impedance |Z(f)| & Self-Resonant Notch (${activeReq.designator})`}
                 subtitle={`Total ESL=${sol.bank_ESL_nH.toFixed(1)}nH, ESR=${sol.bank_ESR_mOhm.toFixed(1)}mΩ · f_SRF=${sol.f_SRF_kHz.toFixed(0)}kHz · f_sw=${activeReq.f_sw_kHz.toFixed(0)}kHz`}
@@ -1210,10 +1210,10 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
       {/* VIEW B: READY COTS CAPACITOR CATALOG MATCHER                         */}
       {/* ==================================================================== */}
       {activeCfg.viewMode === 'catalog' && (
-        <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+        <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 flex flex-wrap items-center justify-between gap-2">
             <div>
-              <div className="text-xs font-mono font-bold uppercase text-cyan-600 dark:text-cyan-400">
+              <div className="text-xs font-mono font-bold uppercase text-blue-600 dark:text-blue-400">
                 Off-The-Shelf Capacitor Selector ({activeReq.designator})
               </div>
               <div className="text-[11px] text-slate-500 dark:text-slate-400">
@@ -1268,7 +1268,7 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
                         {cand.seriesCount}S × {cand.parallelCount}P ({cand.totalUnits}×)
                       </td>
                       <td className="py-2.5 px-3 tabular-nums">
-                        <div className="text-cyan-600 dark:text-cyan-400 font-semibold">{formatCapValue(cand.bank_C_uF)}</div>
+                        <div className="text-blue-600 dark:text-blue-400 font-semibold">{formatCapValue(cand.bank_C_uF)}</div>
                         <div className="text-[10px] text-slate-500">
                           {cand.bank_V_rated_V}V ({cand.voltageDerating_pct.toFixed(0)}%)
                         </div>
@@ -1295,7 +1295,7 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
                           className={`px-2.5 py-1 rounded text-xs font-medium inline-flex items-center gap-1 cursor-pointer ${
                             isActive
                               ? 'bg-emerald-600 text-white'
-                              : 'bg-cyan-600 hover:bg-cyan-500 text-white'
+                              : 'bg-blue-600 hover:bg-blue-500 text-white'
                           }`}
                         >
                           {isActive ? (

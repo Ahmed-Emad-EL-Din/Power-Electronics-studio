@@ -418,7 +418,7 @@ export const BhLoopVisualizer: React.FC<BhLoopVisualizerProps> = ({
   };
 
   return (
-    <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-4">
+    <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-4">
       {/* Header Bar with Saturation & Core Heating Status Badges + Quick Actions */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
         <div>
@@ -467,7 +467,7 @@ export const BhLoopVisualizer: React.FC<BhLoopVisualizerProps> = ({
             </span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-mono">
-            {core.name} (<span className="text-cyan-400">Ae={core.Ae_mm2}mm²</span>,{' '}
+            {core.name} (<span className="text-blue-400">Ae={core.Ae_mm2}mm²</span>,{' '}
             <span className="text-purple-400">le={core.le_mm}mm</span>,{' '}
             <span className="text-emerald-400">Ve={(core.Ve_mm3 / 1000).toFixed(2)}cm³</span>,{' '}
             <span className="text-amber-400">Rθ,core={core.Rth_core_CW}°C/W</span>) · Material:{' '}
@@ -506,7 +506,7 @@ export const BhLoopVisualizer: React.FC<BhLoopVisualizerProps> = ({
             onClick={() => setZoomToMinorLoop((z) => !z)}
             className={`px-2.5 py-1 text-[11px] font-mono rounded border inline-flex items-center gap-1 cursor-pointer ${
               zoomToMinorLoop
-                ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300 font-semibold'
+                ? 'bg-blue-500/20 border-blue-500/50 text-blue-300 font-semibold'
                 : 'bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300'
             }`}
           >
@@ -547,18 +547,18 @@ export const BhLoopVisualizer: React.FC<BhLoopVisualizerProps> = ({
               <button
                 type="button"
                 onClick={() => setBhZoomFactor((z) => Math.min(8, Number((z * 1.35).toFixed(2))))}
-                className="px-2 py-1 hover:bg-cyan-500/20 text-slate-700 dark:text-slate-200 inline-flex items-center gap-0.5 cursor-pointer"
+                className="px-2 py-1 hover:bg-blue-500/20 text-slate-700 dark:text-slate-200 inline-flex items-center gap-0.5 cursor-pointer"
                 title="Zoom In (+)"
               >
-                <ZoomIn className="w-3.5 h-3.5 text-cyan-400" /> +
+                <ZoomIn className="w-3.5 h-3.5 text-blue-400" /> +
               </button>
               <button
                 type="button"
                 onClick={() => setBhZoomFactor((z) => Math.max(0.35, Number((z / 1.35).toFixed(2))))}
-                className="px-2 py-1 border-l border-slate-300 dark:border-slate-700 hover:bg-cyan-500/20 text-slate-700 dark:text-slate-200 inline-flex items-center gap-0.5 cursor-pointer"
+                className="px-2 py-1 border-l border-slate-300 dark:border-slate-700 hover:bg-blue-500/20 text-slate-700 dark:text-slate-200 inline-flex items-center gap-0.5 cursor-pointer"
                 title="Zoom Out (-)"
               >
-                <ZoomOut className="w-3.5 h-3.5 text-cyan-400" /> −
+                <ZoomOut className="w-3.5 h-3.5 text-blue-400" /> −
               </button>
               <button
                 type="button"
@@ -566,7 +566,7 @@ export const BhLoopVisualizer: React.FC<BhLoopVisualizerProps> = ({
                   setBhZoomFactor(1.0);
                   setBhPan({ h: 0, b: 0 });
                 }}
-                className="px-2 py-1 border-l border-slate-300 dark:border-slate-700 hover:bg-cyan-500/20 text-cyan-400 font-bold cursor-pointer"
+                className="px-2 py-1 border-l border-slate-300 dark:border-slate-700 hover:bg-blue-500/20 text-blue-400 font-bold cursor-pointer"
                 title="Reset Zoom & Pan (100%)"
               >
                 {(bhZoomFactor * 100).toFixed(0)}%
@@ -611,7 +611,7 @@ export const BhLoopVisualizer: React.FC<BhLoopVisualizerProps> = ({
                 </span>
               </div>
               <div className="text-slate-400">
-                Phase <strong className="text-cyan-300">{activeHoverPoint.phase_deg}°</strong>: H=
+                Phase <strong className="text-blue-300">{activeHoverPoint.phase_deg}°</strong>: H=
                 <strong className="text-amber-300">{activeHoverPoint.H_Am} A/m</strong> ({activeHoverPoint.Im_A}A) · B=
                 <strong className="text-emerald-300">{activeHoverPoint.B_mT} mT</strong> · µinc=
                 <strong className="text-purple-300">{activeHoverPoint.mu_inc_rel}</strong>
@@ -622,7 +622,7 @@ export const BhLoopVisualizer: React.FC<BhLoopVisualizerProps> = ({
             <div className="relative w-full overflow-x-auto">
               <svg
                 viewBox={`0 0 ${svgW} ${svgH}`}
-                className="w-full h-auto select-none cursor-grab active:cursor-grabbing bg-[#070B14] rounded border border-slate-800/90"
+                className="w-full h-auto select-none cursor-grab active:cursor-grabbing bg-[#090a0d] rounded border border-slate-800/90"
                 onWheel={(e) => {
                   e.preventDefault();
                   const factor = e.deltaY < 0 ? 1.2 : 1 / 1.2;
@@ -934,7 +934,7 @@ export const BhLoopVisualizer: React.FC<BhLoopVisualizerProps> = ({
                 cy={toY(activeHoverPoint.B_mT)}
                 r="5.5"
                 fill="#22d3ee"
-                stroke="#0f172a"
+                stroke="#14171f"
                 strokeWidth="2"
               />
 
@@ -1010,10 +1010,10 @@ export const BhLoopVisualizer: React.FC<BhLoopVisualizerProps> = ({
             <div className="p-2.5 rounded bg-slate-900/90 border border-slate-800 space-y-1">
               <div className="flex items-center justify-between text-[11px] font-mono">
                 <span className="text-slate-400 inline-flex items-center gap-1">
-                  <Compass className="w-3.5 h-3.5 text-cyan-400" />
+                  <Compass className="w-3.5 h-3.5 text-blue-400" />
                   Cycle Phase Scrubber θ (Inspect Loop Point):
                 </span>
-                <span className="text-cyan-400 font-bold">
+                <span className="text-blue-400 font-bold">
                   {activeHoverPoint.phase_deg}° ({activeHoverPoint.H_Am} A/m, {activeHoverPoint.B_mT} mT)
                 </span>
               </div>
@@ -1023,7 +1023,7 @@ export const BhLoopVisualizer: React.FC<BhLoopVisualizerProps> = ({
                 max={biasedLoop.points.length - 1}
                 value={hoverPhaseIdx ?? 18}
                 onChange={(e) => setHoverPhaseIdx(Number(e.target.value))}
-                className="w-full accent-cyan-400 cursor-pointer"
+                className="w-full accent-blue-400 cursor-pointer"
               />
             </div>
 
@@ -1117,7 +1117,7 @@ export const BhLoopVisualizer: React.FC<BhLoopVisualizerProps> = ({
                 <div className="text-[10px] text-slate-400">Headroom to Bs(100°C)</div>
                 <div
                   className={`text-sm font-bold ${
-                    biasedLoop.headroom_mT > 80 ? 'text-cyan-400' : 'text-rose-400'
+                    biasedLoop.headroom_mT > 80 ? 'text-blue-400' : 'text-rose-400'
                   }`}
                 >
                   {Math.max(0, biasedLoop.headroom_mT).toFixed(1)} mT
@@ -1360,7 +1360,7 @@ export const BhLoopVisualizer: React.FC<BhLoopVisualizerProps> = ({
             <div className="space-y-1">
               <div className="flex justify-between text-[11px]">
                 <span className="text-slate-400">Switching Frequency f_sw:</span>
-                <span className="font-bold text-cyan-400">
+                <span className="font-bold text-blue-400">
                   {activeSteinmetzMetrics.fsw_kHz} kHz
                 </span>
               </div>
@@ -1374,7 +1374,7 @@ export const BhLoopVisualizer: React.FC<BhLoopVisualizerProps> = ({
                   setSandboxActive(true);
                   setTestFsw_kHz(Number(e.target.value));
                 }}
-                className="w-full accent-cyan-400 cursor-pointer"
+                className="w-full accent-blue-400 cursor-pointer"
               />
             </div>
 
@@ -1490,7 +1490,7 @@ export const BhLoopVisualizer: React.FC<BhLoopVisualizerProps> = ({
 
               <div className="p-2 rounded bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
                 <div className="text-[10px] text-slate-400">Core Temp Rise ΔT_core</div>
-                <div className="text-sm font-bold text-cyan-400">
+                <div className="text-sm font-bold text-blue-400">
                   +{activeSteinmetzMetrics.deltaT_total_C} °C
                 </div>
                 <div className="text-[10px] text-slate-500">

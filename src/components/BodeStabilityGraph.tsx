@@ -499,7 +499,7 @@ export const BodeStabilityGraph: React.FC<BodeStabilityGraphProps> = ({
   };
 
   return (
-    <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-3">
+    <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-3">
       {/* Top Header: Title, Stability Verdict Badge, Trace Toggles & Zoom/Pan Controls */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
         <div>
@@ -523,14 +523,14 @@ export const BodeStabilityGraph: React.FC<BodeStabilityGraphProps> = ({
               {isStable ? 'Stable across ±15% L / ±20% C corners' : 'Margin warning (<45° PM or <6dB GM)'}
             </span>
             {isZoomedOrPanned && (
-              <span className="px-2 py-0.5 text-[10px] font-mono tabular-nums rounded bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30">
+              <span className="px-2 py-0.5 text-[10px] font-mono tabular-nums rounded bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/30">
                 Span: {formatFreq(fMin)} – {formatFreq(fMax)}
               </span>
             )}
           </div>
           <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
             Click 2 points to measure roll-off slope (<strong className="text-amber-600 dark:text-amber-300">dB/dec</strong> &amp; <strong className="text-pink-600 dark:text-pink-300">dB/oct</strong>) · Drag box to zoom in · Click{' '}
-            <strong className="text-cyan-600 dark:text-cyan-300">Zoom Out</strong> to evaluate 0.2 Hz to 10 MHz
+            <strong className="text-blue-600 dark:text-blue-300">Zoom Out</strong> to evaluate 0.2 Hz to 10 MHz
           </p>
         </div>
 
@@ -549,15 +549,15 @@ export const BodeStabilityGraph: React.FC<BodeStabilityGraphProps> = ({
             onClick={handleZoomIn}
             className="px-2 py-1 text-[11px] font-mono text-slate-200 bg-slate-800 hover:bg-slate-700 rounded border border-slate-700 inline-flex items-center gap-1 cursor-pointer"
           >
-            <ZoomIn className="w-3 h-3 text-cyan-400" />
+            <ZoomIn className="w-3 h-3 text-blue-400" />
             In
           </button>
           <button
             type="button"
             onClick={handleZoomOut}
-            className="px-2 py-1 text-[11px] font-mono text-cyan-300 bg-cyan-950/60 hover:bg-cyan-900/70 rounded border border-cyan-500/40 inline-flex items-center gap-1 cursor-pointer"
+            className="px-2 py-1 text-[11px] font-mono text-blue-300 bg-blue-950/60 hover:bg-blue-900/70 rounded border border-blue-500/40 inline-flex items-center gap-1 cursor-pointer"
           >
-            <ZoomOut className="w-3 h-3 text-cyan-400" />
+            <ZoomOut className="w-3 h-3 text-blue-400" />
             Zoom Out
           </button>
           <button
@@ -592,7 +592,7 @@ export const BodeStabilityGraph: React.FC<BodeStabilityGraphProps> = ({
           <button
             type="button"
             onClick={handleLockF0ToFc}
-            className="px-2 py-1 text-[11px] font-mono bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 rounded cursor-pointer"
+            className="px-2 py-1 text-[11px] font-mono bg-slate-800 hover:bg-slate-700 text-blue-300 border border-slate-700 rounded cursor-pointer"
             title="Lock M1 at LC resonance f0 and M2 at crossover fc"
           >
             f0→fc
@@ -616,11 +616,11 @@ export const BodeStabilityGraph: React.FC<BodeStabilityGraphProps> = ({
             onClick={() => setShowLoop(!showLoop)}
             className={`px-2 py-1 text-[11px] font-mono rounded border flex items-center gap-1.5 cursor-pointer ${
               showLoop
-                ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300 font-semibold'
+                ? 'bg-blue-500/20 border-blue-500 text-blue-300 font-semibold'
                 : 'bg-slate-800 border-slate-700 text-slate-400'
             }`}
           >
-            <span className="w-2.5 h-0.5 bg-cyan-400 inline-block" />
+            <span className="w-2.5 h-0.5 bg-blue-400 inline-block" />
             Loop T(s)
           </button>
           <button
@@ -703,7 +703,7 @@ export const BodeStabilityGraph: React.FC<BodeStabilityGraphProps> = ({
               onClick={() => onSelectControlType(c.id)}
               className={`px-2 py-0.5 rounded border transition-colors cursor-pointer ${
                 res.state.controlType === c.id
-                  ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 font-bold'
+                  ? 'bg-blue-500/20 border-blue-400 text-blue-300 font-bold'
                   : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -717,7 +717,7 @@ export const BodeStabilityGraph: React.FC<BodeStabilityGraphProps> = ({
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 text-xs font-mono">
         <div className="bg-slate-950/90 border border-slate-800 rounded p-2">
           <div className="text-[10px] text-slate-400 uppercase">Crossover Freq fc</div>
-          <div className="text-sm font-bold text-cyan-400">
+          <div className="text-sm font-bold text-blue-400">
             {res.fc_actual_kHz.toFixed(2)} kHz
           </div>
           <div className="text-[10px] text-slate-500">
@@ -787,13 +787,13 @@ export const BodeStabilityGraph: React.FC<BodeStabilityGraphProps> = ({
       {/* Live Cursor Readout Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-1.5 rounded bg-slate-950 border border-slate-800 text-[11px] font-mono">
         <div className="flex items-center gap-2">
-          <Crosshair className="w-3.5 h-3.5 text-cyan-400" />
+          <Crosshair className="w-3.5 h-3.5 text-blue-400" />
           <span className="text-slate-400">Cursor Frequency:</span>
           <span className="text-white font-bold">{formatFreq(activePt.freq_Hz)}</span>
         </div>
 
         <div className="flex flex-wrap items-center gap-4">
-          <span className="text-cyan-300">
+          <span className="text-blue-300">
             |T(jω)|: <strong>{activePt.loopMag_dB.toFixed(2)} dB</strong> (∠{activePt.loopPhase_deg.toFixed(1)}°)
           </span>
           <span className="text-amber-300">
@@ -821,7 +821,7 @@ export const BodeStabilityGraph: React.FC<BodeStabilityGraphProps> = ({
             <span>
               Δ|T|: <strong>{m1m2BodeAnalysis.dLoopMag >= 0 ? '+' : ''}{m1m2BodeAnalysis.dLoopMag.toFixed(2)} dB</strong>
             </span>
-            <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-bold">
+            <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/40 font-bold">
               Loop Slope: {m1m2BodeAnalysis.loopSlope_dB_dec.toFixed(1)} dB/dec ({m1m2BodeAnalysis.loopSlope_dB_oct.toFixed(1)} dB/oct)
             </span>
           </div>
@@ -921,7 +921,7 @@ export const BodeStabilityGraph: React.FC<BodeStabilityGraphProps> = ({
                 y1={magTop}
                 x2={x}
                 y2={magBot}
-                stroke={isDecade ? '#1e293b' : '#0f172a'}
+                stroke={isDecade ? '#1e293b' : '#14171f'}
                 strokeWidth={isDecade ? 1.2 : 0.8}
                 strokeDasharray={isDecade ? undefined : '2 3'}
               />
@@ -930,7 +930,7 @@ export const BodeStabilityGraph: React.FC<BodeStabilityGraphProps> = ({
                 y1={phaseTop}
                 x2={x}
                 y2={phaseBot}
-                stroke={isDecade ? '#1e293b' : '#0f172a'}
+                stroke={isDecade ? '#1e293b' : '#14171f'}
                 strokeWidth={isDecade ? 1.2 : 0.8}
                 strokeDasharray={isDecade ? undefined : '2 3'}
               />
@@ -1400,7 +1400,7 @@ export const BodeStabilityGraph: React.FC<BodeStabilityGraphProps> = ({
                   cy={toMagY(activePt.loopMag_dB)}
                   r={4.5}
                   fill="#06b6d4"
-                  stroke="#0f172a"
+                  stroke="#14171f"
                   strokeWidth={1.5}
                 />
                 <circle
@@ -1408,7 +1408,7 @@ export const BodeStabilityGraph: React.FC<BodeStabilityGraphProps> = ({
                   cy={toPhaseY(activePt.loopPhase_deg)}
                   r={4.5}
                   fill="#10b981"
-                  stroke="#0f172a"
+                  stroke="#14171f"
                   strokeWidth={1.5}
                 />
               </>
@@ -1475,7 +1475,7 @@ export const BodeStabilityGraph: React.FC<BodeStabilityGraphProps> = ({
               setScrubIdx(idx);
               setHoverIdx(idx);
             }}
-            className="w-full accent-cyan-400 cursor-pointer"
+            className="w-full accent-blue-400 cursor-pointer"
           />
           <button
             type="button"

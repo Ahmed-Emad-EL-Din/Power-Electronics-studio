@@ -328,7 +328,7 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
       <OscilloscopeViewer res={dcdcRes} pinnedRes={pinnedDcdcRes} />
 
       {/* SECTION 2: RK4 CLOSED-LOOP TIME-DOMAIN TRANSIENT SIMULATOR */}
-      <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-3">
+      <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-2.5">
           <div>
             <div className="flex items-center gap-2">
@@ -357,7 +357,7 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
               Dev: <strong className={transientRes.maxDeviation_pct <= 5 ? 'text-emerald-500' : 'text-rose-500'}>{transientRes.maxDeviation_pct.toFixed(2)}%</strong>
             </span>
             <span className="px-2 py-1 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-              t_settle: <strong className="text-cyan-400">{transientRes.settlingTime_us.toFixed(0)} µs</strong>
+              t_settle: <strong className="text-blue-400">{transientRes.settlingTime_us.toFixed(0)} µs</strong>
             </span>
           </div>
         </div>
@@ -452,7 +452,7 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
       </div>
 
       {/* SECTION 3: MONTE CARLO TOLERANCE & YIELD ANALYZER */}
-      <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-3">
+      <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-2.5">
           <div>
             <div className="flex items-center gap-2">
@@ -550,7 +550,7 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
                     onClick={() => setMcHistogramMetric(m.id)}
                     className={`px-2 py-0.5 rounded border cursor-pointer ${
                       mcHistogramMetric === m.id
-                        ? 'bg-cyan-600 border-cyan-600 text-white font-semibold'
+                        ? 'bg-blue-600 border-blue-600 text-white font-semibold'
                         : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-500'
                     }`}
                   >
@@ -623,7 +623,7 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
                 {mcRes.sensitivities.slice(0, 4).map((s) => (
                   <div key={s.parameter} className="flex items-center justify-between gap-2 text-[10px]">
                     <span className="text-slate-700 dark:text-slate-300 truncate">{s.parameter}</span>
-                    <span className="text-cyan-500 tabular-nums shrink-0">
+                    <span className="text-blue-500 tabular-nums shrink-0">
                       r_eff={s.correlationEff >= 0 ? '+' : ''}
                       {s.correlationEff} · r_Tj={s.correlationTj >= 0 ? '+' : ''}
                       {s.correlationTj}
@@ -637,11 +637,11 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
       </div>
 
       {/* SECTION 4: SPICE (.cir) & EMBEDDED FIRMWARE (.h) GENERATOR */}
-      <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-3">
+      <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-2.5">
           <div>
             <div className="flex items-center gap-2">
-              <Code2 className="w-4 h-4 text-cyan-500" />
+              <Code2 className="w-4 h-4 text-blue-500" />
               <h3 className="text-xs font-bold font-mono text-slate-900 dark:text-slate-100">
                 LTspice (.asc), QSPICE (.zip), PLECS Standalone (.plecs/.zip) &amp; DSP (.h) Exporter
               </h3>
@@ -680,7 +680,7 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
                 onClick={() => setExportTab(t.id)}
                 className={`px-2.5 py-1 rounded text-[11px] font-mono border cursor-pointer ${
                   exportTab === t.id
-                    ? 'bg-cyan-600 border-cyan-600 text-white font-semibold'
+                    ? 'bg-blue-600 border-blue-600 text-white font-semibold'
                     : 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300'
                 }`}
               >
@@ -745,7 +745,7 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
           {exportTab === 'acdc-asc' || exportTab === 'acdc-plecs' || exportTab === 'acdc-cir' ? (
             <>
               <div className="flex items-center gap-2">
-                <Clock className="w-3.5 h-3.5 text-cyan-500" />
+                <Clock className="w-3.5 h-3.5 text-blue-500" />
                 <span className="font-semibold text-slate-700 dark:text-slate-200">
                   AC-DC Simulation Time (Tstop):
                 </span>
@@ -771,7 +771,7 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
                     onClick={() => setAcdcSimOverrideMs(ms)}
                     className={`px-2 py-0.5 rounded border cursor-pointer ${
                       Math.abs(effectiveAcdcSimMs - ms) < 0.05
-                        ? 'bg-cyan-600 border-cyan-600 text-white'
+                        ? 'bg-blue-600 border-blue-600 text-white'
                         : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300'
                     }`}
                   >
@@ -790,7 +790,7 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
           ) : exportTab === 'combined-asc' || exportTab === 'combined-plecs' || exportTab === 'combined-cir' ? (
             <>
               <div className="flex items-center gap-2">
-                <Clock className="w-3.5 h-3.5 text-cyan-500" />
+                <Clock className="w-3.5 h-3.5 text-blue-500" />
                 <span className="font-semibold text-slate-700 dark:text-slate-200">
                   Combined Simulation Time (Tstop):
                 </span>
@@ -816,7 +816,7 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
                     onClick={() => setCombinedSimOverrideMs(ms)}
                     className={`px-2 py-0.5 rounded border cursor-pointer ${
                       Math.abs(effectiveCombinedSimMs - ms) < 0.05
-                        ? 'bg-cyan-600 border-cyan-600 text-white'
+                        ? 'bg-blue-600 border-blue-600 text-white'
                         : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300'
                     }`}
                   >
@@ -835,7 +835,7 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
           ) : (
             <>
               <div className="flex items-center gap-2">
-                <Clock className="w-3.5 h-3.5 text-cyan-500" />
+                <Clock className="w-3.5 h-3.5 text-blue-500" />
                 <span className="font-semibold text-slate-700 dark:text-slate-200">
                   DC-DC Simulation Time (Tstop):
                 </span>
@@ -861,7 +861,7 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
                     onClick={() => setDcdcSimOverrideUs(us)}
                     className={`px-2 py-0.5 rounded border cursor-pointer ${
                       effectiveDcdcSimUs === us
-                        ? 'bg-cyan-600 border-cyan-600 text-white'
+                        ? 'bg-blue-600 border-blue-600 text-white'
                         : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300'
                     }`}
                   >
@@ -880,7 +880,7 @@ export const TransientAndMonteCarloLab: React.FC<TransientAndMonteCarloLabProps>
           )}
         </div>
 
-        <pre className="max-h-72 overflow-auto p-3 rounded-lg bg-[#060910] border border-slate-800 text-[11px] font-mono text-cyan-200 leading-relaxed">
+        <pre className="max-h-72 overflow-auto p-3 rounded-lg bg-[#060910] border border-slate-800 text-[11px] font-mono text-blue-200 leading-relaxed">
           {codePreview}
         </pre>
       </div>

@@ -149,8 +149,9 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
     <div className="flex flex-col lg:flex-row items-start gap-4 relative">
       {/* LEFT SIDEBAR: TOPOLOGY, RECTIFIER, TRANSFORMER, TANK & CONTROL INPUTS */}
       <ResizableSidebarWindow
-        title="DC-DC Stage Parameters"
-        subtitle="Scrollable • Drag Right Border"
+        title="DC-DC Parameters"
+        subtitle="Drag border to resize"
+        mobileSummary={`${state.Vin_nom_V}V→${state.Vout_V}V · ${state.Pout_W}W · η ${res.efficiency_pct.toFixed(1)}%`}
         defaultWidth={360}
       >
         {/* Preset Selector */}
@@ -169,7 +170,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                 onChange({ ...found.state });
               }
             }}
-            className="w-full h-8 px-2.5 text-xs bg-slate-50 dark:bg-[#090C12] border border-slate-200 dark:border-slate-700 rounded-md text-slate-900 dark:text-slate-100"
+            className="w-full h-8 px-2.5 text-xs bg-slate-50 dark:bg-[#090a0d] border border-slate-200 dark:border-slate-700 rounded-md text-slate-900 dark:text-slate-100"
           >
             {DCDC_PRESETS.map((p) => (
               <option key={p.id} value={p.id}>
@@ -217,8 +218,8 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                   onClick={() => setField('topology', t.id)}
                   className={`px-2.5 py-1.5 text-xs font-medium rounded-md border transition-colors cursor-pointer truncate ${
                     state.topology === t.id
-                      ? 'bg-cyan-600/10 border-cyan-600/60 text-cyan-700 dark:text-cyan-300 font-semibold'
-                      : 'bg-slate-50 dark:bg-[#090C12] border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
+                      ? 'bg-blue-600/10 border-blue-600/60 text-blue-700 dark:text-blue-300 font-semibold'
+                      : 'bg-slate-50 dark:bg-[#090a0d] border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
                   }`}
                 >
                   {t.label}
@@ -246,8 +247,8 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                     onClick={() => setField('txType', tx.id)}
                     className={`px-1.5 py-1.5 text-[11px] font-medium rounded-md border transition-colors cursor-pointer truncate ${
                       state.txType === tx.id
-                        ? 'bg-cyan-600/10 border-cyan-600/60 text-cyan-700 dark:text-cyan-300 font-semibold'
-                        : 'bg-slate-50 dark:bg-[#090C12] border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
+                        ? 'bg-blue-600/10 border-blue-600/60 text-blue-700 dark:text-blue-300 font-semibold'
+                        : 'bg-slate-50 dark:bg-[#090a0d] border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
                     }`}
                   >
                     {tx.label}
@@ -273,8 +274,8 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                     onClick={() => setField('rectMode', rm.id)}
                     className={`px-2 py-1.5 text-xs font-medium rounded-md border transition-colors cursor-pointer truncate ${
                       state.rectMode === rm.id
-                        ? 'bg-cyan-600/10 border-cyan-600/60 text-cyan-700 dark:text-cyan-300 font-semibold'
-                        : 'bg-slate-50 dark:bg-[#090C12] border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
+                        ? 'bg-blue-600/10 border-blue-600/60 text-blue-700 dark:text-blue-300 font-semibold'
+                        : 'bg-slate-50 dark:bg-[#090a0d] border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
                     }`}
                   >
                     {rm.label}
@@ -301,8 +302,8 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                     onClick={() => setField('clampVariant', cl.id)}
                     className={`px-1.5 py-1.5 text-[11px] font-medium rounded-md border transition-colors cursor-pointer truncate ${
                       state.clampVariant === cl.id
-                        ? 'bg-cyan-600/10 border-cyan-600/60 text-cyan-700 dark:text-cyan-300 font-semibold'
-                        : 'bg-slate-50 dark:bg-[#090C12] border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
+                        ? 'bg-blue-600/10 border-blue-600/60 text-blue-700 dark:text-blue-300 font-semibold'
+                        : 'bg-slate-50 dark:bg-[#090a0d] border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
                     }`}
                   >
                     {cl.label}
@@ -334,8 +335,8 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                   onClick={() => setField('controlType', c.id)}
                   className={`px-2 py-1.5 text-xs font-medium rounded-md border transition-colors cursor-pointer truncate ${
                     state.controlType === c.id
-                      ? 'bg-cyan-600/10 border-cyan-600/60 text-cyan-700 dark:text-cyan-300 font-semibold'
-                      : 'bg-slate-50 dark:bg-[#090C12] border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
+                      ? 'bg-blue-600/10 border-blue-600/60 text-blue-700 dark:text-blue-300 font-semibold'
+                      : 'bg-slate-50 dark:bg-[#090a0d] border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
                   }`}
                 >
                   {c.label}
@@ -381,7 +382,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                 step={5}
                 value={state.Vin_nom_V}
                 onChange={(e) => setField('Vin_nom_V', Number(e.target.value))}
-                className="w-full mt-1 h-1.5 accent-cyan-500 cursor-pointer"
+                className="w-full mt-1 h-1.5 accent-blue-500 cursor-pointer"
               />
             </div>
             <div>
@@ -413,7 +414,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                 step={1}
                 value={state.Vout_V}
                 onChange={(e) => setField('Vout_V', Number(e.target.value))}
-                className="w-full mt-1 h-1.5 accent-cyan-500 cursor-pointer"
+                className="w-full mt-1 h-1.5 accent-blue-500 cursor-pointer"
               />
             </div>
             <div>
@@ -446,7 +447,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                 step={50}
                 value={state.Pout_W}
                 onChange={(e) => setField('Pout_W', Number(e.target.value))}
-                className="w-full mt-1 h-1.5 accent-cyan-500 cursor-pointer"
+                className="w-full mt-1 h-1.5 accent-blue-500 cursor-pointer"
               />
             </div>
             <div>
@@ -478,7 +479,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                 step={1}
                 value={state.fsw_kHz}
                 onChange={(e) => setField('fsw_kHz', Number(e.target.value))}
-                className="w-full mt-1 h-1.5 accent-cyan-500 cursor-pointer"
+                className="w-full mt-1 h-1.5 accent-blue-500 cursor-pointer"
               />
             </div>
             <div>
@@ -511,7 +512,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                 step={0.05}
                 value={state.turnsRatio_n}
                 onChange={(e) => setField('turnsRatio_n', Number(e.target.value))}
-                className="w-full mt-1 h-1.5 accent-cyan-500 cursor-pointer"
+                className="w-full mt-1 h-1.5 accent-blue-500 cursor-pointer"
               />
             </div>
             <div>
@@ -546,7 +547,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                 step={0.5}
                 value={state.Llk_uH}
                 onChange={(e) => setField('Llk_uH', Number(e.target.value))}
-                className="w-full mt-1 h-1.5 accent-cyan-500 cursor-pointer"
+                className="w-full mt-1 h-1.5 accent-blue-500 cursor-pointer"
               />
             </div>
             <div>
@@ -579,7 +580,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                 step={5}
                 value={state.Lm_uH}
                 onChange={(e) => setField('Lm_uH', Number(e.target.value))}
-                className="w-full mt-1 h-1.5 accent-cyan-500 cursor-pointer"
+                className="w-full mt-1 h-1.5 accent-blue-500 cursor-pointer"
               />
             </div>
             {res.isLLC ? (
@@ -612,7 +613,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                   step={1}
                   value={state.Cr_nF}
                   onChange={(e) => setField('Cr_nF', Number(e.target.value))}
-                  className="w-full mt-1 h-1.5 accent-cyan-500 cursor-pointer"
+                  className="w-full mt-1 h-1.5 accent-blue-500 cursor-pointer"
                 />
               </div>
             ) : (
@@ -645,7 +646,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                   step={1}
                   value={state.Lo_uH}
                   onChange={(e) => setField('Lo_uH', Number(e.target.value))}
-                  className="w-full mt-1 h-1.5 accent-cyan-500 cursor-pointer"
+                  className="w-full mt-1 h-1.5 accent-blue-500 cursor-pointer"
                 />
               </div>
             )}
@@ -683,7 +684,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                   step={1}
                   value={state.Np_turns}
                   onChange={(e) => setField('Np_turns', Number(e.target.value))}
-                  className="flex-1 h-1.5 accent-cyan-500 cursor-pointer"
+                  className="flex-1 h-1.5 accent-blue-500 cursor-pointer"
                 />
               </div>
             </div>
@@ -1402,27 +1403,27 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
       {/* RIGHT WORKSPACE: KPI STRIP, SUB-TABS, LIVE SCHEMATIC, GRAPHS, ELECTRO-THERMAL & MAGNETICS */}
       <div className="flex-1 min-w-0 w-full space-y-4">
         {/* Compact 6-Card KPI Strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2.5">
-          <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 border-t-2 border-t-emerald-500/70 rounded-lg p-3">
-            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Efficiency η</div>
-            <div className="text-xl font-mono font-semibold tabular-nums text-emerald-600 dark:text-emerald-400 mt-0.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2 sm:gap-2.5">
+          <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-white/[0.08] border-t-2 border-t-emerald-500/75 rounded-xl p-2.5 sm:p-3">
+            <div className="text-[11px] font-medium text-slate-500 dark:text-[#a1a8b8]">Efficiency η</div>
+            <div className="text-base sm:text-xl font-mono font-semibold tabular-nums text-emerald-600 dark:text-emerald-400 mt-0.5">
               {res.efficiency_pct.toFixed(2)}%
             </div>
-            <div className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400 mt-0.5">
+            <div className="text-[10px] sm:text-[11px] font-mono tabular-nums text-slate-500 dark:text-[#727b8e] mt-0.5 truncate">
               P_loss = {res.Ptotal_loss_W.toFixed(1)} W
             </div>
           </div>
 
-          <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 border-t-2 border-t-cyan-500/70 rounded-lg p-3">
-            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+          <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-white/[0.08] border-t-2 border-t-blue-500/75 rounded-xl p-2.5 sm:p-3">
+            <div className="text-[11px] font-medium text-slate-500 dark:text-[#a1a8b8]">
               {res.isLLC ? 'Voltage Gain M(fn)' : 'Effective Duty Deff'}
             </div>
-            <div className="text-xl font-mono font-semibold tabular-nums text-cyan-600 dark:text-cyan-400 mt-0.5">
+            <div className="text-base sm:text-xl font-mono font-semibold tabular-nums text-blue-600 dark:text-blue-400 mt-0.5">
               {res.isLLC
                 ? `${res.M_gain_nom.toFixed(2)}×`
                 : `${(res.Deff_nom * 100).toFixed(1)}%`}
             </div>
-            <div className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400 mt-0.5">
+            <div className="text-[10px] sm:text-[11px] font-mono tabular-nums text-slate-500 dark:text-[#727b8e] mt-0.5 truncate">
               {res.isLLC
                 ? `fn=${res.fn_nom.toFixed(2)} · fr=${res.fr_kHz.toFixed(0)} kHz`
                 : `ΔD=${(res.Dloss_nom * 100).toFixed(1)}% · φ=${res.phaseShift_deg.toFixed(0)}°`}
@@ -1430,19 +1431,19 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
           </div>
 
           <div
-            className={`bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 border-t-2 rounded-lg p-3 ${
-              res.zvsAchieved ? 'border-t-emerald-500/70' : 'border-t-amber-500/70'
+            className={`bg-white dark:bg-[#14171f] border border-slate-200 dark:border-white/[0.08] border-t-2 rounded-xl p-2.5 sm:p-3 ${
+              res.zvsAchieved ? 'border-t-emerald-500/75' : 'border-t-amber-500/75'
             }`}
           >
-            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Lag / Lead ZVS</div>
+            <div className="text-[11px] font-medium text-slate-500 dark:text-[#a1a8b8]">Lag / Lead ZVS</div>
             <div
-              className={`text-xl font-mono font-semibold tabular-nums mt-0.5 ${
+              className={`text-base sm:text-xl font-mono font-semibold tabular-nums mt-0.5 ${
                 res.zvsAchieved ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
               }`}
             >
               {res.zvsEnergyRatio_pct.toFixed(0)}% · {res.zvsLeadAchieved ? 'OK' : 'Low'}
             </div>
-            <div className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400 mt-0.5">
+            <div className="text-[10px] sm:text-[11px] font-mono tabular-nums text-slate-500 dark:text-[#727b8e] mt-0.5 truncate">
               Vres={res.Vds_res_lag_V.toFixed(0)} V · Izvs≥{res.I_zvs_min_A.toFixed(1)} A
             </div>
           </div>
@@ -1451,24 +1452,24 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
             type="button"
             onClick={() => setSubTab('thermal')}
             title="Open Semiconductor Thermal Derating & Heatsink Calculator"
-            className={`text-left bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 border-t-2 hover:border-slate-300 dark:hover:border-slate-700 rounded-lg p-3 cursor-pointer transition-colors ${
-              res.thermalStable ? 'border-t-amber-500/60' : 'border-t-rose-500/80'
+            className={`text-left bg-white dark:bg-[#14171f] border border-slate-200 dark:border-white/[0.08] border-t-2 hover:border-slate-300 dark:hover:border-white/[0.18] rounded-xl p-2.5 sm:p-3 cursor-pointer transition-colors ${
+              res.thermalStable ? 'border-t-amber-500/70' : 'border-t-rose-500/85'
             }`}
           >
-            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 flex items-center justify-between gap-1">
-              <span>MOSFET Tj (Pri / Sec)</span>
-              <span className="font-mono tabular-nums text-[10px] text-slate-400">
+            <div className="text-[11px] font-medium text-slate-500 dark:text-[#a1a8b8] flex items-center justify-between gap-1">
+              <span className="truncate">MOSFET Tj (Pri/Sec)</span>
+              <span className="font-mono tabular-nums text-[10px] text-slate-400 shrink-0">
                 Rθ={state.Rth_heatsink_CW}
               </span>
             </div>
             <div
-              className={`text-xl font-mono font-semibold tabular-nums mt-0.5 ${
+              className={`text-base sm:text-xl font-mono font-semibold tabular-nums mt-0.5 ${
                 res.thermalStable ? 'text-amber-600 dark:text-amber-400' : 'text-rose-600 dark:text-rose-400'
               }`}
             >
               {res.Tj_pri_C.toFixed(1)}° / {res.Tj_sec_C.toFixed(1)}°C
             </div>
-            <div className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400 mt-0.5">
+            <div className="text-[10px] sm:text-[11px] font-mono tabular-nums text-slate-500 dark:text-[#727b8e] mt-0.5 truncate">
               Ppri={(res.Pcond_pri_W + res.Psw_pri_W).toFixed(1)} W · Max {(res.Pout_derated_max_W / 1000).toFixed(1)} kW
             </div>
           </button>
@@ -1477,23 +1478,23 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
             type="button"
             onClick={() => setSubTab('saturation')}
             title="Open Core Saturation Headroom & B(t) vs BH Panel"
-            className={`text-left rounded-lg p-3 cursor-pointer transition-colors border border-t-2 ${
+            className={`text-left rounded-xl p-2.5 sm:p-3 cursor-pointer transition-colors border border-t-2 ${
               res.saturationCheck.status === 'critical'
                 ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-500/70 border-t-rose-500'
                 : res.saturationCheck.status === 'warning'
                 ? 'bg-amber-50 dark:bg-amber-950/25 border-amber-500/60 border-t-amber-500'
-                : 'bg-white dark:bg-[#0E131D] border-slate-200 dark:border-slate-800 border-t-emerald-500/60 hover:border-slate-300 dark:hover:border-slate-700'
+                : 'bg-white dark:bg-[#14171f] border-slate-200 dark:border-white/[0.08] border-t-emerald-500/70 hover:border-slate-300 dark:hover:border-white/[0.18]'
             }`}
           >
-            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 flex items-center justify-between gap-1">
-              <span>Core Flux B_pk</span>
+            <div className="text-[11px] font-medium text-slate-500 dark:text-[#a1a8b8] flex items-center justify-between gap-1">
+              <span className="truncate">Core Flux B_pk</span>
               <span
-                className={`font-mono tabular-nums text-[10px] font-semibold ${
+                className={`font-mono tabular-nums text-[10px] font-semibold shrink-0 ${
                   res.saturationCheck.status === 'critical'
                     ? 'text-rose-600 dark:text-rose-400'
                     : res.saturationCheck.status === 'warning'
                     ? 'text-amber-600 dark:text-amber-400'
-                    : 'text-slate-500 dark:text-slate-400'
+                    : 'text-slate-500 dark:text-[#727b8e]'
                 }`}
               >
                 {res.saturationCheck.exceedsDatasheetLimit
@@ -1502,17 +1503,17 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
               </span>
             </div>
             <div
-              className={`text-xl font-mono font-semibold tabular-nums mt-0.5 ${
+              className={`text-base sm:text-xl font-mono font-semibold tabular-nums mt-0.5 ${
                 res.saturationCheck.status === 'critical'
                   ? 'text-rose-600 dark:text-rose-400'
                   : res.saturationCheck.status === 'warning'
                   ? 'text-amber-600 dark:text-amber-400'
-                  : 'text-slate-900 dark:text-slate-100'
+                  : 'text-slate-900 dark:text-[#eef0f6]'
               }`}
             >
               {res.Bpk_mT.toFixed(0)} / {res.bhLoopAnalysis.Bsat_100C_mT.toFixed(0)} mT
             </div>
-            <div className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400 mt-0.5">
+            <div className="text-[10px] sm:text-[11px] font-mono tabular-nums text-slate-500 dark:text-[#727b8e] mt-0.5 truncate">
               {res.saturationCheck.status === 'critical' ? (
                 <span className="text-rose-600 dark:text-rose-400 font-semibold">
                   Saturated ({res.saturationCheck.utilization_100C_pct.toFixed(0)}%)
@@ -1523,14 +1524,14 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
             </div>
           </button>
 
-          <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 border-t-2 border-t-cyan-500/70 rounded-lg p-3">
-            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+          <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-white/[0.08] border-t-2 border-t-blue-500/75 rounded-xl p-2.5 sm:p-3">
+            <div className="text-[11px] font-medium text-slate-500 dark:text-[#a1a8b8]">
               Control ({state.controlType.toUpperCase()})
             </div>
-            <div className="text-xl font-mono font-semibold tabular-nums text-cyan-600 dark:text-cyan-400 mt-0.5">
+            <div className="text-base sm:text-xl font-mono font-semibold tabular-nums text-blue-600 dark:text-blue-400 mt-0.5">
               {res.fc_actual_kHz.toFixed(1)} kHz
             </div>
-            <div className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400 mt-0.5">
+            <div className="text-[10px] sm:text-[11px] font-mono tabular-nums text-slate-500 dark:text-[#727b8e] mt-0.5 truncate">
               PM={res.pm_actual_deg.toFixed(0)}° · Qp={res.Qp_subharmonic.toFixed(2)}
             </div>
           </div>
@@ -1613,7 +1614,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
 
           return (
             <div ref={subTabNavRef} className="scroll-mt-20 space-y-2 border-b border-slate-200 dark:border-white/[0.08] pb-2.5">
-              <div role="tablist" aria-label="DC-DC Analysis Groups" className="flex flex-wrap items-center gap-1.5">
+              <div role="tablist" aria-label="DC-DC Analysis Groups" className="flex flex-nowrap sm:flex-wrap items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
                 {dcdcGroups.map((grp) => {
                   const isActive = grp.id === activeGroup.id;
                   return (
@@ -1625,10 +1626,10 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                       onClick={() => setSubTab(grp.views[0].id)}
                       className={`px-3 py-1.5 text-xs font-medium rounded-lg border inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
                         isActive
-                          ? 'bg-[#eceff4] dark:bg-[#1a1e28] border-cyan-500/60 text-cyan-700 dark:text-cyan-300 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
+                          ? 'bg-[#eff1f5] dark:bg-[#1c202b] border-blue-500/60 text-blue-700 dark:text-blue-300 shadow-2xs'
                           : grp.alert
                           ? 'bg-rose-500/10 border-rose-500/40 text-rose-600 dark:text-rose-400'
-                          : 'bg-white dark:bg-[#11141c] border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-[#a3a9b8] hover:border-slate-300 dark:hover:border-white/[0.16] hover:text-slate-900 dark:hover:text-[#eef0f5]'
+                          : 'bg-white dark:bg-[#14171f] border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-[#a1a8b8] hover:border-slate-300 dark:hover:border-white/[0.16] hover:text-slate-900 dark:hover:text-[#eef0f6]'
                       }`}
                     >
                       <span aria-hidden="true">{grp.icon}</span>
@@ -1645,7 +1646,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
               </div>
 
               {activeGroup.views.length > 1 && (
-                <div role="tablist" aria-label={`${activeGroup.label} views`} className="flex flex-wrap items-center gap-1 bg-[#eceff4]/75 dark:bg-[#07080d] p-1 rounded-lg border border-slate-200/80 dark:border-white/[0.07]">
+                <div role="tablist" aria-label={`${activeGroup.label} views`} className="flex flex-nowrap sm:flex-wrap items-center gap-1 bg-[#eceef2]/80 dark:bg-[#090a0d] p-1 rounded-lg border border-slate-200/80 dark:border-white/[0.07] overflow-x-auto no-scrollbar">
                   {activeGroup.views.map((view) => {
                     const active = subTab === view.id;
                     return (
@@ -1655,12 +1656,12 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                         role="tab"
                         aria-selected={active}
                         onClick={() => setSubTab(view.id)}
-                        className={`px-2.5 py-1 text-[11px] font-medium rounded-md inline-flex items-center gap-1.5 whitespace-nowrap cursor-pointer transition-colors ${
+                        className={`px-2.5 py-1 text-[11px] font-medium rounded-md inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
                           active
-                            ? 'bg-white dark:bg-[#1a1e28] text-cyan-700 dark:text-cyan-300 border border-slate-200 dark:border-white/[0.12] shadow-xs'
+                            ? 'bg-white dark:bg-[#1c202b] text-blue-700 dark:text-blue-300 border border-slate-200 dark:border-white/[0.12] shadow-2xs'
                             : view.alert
                             ? 'text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 border border-transparent'
-                            : 'text-slate-600 dark:text-[#a3a9b8] hover:text-slate-900 dark:hover:text-[#eef0f5] border border-transparent'
+                            : 'text-slate-600 dark:text-[#a1a8b8] hover:text-slate-900 dark:hover:text-[#eef0f6] border border-transparent'
                         }`}
                       >
                         <span>{view.label}</span>
@@ -1700,7 +1701,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                       <td className="py-2.5 pr-3 text-slate-800 dark:text-slate-200">
                         <MathFormula tex="D_{\text{eff}} = \frac{n V_{\text{out}}}{V_{\text{in}}}, \quad \Delta D = \frac{4 f_{\text{sw}} L_{lk} I_{\text{pri}}}{V_{\text{in}}}" />
                       </td>
-                      <td className="py-2.5 pr-3 text-cyan-400">
+                      <td className="py-2.5 pr-3 text-blue-400">
                         Deff={(res.Deff_nom * 100).toFixed(1)}%, ΔD={(res.Dloss_nom * 100).toFixed(1)}%
                       </td>
                       <td className="py-2.5 text-slate-400">Llk,max(duty) = {res.Llk_max_duty_uH.toFixed(1)} µH</td>
@@ -1767,7 +1768,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                       <td className="py-2.5 pr-3 text-slate-800 dark:text-slate-200">
                         <MathFormula tex="F_R(\Delta, m) = \Delta\left[\frac{\sinh 2\Delta+\sin 2\Delta}{\cosh 2\Delta-\cos 2\Delta} + \frac{2(m^2-1)}{3}\frac{\sinh\Delta-\sin\Delta}{\cosh\Delta+\cos\Delta}\right]" />
                       </td>
-                      <td className="py-2.5 pr-3 text-cyan-400">
+                      <td className="py-2.5 pr-3 text-blue-400">
                         FR,pri = {res.Fr_dowell_pri.toFixed(2)}×, FR,sec = {res.Fr_dowell_sec.toFixed(2)}×
                       </td>
                       <td className="py-2.5 text-slate-400">
@@ -1824,14 +1825,14 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
             />
 
             {/* ZVS & Commutation Optimization Bar */}
-            <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg p-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-3 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-xs">
-                <SlidersHorizontal className="w-4 h-4 text-cyan-600 dark:text-cyan-400 shrink-0" />
+                <SlidersHorizontal className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
                 <span className="font-semibold text-slate-900 dark:text-slate-100">
                   ZVS &amp; Commutation Sizing:
                 </span>
                 <span className="text-slate-600 dark:text-slate-400">
-                  Min Load for 100% ZVS = <strong className="font-mono tabular-nums text-emerald-600 dark:text-emerald-400">{res.P_min_zvs_pct.toFixed(0)}%</strong> · Optimal Dead-Time = <strong className="font-mono tabular-nums text-cyan-600 dark:text-cyan-400">{res.t_dead_opt_ns} ns</strong>
+                  Min Load for 100% ZVS = <strong className="font-mono tabular-nums text-emerald-600 dark:text-emerald-400">{res.P_min_zvs_pct.toFixed(0)}%</strong> · Optimal Dead-Time = <strong className="font-mono tabular-nums text-blue-600 dark:text-blue-400">{res.t_dead_opt_ns} ns</strong>
                 </span>
               </div>
               <div className="flex flex-wrap items-center gap-1.5">
@@ -1847,7 +1848,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                 <button
                   type="button"
                   onClick={() => setField('deadTime_ns', res.t_dead_opt_ns)}
-                  className="px-2.5 py-1 text-[11px] font-mono bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-400 rounded font-semibold cursor-pointer"
+                  className="px-2.5 py-1 text-[11px] font-mono bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/40 text-blue-400 rounded font-semibold cursor-pointer"
                 >
                   Set Optimal LC Valley Dead-Time ({res.t_dead_opt_ns} ns)
                 </button>
@@ -2020,7 +2021,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
         {subTab === 'thermal' && (
           <div className="space-y-4">
             {/* Top Parameter & Status Card */}
-            <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-3">
+            <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-2.5">
                 <div>
                   <div className="flex items-center gap-2">
@@ -2047,7 +2048,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                     Self-consistent iterative solver coupling <strong className="text-amber-400">Rds,on(Tj)</strong>,{' '}
-                    <strong className="text-cyan-400">Turn-On/Off Gate-Charge Overlap</strong>,{' '}
+                    <strong className="text-blue-400">Turn-On/Off Gate-Charge Overlap</strong>,{' '}
                     <strong className="text-purple-400">Dead-Time Body-Diode Conduction</strong>, and{' '}
                     <strong className="text-rose-400">Temperature-Scaled Reverse-Recovery Qrr(Tj)</strong>.
                   </p>
@@ -2072,7 +2073,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                     <button
                       type="button"
                       onClick={onOpenPartDrawer}
-                      className="px-2.5 py-1 text-[11px] font-mono bg-cyan-600 hover:bg-cyan-500 text-white rounded inline-flex items-center gap-1 font-semibold cursor-pointer"
+                      className="px-2.5 py-1 text-[11px] font-mono bg-blue-600 hover:bg-blue-500 text-white rounded inline-flex items-center gap-1 font-semibold cursor-pointer"
                     >
                       <Search className="w-3 h-3" /> LCSC / DigiKey Component DB ({SEMICONDUCTOR_DATABASE.length})
                     </button>
@@ -2338,7 +2339,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                 </div>
                 <div className="p-2 rounded bg-slate-50 dark:bg-[#0B0E17] border border-slate-200 dark:border-slate-800 font-mono text-xs">
                   <div className="text-[10px] text-slate-400 uppercase">Secondary Equilibrium Tj,sec</div>
-                  <div className="text-sm font-bold text-cyan-400">
+                  <div className="text-sm font-bold text-blue-400">
                     {res.Tj_sec_C.toFixed(1)} °C{' '}
                     <span className="text-[11px] font-normal text-slate-400">
                       (Rds={res.Rds_sec_actual_mOhm.toFixed(2)}mΩ, Qrr={res.Qrr_sec_hot_nC.toFixed(0)}nC)
@@ -2433,7 +2434,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                       <td className="py-2.5 pr-3 text-amber-400">
                         {res.Pcond_pri_W.toFixed(2)} W (Rds={res.Rds_pri_actual_mOhm.toFixed(1)}mΩ @ {res.Tj_pri_C.toFixed(0)}°C)
                       </td>
-                      <td className="py-2.5 text-cyan-400">
+                      <td className="py-2.5 text-blue-400">
                         {res.Pcond_sec_ch_W.toFixed(2)} W (Rds={res.Rds_sec_actual_mOhm.toFixed(2)}mΩ @ {res.Tj_sec_C.toFixed(0)}°C)
                       </td>
                     </tr>
@@ -2496,10 +2497,10 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                       <td className="py-2.5 pr-3">
                         <MathFormula tex="P_{\text{gate}} = N_{\text{sw}} Q_g V_{\text{gs}} f_{\text{sw}}, \quad P_{\text{gate,ext}} = P_{\text{gate}}\frac{R_{g,\text{ext}}}{R_{g,\text{int}} + R_{g,\text{ext}}}" />
                       </td>
-                      <td className="py-2.5 pr-3 text-cyan-400">
+                      <td className="py-2.5 pr-3 text-blue-400">
                         {res.Pgate_pri_W.toFixed(2)} W (Int: {res.Pgate_int_pri_W.toFixed(2)}W, Ext: {res.Pgate_ext_pri_W.toFixed(2)}W, Ig,pk={res.Ig_pk_pri_A.toFixed(2)}A)
                       </td>
-                      <td className="py-2.5 text-cyan-400">
+                      <td className="py-2.5 text-blue-400">
                         {res.Pgate_sec_W.toFixed(2)} W (Total Gate = {(res.Pgate_pri_W + res.Pgate_sec_W).toFixed(2)} W)
                       </td>
                     </tr>
@@ -2523,7 +2524,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                   <button
                     type="button"
                     onClick={onOpenPartDrawer}
-                    className="px-2.5 py-1 text-[11px] font-mono bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 rounded inline-flex items-center gap-1 font-semibold cursor-pointer"
+                    className="px-2.5 py-1 text-[11px] font-mono bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/40 text-blue-300 rounded inline-flex items-center gap-1 font-semibold cursor-pointer"
                   >
                     <Search className="w-3 h-3" /> Browse LCSC Catalog &amp; Export JLCPCB BOM
                   </button>
@@ -2550,7 +2551,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                       return (
                         <tr
                           key={b.id}
-                          className={isEquipped ? 'bg-cyan-500/10' : 'hover:bg-slate-50 dark:hover:bg-slate-900/50'}
+                          className={isEquipped ? 'bg-blue-500/10' : 'hover:bg-slate-50 dark:hover:bg-slate-900/50'}
                         >
                           <td className="py-2 pr-3 font-semibold text-slate-900 dark:text-slate-100">
                             {b.id}{' '}
@@ -2566,7 +2567,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                                 href={`https://www.lcsc.com/search?q=${encodeURIComponent(b.lcscPartNumber)}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="px-1.5 py-0.5 text-[10px] rounded bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/25"
+                                className="px-1.5 py-0.5 text-[10px] rounded bg-blue-500/15 text-blue-400 border border-blue-500/30 hover:bg-blue-500/25"
                               >
                                 {b.lcscPartNumber}
                               </a>
@@ -2575,21 +2576,21 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                             )}
                           </td>
                           <td className="py-2 pr-3 text-slate-400">{b.tech}</td>
-                          <td className="py-2 pr-3 text-cyan-400">{b.fom_hard_mOhm_nC} mΩ·nC</td>
+                          <td className="py-2 pr-3 text-blue-400">{b.fom_hard_mOhm_nC} mΩ·nC</td>
                           <td className="py-2 pr-3 text-emerald-400">{b.fom_zvs_mOhm_nF} mΩ·nF</td>
                           <td className="py-2 pr-3 text-purple-400">{b.fom_qrr_mOhm_nC} mΩ·nC</td>
                           <td className="py-2 pr-3 font-bold text-amber-400">{b.Ppri_total_W.toFixed(1)} W</td>
                           <td className="py-2 pr-3 text-slate-300">{b.Tj_est_C.toFixed(1)} °C</td>
                           <td className="py-2">
                             {isEquipped ? (
-                              <span className="px-2 py-0.5 text-[10px] rounded bg-cyan-600 text-white font-semibold">
+                              <span className="px-2 py-0.5 text-[10px] rounded bg-blue-600 text-white font-semibold">
                                 Equipped
                               </span>
                             ) : (
                               <button
                                 type="button"
                                 onClick={() => setField('priDeviceId', b.id)}
-                                className="px-2 py-0.5 text-[10px] rounded bg-slate-200 dark:bg-slate-800 hover:bg-cyan-600 hover:text-white text-slate-700 dark:text-slate-300 cursor-pointer"
+                                className="px-2 py-0.5 text-[10px] rounded bg-slate-200 dark:bg-slate-800 hover:bg-blue-600 hover:text-white text-slate-700 dark:text-slate-300 cursor-pointer"
                               >
                                 Equip
                               </button>
@@ -2775,7 +2776,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
         {/* SUB-TAB 11: ALL CIRCUIT CAPACITORS + BANK RIPPLE, ESR & L10 LIFETIME ANALYZER */}
         {subTab === 'capacitors' && (
           <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2.5">
               <div className="text-xs font-mono font-semibold text-slate-700 dark:text-slate-200">
                 Capacitor Engineering Suite — Switch between All Circuit Capacitor Banks and Deep Ripple/Arrhenius Stress Lab
               </div>
@@ -2785,7 +2786,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                   onClick={() => setCapViewMode('all-caps')}
                   className={`px-3 py-1 cursor-pointer ${
                     capViewMode === 'all-caps'
-                      ? 'bg-cyan-600 text-white'
+                      ? 'bg-blue-600 text-white'
                       : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300'
                   }`}
                 >
@@ -2796,7 +2797,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                   onClick={() => setCapViewMode('stress-lab')}
                   className={`px-3 py-1 cursor-pointer ${
                     capViewMode === 'stress-lab'
-                      ? 'bg-cyan-600 text-white'
+                      ? 'bg-blue-600 text-white'
                       : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300'
                   }`}
                 >
@@ -2893,7 +2894,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                           className={`px-3 py-1.5 rounded text-xs font-medium inline-flex flex-col items-start text-left cursor-pointer transition-colors ${
                             idx === 0
                               ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                              : 'bg-white dark:bg-[#131A26] border border-slate-300 dark:border-slate-700 hover:border-cyan-500 text-slate-800 dark:text-slate-200'
+                              : 'bg-white dark:bg-[#1c202b] border border-slate-300 dark:border-slate-700 hover:border-blue-500 text-slate-800 dark:text-slate-200'
                           }`}
                         >
                           <span className="font-semibold inline-flex items-center gap-1">
@@ -3071,7 +3072,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                           <td className="py-2 pr-3 text-slate-400">
                             k={m.k_si}, α={m.alpha}, β={m.beta}
                           </td>
-                          <td className="py-2 pr-3 text-cyan-400">{m.ki_igse}</td>
+                          <td className="py-2 pr-3 text-blue-400">{m.ki_igse}</td>
                           <td className="py-2 pr-3 text-purple-400">
                             {m.Bsat_100C_mT} mT ({m.fluxMargin_pct.toFixed(0)}% margin)
                           </td>
@@ -3082,7 +3083,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                           <td className="py-2 pr-3 font-bold text-amber-300">
                             {m.Pcore_igse_W.toFixed(2)} W <span className="text-slate-500 font-normal">/ {m.Pcore_se_W.toFixed(2)} W</span>
                           </td>
-                          <td className="py-2 pr-3 text-cyan-400">+{m.deltaT_fe_C.toFixed(1)} °C</td>
+                          <td className="py-2 pr-3 text-blue-400">+{m.deltaT_fe_C.toFixed(1)} °C</td>
                           <td className="py-2 pr-3">
                             <span className={m.Tcore_eq_C > 115 ? 'text-rose-400 font-bold' : 'text-emerald-400 font-bold'}>
                               {m.Tcore_eq_C.toFixed(1)} °C
@@ -3408,7 +3409,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                           ? 'text-rose-500 font-bold'
                           : res.saturationCheck.status === 'warning'
                           ? 'text-amber-500 font-semibold'
-                          : 'text-cyan-400'
+                          : 'text-blue-400'
                       }
                     >
                       {res.Bpk_mT.toFixed(1)} mT / {res.saturationCheck.Bsat_100C_mT.toFixed(0)} mT (Margin {res.fluxMargin_pct.toFixed(1)}%)
@@ -3504,7 +3505,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                 <div className="border-t border-slate-200 dark:border-slate-800 pt-2.5 text-xs font-mono space-y-1">
                   <div className="flex justify-between">
                     <span className="text-slate-400">Parasitic Tank f_ring &amp; Characteristic Z_0:</span>
-                    <span className="text-cyan-400">
+                    <span className="text-blue-400">
                       f_ring = {res.f_ring_MHz.toFixed(2)} MHz | Z_0 = {res.Z0_ring_Ohm.toFixed(1)} Ω
                     </span>
                   </div>
