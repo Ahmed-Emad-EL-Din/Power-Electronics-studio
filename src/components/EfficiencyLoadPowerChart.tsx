@@ -302,12 +302,12 @@ export const EfficiencyLoadPowerChart: React.FC<EfficiencyLoadPowerChartProps> =
   }, [state, res, pinnedRes, maxOverloadPct]);
 
   return (
-    <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-4">
+    <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-4">
       {/* HEADER BAR */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-cyan-400" />
+            <TrendingUp className="w-4 h-4 text-blue-400" />
             <h3 className="text-sm font-bold font-mono text-slate-900 dark:text-slate-100">
               Estimated Efficiency (η) &amp; Decomposed Loss vs. Load Power Curve (Recharts)
             </h3>
@@ -338,7 +338,7 @@ export const EfficiencyLoadPowerChart: React.FC<EfficiencyLoadPowerChartProps> =
               onClick={() => setChartView(mode.id)}
               className={`px-2.5 py-1 text-[11px] font-mono rounded border transition-colors cursor-pointer ${
                 chartView === mode.id
-                  ? 'bg-cyan-600 text-white border-cyan-500 font-semibold'
+                  ? 'bg-blue-600 text-white border-blue-500 font-semibold'
                   : 'bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:border-slate-700'
               }`}
             >
@@ -362,7 +362,7 @@ export const EfficiencyLoadPowerChart: React.FC<EfficiencyLoadPowerChartProps> =
 
         <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800">
           <div className="text-[10px] font-mono uppercase text-slate-400">100% Rated Power ({state.Pout_W} W)</div>
-          <div className="text-base font-mono font-bold text-cyan-400 tabular-nums">
+          <div className="text-base font-mono font-bold text-blue-400 tabular-nums">
             {analysis.pt100.eff_active_pct.toFixed(2)}%
           </div>
           <div className="text-[11px] font-mono text-slate-400">
@@ -393,10 +393,10 @@ export const EfficiencyLoadPowerChart: React.FC<EfficiencyLoadPowerChartProps> =
         </div>
 
         <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800">
-          <div className="text-[10px] font-mono uppercase text-cyan-400 flex items-center gap-1">
+          <div className="text-[10px] font-mono uppercase text-blue-400 flex items-center gap-1">
             <Layers className="w-3 h-3" /> Magnetic Loss (100%)
           </div>
-          <div className="text-base font-mono font-bold text-cyan-300 tabular-nums">
+          <div className="text-base font-mono font-bold text-blue-300 tabular-nums">
             {analysis.pt100.Pmag_total_W.toFixed(1)} W
           </div>
           <div className="text-[11px] font-mono text-slate-400">
@@ -410,7 +410,7 @@ export const EfficiencyLoadPowerChart: React.FC<EfficiencyLoadPowerChartProps> =
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <div className="flex flex-wrap items-center gap-3 text-xs font-mono text-slate-300">
             <span className="inline-flex items-center gap-1.5">
-              <Sliders className="w-3.5 h-3.5 text-cyan-400" />
+              <Sliders className="w-3.5 h-3.5 text-blue-400" />
               Load Sweep Range: <strong>{(state.Pout_W * 0.05).toFixed(0)} W</strong> to{' '}
               <strong>{((state.Pout_W * maxOverloadPct) / 100).toFixed(0)} W</strong> ({maxOverloadPct}% Load)
             </span>
@@ -422,7 +422,7 @@ export const EfficiencyLoadPowerChart: React.FC<EfficiencyLoadPowerChartProps> =
                   onClick={() => setMaxOverloadPct(pct)}
                   className={`px-2 py-0.5 text-[10px] rounded border cursor-pointer ${
                     maxOverloadPct === pct
-                      ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300 font-bold'
+                      ? 'bg-blue-500/20 border-blue-500 text-blue-300 font-bold'
                       : 'bg-slate-900 border-slate-800 text-slate-400'
                   }`}
                 >
@@ -625,7 +625,7 @@ export const EfficiencyLoadPowerChart: React.FC<EfficiencyLoadPowerChartProps> =
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
         <div className="xl:col-span-4 bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg p-3.5 space-y-2">
           <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5] flex items-center gap-1.5">
-            <Zap className="w-3.5 h-3.5 text-cyan-500" /> Peak Efficiency Load Law
+            <Zap className="w-3.5 h-3.5 text-blue-500" /> Peak Efficiency Load Law
           </div>
           <div className="p-2.5 rounded bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
             <MathFormula tex="\eta(P_{\text{out}}) = \frac{P_{\text{out}}}{P_{\text{out}} + P_{\text{fixed}} + k_{\text{load}}^2 P_{\text{quad}}(T_j)}" />
@@ -634,7 +634,7 @@ export const EfficiencyLoadPowerChart: React.FC<EfficiencyLoadPowerChartProps> =
             <MathFormula tex="\frac{\partial \eta}{\partial P_{\text{out}}} = 0 \implies P_{\text{opt}} = P_{\text{rated}}\sqrt{\frac{P_{\text{core}} + P_{\text{gate}} + P_{\text{oss}}}{P_{\text{cond,semi}} + P_{\text{cu,mag}}}}" />
           </div>
           <p className="text-[11px] font-mono text-slate-400 leading-relaxed">
-            Maximum efficiency occurs where <strong className="text-cyan-300">load-independent losses</strong> (iGSE core loss + gate drive + C_oss) equal <strong className="text-amber-300">quadratic I²R conduction &amp; winding losses</strong> (theoretical P_opt ≈ {analysis.P_opt_theory_W} W).
+            Maximum efficiency occurs where <strong className="text-blue-300">load-independent losses</strong> (iGSE core loss + gate drive + C_oss) equal <strong className="text-amber-300">quadratic I²R conduction &amp; winding losses</strong> (theoretical P_opt ≈ {analysis.P_opt_theory_W} W).
           </p>
         </div>
 
@@ -663,7 +663,7 @@ export const EfficiencyLoadPowerChart: React.FC<EfficiencyLoadPowerChartProps> =
                       <td className="py-2 pr-3 font-bold text-slate-200">
                         {pt.loadPct.toFixed(0)}% Load
                       </td>
-                      <td className="py-2 pr-3 text-cyan-300 font-semibold">{pt.Pout_W.toFixed(0)} W</td>
+                      <td className="py-2 pr-3 text-blue-300 font-semibold">{pt.Pout_W.toFixed(0)} W</td>
                       <td className="py-2 pr-3 text-slate-400">{pt.Iout_A.toFixed(1)} A</td>
                       <td className="py-2 pr-3 text-amber-300">
                         {pt.Psemi_total_W.toFixed(1)} W{' '}
@@ -683,7 +683,7 @@ export const EfficiencyLoadPowerChart: React.FC<EfficiencyLoadPowerChartProps> =
                       <td className="py-2 pr-3 font-bold text-emerald-400">
                         {pt.eff_active_pct.toFixed(2)}%
                       </td>
-                      <td className="py-2 text-cyan-400">{pt.eff_cold25C_pct.toFixed(2)}%</td>
+                      <td className="py-2 text-blue-400">{pt.eff_cold25C_pct.toFixed(2)}%</td>
                     </tr>
                   )
                 )}

@@ -191,17 +191,17 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
 
   if (!isEnabled) return null;
 
-  // Collapsed edge restore strip (keeps AI Engineer ON without occupying main canvas width)
+  // Collapsed edge restore strip (keeps AI Engineer ON without occupying main canvas width on desktop)
   if (isCollapsed) {
     return (
-      <div className="no-print fixed right-0 top-24 z-30 flex flex-col items-end">
+      <div className="no-print hidden lg:flex fixed right-0 top-24 z-30 flex-col items-end">
         <button
           type="button"
           onClick={onToggleCollapse}
-          className="px-2.5 py-3 bg-white dark:bg-[#0E131D] border border-r-0 border-slate-200 dark:border-slate-700 rounded-l-lg shadow-lg flex flex-col items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:border-cyan-500 dark:hover:border-cyan-500 transition-colors cursor-pointer"
+          className="px-2.5 py-3 bg-white dark:bg-[#14171f] border border-r-0 border-slate-200 dark:border-slate-700 rounded-l-lg shadow-lg flex flex-col items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:border-blue-500 dark:hover:border-blue-500 transition-colors cursor-pointer"
           title="Expand AI Engineer Drawer"
         >
-          <PanelRightOpen className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+          <PanelRightOpen className="w-4 h-4 text-blue-600 dark:text-blue-400" />
           <span
             className="text-[11px] font-semibold tracking-wide whitespace-nowrap"
             style={{ writingMode: 'vertical-rl' }}
@@ -238,20 +238,20 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
   return (
     <aside
       aria-label="AI Engineer Workspace"
-      className="no-print fixed lg:sticky top-0 lg:top-14 right-0 bottom-0 h-[100dvh] lg:h-[calc(100vh-3.5rem)] w-full sm:w-[420px] xl:w-[450px] shrink-0 z-50 lg:z-30 bg-white dark:bg-[#0E131D] border-l border-slate-200 dark:border-slate-800 flex flex-col shadow-xl lg:shadow-none"
+      className="no-print fixed lg:sticky top-0 lg:top-14 right-0 bottom-0 h-[100dvh] lg:h-[calc(100vh-3.5rem)] w-full sm:w-[420px] xl:w-[450px] shrink-0 z-50 lg:z-30 bg-white dark:bg-[#14171f] border-l border-slate-200 dark:border-slate-800 flex flex-col shadow-xl lg:shadow-none"
     >
       {/* DRAWER HEADER */}
-      <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0B0F17] flex items-center justify-between gap-2">
+      <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0e1015] flex items-center justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <Bot className="w-4 h-4 text-cyan-600 dark:text-cyan-400 shrink-0" />
+            <Bot className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
             <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
               AI Engineer
             </h2>
           </div>
           <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 font-mono tabular-nums">
             {isAuditing ? (
-              <span className="inline-flex items-center gap-1 text-cyan-700 dark:text-cyan-300">
+              <span className="inline-flex items-center gap-1 text-blue-700 dark:text-blue-300">
                 <Loader2 className="w-3 h-3 animate-spin" />
                 {isVerifyingPass ? 'Verifying post-fix physics...' : 'Auditing full design...'}
               </span>
@@ -278,8 +278,8 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
             aria-expanded={settingsOpen}
             className={`h-7 px-2 rounded border text-[11px] font-medium inline-flex items-center gap-1 cursor-pointer transition-colors whitespace-nowrap ${
               settingsOpen
-                ? 'bg-cyan-600 border-cyan-500 text-white'
-                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-[#131A26] text-slate-700 dark:text-slate-200 hover:border-cyan-500'
+                ? 'bg-blue-600 border-blue-500 text-white'
+                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1c202b] text-slate-700 dark:text-slate-200 hover:border-blue-500'
             }`}
             title={`Configure AI Provider & API Key (${AI_PROVIDER_META[aiConfig.provider].label} · ${aiConfig.model})`}
           >
@@ -296,7 +296,7 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
             type="button"
             onClick={onRunAudit}
             disabled={isAuditing}
-            className="h-7 px-2 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#131A26] text-[11px] font-medium text-slate-700 dark:text-slate-200 hover:border-cyan-500 disabled:opacity-50 inline-flex items-center gap-1 cursor-pointer transition-colors whitespace-nowrap"
+            className="h-7 px-2 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1c202b] text-[11px] font-medium text-slate-700 dark:text-slate-200 hover:border-blue-500 disabled:opacity-50 inline-flex items-center gap-1 cursor-pointer transition-colors whitespace-nowrap"
             title="Re-audit full design state"
           >
             <RefreshCw className={`w-3 h-3 ${isAuditing ? 'animate-spin' : ''}`} />
@@ -305,7 +305,7 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
           <button
             type="button"
             onClick={onToggleCollapse}
-            className="h-7 w-7 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#131A26] text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 inline-flex items-center justify-center cursor-pointer transition-colors"
+            className="h-7 w-7 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1c202b] text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 inline-flex items-center justify-center cursor-pointer transition-colors"
             title="Collapse drawer (keep AI Engineer ON)"
             aria-label="Collapse drawer"
           >
@@ -314,7 +314,7 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
           <button
             type="button"
             onClick={onTurnOff}
-            className="h-7 w-7 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#131A26] text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 inline-flex items-center justify-center cursor-pointer transition-colors"
+            className="h-7 w-7 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1c202b] text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 inline-flex items-center justify-center cursor-pointer transition-colors"
             title="Turn AI Engineer OFF"
             aria-label="Turn AI Engineer OFF"
           >
@@ -324,14 +324,14 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
       </div>
 
       {/* MODE SWITCHER */}
-      <div className="px-4 py-2 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 bg-white dark:bg-[#0E131D]">
-        <div className="inline-flex items-center gap-1 p-0.5 rounded-md bg-slate-100 dark:bg-[#090C12] border border-slate-200 dark:border-slate-800">
+      <div className="px-4 py-2 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 bg-white dark:bg-[#14171f]">
+        <div className="inline-flex items-center gap-1 p-0.5 rounded-md bg-slate-100 dark:bg-[#090a0d] border border-slate-200 dark:border-slate-800">
           <button
             type="button"
             onClick={() => setActiveTab('plan')}
             className={`px-3 py-1 text-xs font-medium rounded transition-colors inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
               activeTab === 'plan'
-                ? 'bg-white dark:bg-[#161E2E] text-cyan-700 dark:text-cyan-300 border border-slate-200 dark:border-slate-700 font-semibold'
+                ? 'bg-white dark:bg-[#1c202b] text-blue-700 dark:text-blue-300 border border-slate-200 dark:border-slate-700 font-semibold'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 border border-transparent'
             }`}
           >
@@ -343,7 +343,7 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
             onClick={() => setActiveTab('chat')}
             className={`px-3 py-1 text-xs font-medium rounded transition-colors inline-flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
               activeTab === 'chat'
-                ? 'bg-white dark:bg-[#161E2E] text-cyan-700 dark:text-cyan-300 border border-slate-200 dark:border-slate-700 font-semibold'
+                ? 'bg-white dark:bg-[#1c202b] text-blue-700 dark:text-blue-300 border border-slate-200 dark:border-slate-700 font-semibold'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 border border-transparent'
             }`}
           >
@@ -375,7 +375,7 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
 
       {/* EXPANDABLE AI PROVIDER & API KEY SETTINGS */}
       {settingsOpen && (
-        <div className="p-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0E131D]">
+        <div className="p-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#14171f]">
           <AiProviderSettingsPanel
             aiConfig={aiConfig}
             onChangeAiConfig={onChangeAiConfig}
@@ -425,7 +425,7 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
                 <button
                   type="button"
                   onClick={() => setSettingsOpen(true)}
-                  className="px-3 py-1.5 rounded border border-rose-300 dark:border-rose-700 bg-white dark:bg-[#131A26] text-rose-700 dark:text-rose-200 hover:border-cyan-500 text-xs font-medium cursor-pointer"
+                  className="px-3 py-1.5 rounded border border-rose-300 dark:border-rose-700 bg-white dark:bg-[#1c202b] text-rose-700 dark:text-rose-200 hover:border-blue-500 text-xs font-medium cursor-pointer"
                 >
                   AI Provider &amp; API Key
                 </button>
@@ -435,7 +435,7 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
 
           {/* 1-CLICK APPROVE ALL ACTION BAR */}
           {safeBatchPreview.fixesToApply.length > 0 && (
-            <div className="p-4 bg-slate-50 dark:bg-[#0B0F17] space-y-2.5">
+            <div className="p-4 bg-slate-50 dark:bg-[#0e1015] space-y-2.5">
               <button
                 type="button"
                 onClick={onApproveAllSafeFixes}
@@ -462,7 +462,7 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
           {/* LOADING SKELETON / AUDIT SUMMARY */}
           {isAuditing ? (
             <div className="p-4 space-y-3">
-              <div className="flex items-center gap-2 text-xs font-medium text-cyan-700 dark:text-cyan-300">
+              <div className="flex items-center gap-2 text-xs font-medium text-blue-700 dark:text-blue-300">
                 <Loader2 className="w-4 h-4 animate-spin" />
                 <span>
                   {isVerifyingPass
@@ -552,7 +552,7 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
                               ? 'text-rose-700 dark:text-rose-400'
                               : item.severity === 'warning'
                               ? 'text-amber-700 dark:text-amber-400'
-                              : 'text-cyan-700 dark:text-cyan-300'
+                              : 'text-blue-700 dark:text-blue-300'
                           }`}
                         >
                           {item.severity === 'danger'
@@ -570,7 +570,7 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
                       <button
                         type="button"
                         onClick={() => onJumpToAlertId(item.alertId, item.domain)}
-                        className="inline-flex items-center gap-0.5 text-cyan-700 dark:text-cyan-300 hover:underline cursor-pointer shrink-0"
+                        className="inline-flex items-center gap-0.5 text-blue-700 dark:text-blue-300 hover:underline cursor-pointer shrink-0"
                       >
                         <span>Inspect</span>
                         <ArrowUpRight className="w-3 h-3" />
@@ -592,7 +592,7 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
                     </div>
 
                     {/* Exact Change & Dry-Run Physics Result */}
-                    <div className="p-2.5 rounded border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0B0F17] space-y-1.5 text-[11px]">
+                    <div className="p-2.5 rounded border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0e1015] space-y-1.5 text-[11px]">
                       <div className="font-mono text-slate-800 dark:text-slate-200 font-medium">
                         {item.patchSummary}
                       </div>
@@ -630,7 +630,7 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
                         type="button"
                         onClick={() => onApplySingleFix(item)}
                         disabled={!v.valid || !v.resolvedFix || v.alreadyResolved}
-                        className="px-3 py-1.5 rounded bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-white text-[11px] font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                        className="px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-[11px] font-semibold inline-flex items-center gap-1.5 cursor-pointer transition-colors"
                       >
                         <Check className="w-3 h-3" />
                         <span>Apply Fix</span>
@@ -652,7 +652,7 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
 
           {/* APPLIED LOG */}
           {appliedLog.length > 0 && (
-            <div className="p-4 space-y-2 bg-slate-50/60 dark:bg-[#0B0F17]/60">
+            <div className="p-4 space-y-2 bg-slate-50/60 dark:bg-[#0e1015]/60">
               <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
                 Applied AI Changes ({appliedLog.length})
               </div>
@@ -700,7 +700,7 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
                         key={preset.label}
                         type="button"
                         onClick={() => onSendChat(preset.prompt)}
-                        className="px-2.5 py-1.5 rounded-md border border-cyan-500/30 bg-cyan-500/5 hover:bg-cyan-500/15 text-[11px] font-mono font-semibold text-cyan-700 dark:text-cyan-300 text-left transition-colors cursor-pointer"
+                        className="px-2.5 py-1.5 rounded-md border border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/15 text-[11px] font-mono font-semibold text-blue-700 dark:text-blue-300 text-left transition-colors cursor-pointer"
                       >
                         ▶ {preset.label}
                       </button>
@@ -716,7 +716,7 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
                       key={qp}
                       type="button"
                       onClick={() => onSendChat(qp)}
-                      className="w-full text-left px-3 py-2 rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0B0F17] hover:border-cyan-500 text-xs text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
+                      className="w-full text-left px-3 py-2 rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0e1015] hover:border-blue-500 text-xs text-slate-700 dark:text-slate-200 transition-colors cursor-pointer"
                     >
                       {qp}
                     </button>
@@ -734,10 +734,10 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
                   <div
                     className={`p-3 rounded-md border text-xs leading-relaxed whitespace-pre-wrap ${
                       msg.role === 'user'
-                        ? 'bg-cyan-50/70 dark:bg-cyan-950/30 border-cyan-200 dark:border-cyan-800/60 text-slate-900 dark:text-slate-100'
+                        ? 'bg-blue-50/70 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800/60 text-slate-900 dark:text-slate-100'
                         : msg.error
                         ? 'bg-rose-50 dark:bg-rose-950/25 border-rose-200 dark:border-rose-800/60 text-rose-800 dark:text-rose-200'
-                        : 'bg-slate-50 dark:bg-[#0B0F17] border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200'
+                        : 'bg-slate-50 dark:bg-[#0e1015] border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200'
                     }`}
                   >
                     <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 dark:text-slate-400 mb-1">
@@ -755,10 +755,10 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
                     )}
                     {msg.toolTrace && msg.toolTrace.length > 0 && (
                       <details className="mt-2 text-[10px] font-mono text-slate-600 dark:text-slate-400">
-                        <summary className="cursor-pointer select-none text-cyan-700 dark:text-cyan-400 hover:underline">
+                        <summary className="cursor-pointer select-none text-blue-700 dark:text-blue-400 hover:underline">
                           Verified Solver Calls ({msg.toolTrace.length})
                         </summary>
-                        <div className="mt-1.5 space-y-1 pl-2 border-l border-cyan-500/30">
+                        <div className="mt-1.5 space-y-1 pl-2 border-l border-blue-500/30">
                           {msg.toolTrace.map((t) => (
                             <div key={t.step} className="leading-snug">
                               <span className="font-semibold text-slate-800 dark:text-slate-200">
@@ -779,7 +779,7 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
                         <button
                           type="button"
                           onClick={() => setSettingsOpen(true)}
-                          className="px-2.5 py-1 rounded border border-rose-300 dark:border-rose-700 bg-white dark:bg-[#131A26] text-rose-700 dark:text-rose-200 hover:border-cyan-500 text-[11px] font-medium cursor-pointer"
+                          className="px-2.5 py-1 rounded border border-rose-300 dark:border-rose-700 bg-white dark:bg-[#1c202b] text-rose-700 dark:text-rose-200 hover:border-blue-500 text-[11px] font-medium cursor-pointer"
                         >
                           Configure AI Provider &amp; API Key
                         </button>
@@ -834,7 +834,7 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
             )}
 
             {isSendingChat && (
-              <div className="p-3 rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0B0F17] flex items-center gap-2 text-xs text-cyan-700 dark:text-cyan-300">
+              <div className="p-3 rounded-md border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0e1015] flex items-center gap-2 text-xs text-blue-700 dark:text-blue-300">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 <span>Analyzing live converter parameters...</span>
               </div>
@@ -845,7 +845,7 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
           {/* CHAT COMPOSER */}
           <form
             onSubmit={handleChatSubmit}
-            className="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0B0F17] space-y-2"
+            className="p-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-[#0e1015] space-y-2"
           >
             <div className="flex items-center justify-between gap-2 text-[10px] font-mono text-slate-500 dark:text-slate-400">
               <span className="truncate">
@@ -855,7 +855,7 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
               <button
                 type="button"
                 onClick={() => setSettingsOpen(true)}
-                className="text-cyan-700 dark:text-cyan-400 hover:underline shrink-0 cursor-pointer"
+                className="text-blue-700 dark:text-blue-400 hover:underline shrink-0 cursor-pointer"
               >
                 Change Key / Model
               </button>
@@ -873,12 +873,12 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
                 }}
                 placeholder="Ask about Danger fixes, thermals, magnetics, ZVS, or Bode margins…"
                 aria-label="Ask the AI Engineer a question"
-                className="flex-1 resize-none rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#0E131D] px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 focus-visible:border-cyan-500"
+                className="flex-1 resize-none rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#14171f] px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:border-blue-500"
               />
               <button
                 type="submit"
                 disabled={!chatInput.trim() || isSendingChat}
-                className="h-9 px-3 rounded-md bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-white text-xs font-medium inline-flex items-center justify-center shrink-0 cursor-pointer transition-colors"
+                className="h-9 px-3 rounded-md bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white text-xs font-medium inline-flex items-center justify-center shrink-0 cursor-pointer transition-colors"
                 aria-label="Send question to AI Engineer"
               >
                 <Send className="w-3.5 h-3.5" />

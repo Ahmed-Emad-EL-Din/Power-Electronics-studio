@@ -176,7 +176,8 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
       {/* ===================================================================== */}
       <ResizableSidebarWindow
         title="AC-DC PFC Parameters"
-        subtitle="Scrollable • Drag Right Border"
+        subtitle="Drag border to resize"
+        mobileSummary={`${state.Vac_rms_V}Vac→${state.Vdc_bus_V}V · ${state.Pout_W}W · η ${res.efficiency_pct.toFixed(1)}%`}
         defaultWidth={360}
       >
         {/* Preset Selector */}
@@ -189,7 +190,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
             aria-label="AC-DC Reference Design Preset"
             onChange={(e) => handlePresetChange(e.target.value)}
             defaultValue={ACDC_PRESETS[0].id}
-            className="w-full h-8 bg-slate-50 dark:bg-[#090C12] border border-slate-200 dark:border-slate-700 rounded-md px-2.5 text-xs text-slate-900 dark:text-slate-100"
+            className="w-full h-8 bg-slate-50 dark:bg-[#090a0d] border border-slate-200 dark:border-slate-700 rounded-md px-2.5 text-xs text-slate-900 dark:text-slate-100"
           >
             {ACDC_PRESETS.map((p) => (
               <option key={p.id} value={p.id}>
@@ -227,7 +228,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
               aria-label="Power Stage Topology"
               value={state.topology}
               onChange={(e) => update('topology', e.target.value as AcDcTopologyType)}
-              className="w-full h-8 bg-slate-50 dark:bg-[#090C12] border border-slate-200 dark:border-slate-700 rounded-md px-2.5 text-xs text-slate-900 dark:text-slate-100"
+              className="w-full h-8 bg-slate-50 dark:bg-[#090a0d] border border-slate-200 dark:border-slate-700 rounded-md px-2.5 text-xs text-slate-900 dark:text-slate-100"
             >
               <option value="2ph-interleaved-totem">
                 2-Ph Interleaved Bridgeless Totem-Pole (0°/180°)
@@ -252,7 +253,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
               aria-label="Current / Voltage Control Law"
               value={state.controlType}
               onChange={(e) => update('controlType', e.target.value as AcDcControlType)}
-              className="w-full h-8 bg-slate-50 dark:bg-[#090C12] border border-slate-200 dark:border-slate-700 rounded-md px-2.5 text-xs text-slate-900 dark:text-slate-100"
+              className="w-full h-8 bg-slate-50 dark:bg-[#090a0d] border border-slate-200 dark:border-slate-700 rounded-md px-2.5 text-xs text-slate-900 dark:text-slate-100"
             >
               <option value="acmc">Average Current Mode Control (ACMC + Feedforward)</option>
               <option value="2p2z">Digital 2P2Z (Pre-Warped Tustin Bilinear)</option>
@@ -279,7 +280,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                 <button
                   type="button"
                   onClick={onOpenPartDrawer}
-                  className="inline-flex items-center gap-1 text-[11px] font-medium text-cyan-600 dark:text-cyan-400 hover:underline cursor-pointer"
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
                 >
                   <Search className="w-3 h-3" /> Catalog
                 </button>
@@ -289,7 +290,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
               aria-label="Fast Switching Leg Device"
               value={state.fastSwitchId}
               onChange={(e) => update('fastSwitchId', e.target.value)}
-              className={`w-full h-8 bg-slate-50 dark:bg-[#090C12] border rounded-md px-2.5 text-xs text-slate-900 dark:text-slate-100 ${
+              className={`w-full h-8 bg-slate-50 dark:bg-[#090a0d] border rounded-md px-2.5 text-xs text-slate-900 dark:text-slate-100 ${
                 lockedParams.fastSwitchId
                   ? 'border-amber-500/50'
                   : isAutoUpdated('fastSwitchId')
@@ -351,7 +352,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                 step={5}
                 value={state.Vac_rms_V}
                 onChange={(e) => update('Vac_rms_V', Number(e.target.value))}
-                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
               />
             </div>
             <div>
@@ -383,7 +384,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                 step={10}
                 value={state.Vdc_bus_V}
                 onChange={(e) => update('Vdc_bus_V', Number(e.target.value))}
-                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
               />
             </div>
             <div>
@@ -416,7 +417,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                 step={100}
                 value={state.Pout_W}
                 onChange={(e) => update('Pout_W', Number(e.target.value))}
-                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
               />
             </div>
             <div>
@@ -448,7 +449,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                 step={5}
                 value={state.fsw_kHz}
                 onChange={(e) => update('fsw_kHz', Number(e.target.value))}
-                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
               />
             </div>
             <div>
@@ -542,7 +543,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                 step={5}
                 value={state.Lpfc_uH}
                 onChange={(e) => update('Lpfc_uH', Number(e.target.value))}
-                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
               />
             </div>
             <div>
@@ -574,7 +575,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                 step={1}
                 value={state.RL_mOhm}
                 onChange={(e) => update('RL_mOhm', Number(e.target.value))}
-                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
               />
             </div>
             <div>
@@ -607,7 +608,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                 step={50}
                 value={state.Cdc_uF}
                 onChange={(e) => update('Cdc_uF', Number(e.target.value))}
-                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
               />
               {(() => {
                 const bank = getDefaultHybridCapBank('acdc-cdc', undefined, state);
@@ -653,7 +654,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                 step={1}
                 value={state.ESR_Cdc_mOhm}
                 onChange={(e) => update('ESR_Cdc_mOhm', Number(e.target.value))}
-                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
               />
             </div>
             <div>
@@ -685,7 +686,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                 step={1}
                 value={state.tHold_ms}
                 onChange={(e) => update('tHold_ms', Number(e.target.value))}
-                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
               />
             </div>
             <div>
@@ -717,7 +718,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                 step={10}
                 value={state.Vdc_min_hold_V}
                 onChange={(e) => update('Vdc_min_hold_V', Number(e.target.value))}
-                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
               />
             </div>
           </div>
@@ -734,7 +735,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
               <button
                 type="button"
                 onClick={onOpenSmallSignalLab}
-                className="inline-flex items-center gap-1 text-[11px] font-medium text-cyan-600 dark:text-cyan-400 hover:underline cursor-pointer"
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
               >
                 <Compass className="w-3 h-3" /> Small-Signal Lab
               </button>
@@ -772,7 +773,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                 step={0.5}
                 value={state.fc_i_kHz}
                 onChange={(e) => update('fc_i_kHz', Number(e.target.value))}
-                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
               />
             </div>
             <div>
@@ -804,7 +805,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                 step={1}
                 value={state.pm_i_deg}
                 onChange={(e) => update('pm_i_deg', Number(e.target.value))}
-                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
               />
             </div>
             <div>
@@ -836,7 +837,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                 step={1}
                 value={state.fc_v_Hz}
                 onChange={(e) => update('fc_v_Hz', Number(e.target.value))}
-                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
               />
             </div>
             <div>
@@ -868,7 +869,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                 step={5}
                 value={state.fs_ctrl_kHz}
                 onChange={(e) => update('fs_ctrl_kHz', Number(e.target.value))}
-                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
               />
             </div>
             <div className="col-span-2">
@@ -889,7 +890,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                 step={1}
                 value={state.pm_v_deg}
                 onChange={(e) => update('pm_v_deg', Number(e.target.value))}
-                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
               />
             </div>
           </div>
@@ -906,7 +907,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                 step={5}
                 value={state.mpcL_mismatch_pct}
                 onChange={(e) => update('mpcL_mismatch_pct', Number(e.target.value))}
-                className="w-full accent-cyan-500"
+                className="w-full accent-blue-500"
               />
             </div>
           )}
@@ -918,43 +919,43 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
       {/* ===================================================================== */}
       <div className="flex-1 min-w-0 w-full space-y-4">
         {/* Top KPI Telemetry Strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
-          <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 border-t-2 border-t-cyan-500/70 rounded-lg p-3">
-            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Iin,rms / Phase</div>
-            <div className="text-xl font-mono font-semibold text-slate-900 dark:text-slate-100 mt-0.5 tabular-nums">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
+          <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-white/[0.08] border-t-2 border-t-blue-500/75 rounded-xl p-2.5 sm:p-3">
+            <div className="text-[11px] font-medium text-slate-500 dark:text-[#a1a8b8]">Iin,rms / Phase</div>
+            <div className="text-base sm:text-xl font-mono font-semibold text-slate-900 dark:text-[#eef0f6] mt-0.5 tabular-nums">
               {res.Iin_rms_A.toFixed(1)} / {res.Iph_rms_A.toFixed(1)} A
             </div>
-            <div className="text-[11px] font-mono tabular-nums text-cyan-600 dark:text-cyan-400 mt-0.5">
+            <div className="text-[10px] sm:text-[11px] font-mono tabular-nums text-blue-600 dark:text-blue-400 mt-0.5 truncate">
               {res.nPhases}-Ph ({res.nPhases === 2 ? '180° Shift' : 'Single'})
             </div>
           </div>
 
-          <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 border-t-2 border-t-emerald-500/70 rounded-lg p-3">
-            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Net Input Ripple</div>
-            <div className="text-xl font-mono font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5 tabular-nums">
+          <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-white/[0.08] border-t-2 border-t-emerald-500/75 rounded-xl p-2.5 sm:p-3">
+            <div className="text-[11px] font-medium text-slate-500 dark:text-[#a1a8b8]">Net Input Ripple</div>
+            <div className="text-base sm:text-xl font-mono font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5 tabular-nums">
               {res.deltaIin_net_max_A.toFixed(2)} App
             </div>
-            <div className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400 mt-0.5">
+            <div className="text-[10px] sm:text-[11px] font-mono tabular-nums text-slate-500 dark:text-[#727b8e] mt-0.5 truncate">
               1-Ph: {res.deltaIL_ph_max_A.toFixed(2)} A (-{res.rippleCancelMax_pct.toFixed(0)}%)
             </div>
           </div>
 
-          <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 border-t-2 border-t-amber-500/60 rounded-lg p-3">
-            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Hold-Up / ΔV_2f</div>
-            <div className="text-xl font-mono font-semibold text-slate-900 dark:text-slate-100 mt-0.5 tabular-nums">
+          <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-white/[0.08] border-t-2 border-t-amber-500/70 rounded-xl p-2.5 sm:p-3">
+            <div className="text-[11px] font-medium text-slate-500 dark:text-[#a1a8b8]">Hold-Up / ΔV_2f</div>
+            <div className="text-base sm:text-xl font-mono font-semibold text-slate-900 dark:text-[#eef0f6] mt-0.5 tabular-nums">
               {res.tHold_actual_ms.toFixed(1)} ms
             </div>
-            <div className="text-[11px] font-mono tabular-nums text-amber-600 dark:text-amber-400 mt-0.5">
+            <div className="text-[10px] sm:text-[11px] font-mono tabular-nums text-amber-600 dark:text-amber-400 mt-0.5 truncate">
               ΔV2f = {res.Vdc_ripple_pp_V.toFixed(1)} Vpp
             </div>
           </div>
 
-          <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 border-t-2 border-t-cyan-500/70 rounded-lg p-3">
-            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Power Factor / THDi</div>
-            <div className="text-xl font-mono font-semibold text-cyan-600 dark:text-cyan-400 mt-0.5 tabular-nums">
+          <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-white/[0.08] border-t-2 border-t-blue-500/75 rounded-xl p-2.5 sm:p-3">
+            <div className="text-[11px] font-medium text-slate-500 dark:text-[#a1a8b8]">Power Factor / THDi</div>
+            <div className="text-base sm:text-xl font-mono font-semibold text-blue-600 dark:text-blue-400 mt-0.5 tabular-nums">
               {res.powerFactor_true.toFixed(4)}
             </div>
-            <div className="text-[11px] font-mono tabular-nums text-emerald-600 dark:text-emerald-400 mt-0.5">
+            <div className="text-[10px] sm:text-[11px] font-mono tabular-nums text-emerald-600 dark:text-emerald-400 mt-0.5 truncate">
               THDi = {res.THD_est_pct.toFixed(2)}% (Pass)
             </div>
           </div>
@@ -963,19 +964,19 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
             type="button"
             onClick={() => setActiveSubTab('magnetics')}
             title="Inspect Boost Inductor Magnetics & Saturation Check"
-            className={`text-left rounded-lg p-3 border border-t-2 cursor-pointer transition-colors ${
+            className={`text-left rounded-xl p-2.5 sm:p-3 border border-t-2 cursor-pointer transition-colors ${
               res.saturationCheck.status === 'critical'
                 ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-500/70 border-t-rose-500'
                 : res.saturationCheck.status === 'warning'
                 ? 'bg-amber-50 dark:bg-amber-950/25 border-amber-500/60 border-t-amber-500'
-                : 'bg-white dark:bg-[#0E131D] border-slate-200 dark:border-slate-800 border-t-emerald-500/60 hover:border-slate-300 dark:hover:border-slate-700'
+                : 'bg-white dark:bg-[#14171f] border-slate-200 dark:border-white/[0.08] border-t-emerald-500/70 hover:border-slate-300 dark:hover:border-white/[0.18]'
             }`}
           >
-            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 flex items-center justify-between gap-1">
-              <span>Inductor Roll-Off</span>
+            <div className="text-[11px] font-medium text-slate-500 dark:text-[#a1a8b8] flex items-center justify-between gap-1">
+              <span className="truncate">Inductor Roll-Off</span>
               {res.saturationCheck.status !== 'ok' && (
                 <span
-                  className={`text-[10px] font-semibold ${
+                  className={`text-[10px] font-semibold shrink-0 ${
                     res.saturationCheck.status === 'critical' ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600 dark:text-amber-400'
                   }`}
                 >
@@ -984,7 +985,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
               )}
             </div>
             <div
-              className={`text-xl font-mono font-semibold mt-0.5 tabular-nums ${
+              className={`text-base sm:text-xl font-mono font-semibold mt-0.5 tabular-nums ${
                 res.saturationCheck.status === 'critical'
                   ? 'text-rose-600 dark:text-rose-400'
                   : 'text-amber-600 dark:text-amber-400'
@@ -992,17 +993,17 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
             >
               {res.L_at_peak_koolMu_uH.toFixed(0)} µH @ Ipk
             </div>
-            <div className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400 mt-0.5">
+            <div className="text-[10px] sm:text-[11px] font-mono tabular-nums text-slate-500 dark:text-[#727b8e] mt-0.5 truncate">
               Bpk = {res.Bpk_total_T.toFixed(2)} T ({res.N_pfc_turns}T · Lim {res.saturationCheck.Bsat_koolMu_T.toFixed(2)}T)
             </div>
           </button>
 
-          <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 border-t-2 border-t-emerald-500/70 rounded-lg p-3">
-            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Efficiency / Losses</div>
-            <div className="text-xl font-mono font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5 tabular-nums">
+          <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-white/[0.08] border-t-2 border-t-emerald-500/75 rounded-xl p-2.5 sm:p-3">
+            <div className="text-[11px] font-medium text-slate-500 dark:text-[#a1a8b8]">Efficiency / Losses</div>
+            <div className="text-base sm:text-xl font-mono font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5 tabular-nums">
               {res.efficiency_pct.toFixed(2)}%
             </div>
-            <div className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400 mt-0.5">
+            <div className="text-[10px] sm:text-[11px] font-mono tabular-nums text-slate-500 dark:text-[#727b8e] mt-0.5 truncate">
               P_loss = {res.Ptotal_loss_W.toFixed(1)} W · Tj={res.Tj_fast_C.toFixed(0)}°C
             </div>
           </div>
@@ -1078,7 +1079,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
 
           return (
             <div ref={subTabNavRef} className="scroll-mt-20 space-y-2 border-b border-slate-200 dark:border-white/[0.08] pb-2.5">
-              <div role="tablist" aria-label="AC-DC Analysis Groups" className="flex flex-wrap items-center gap-1.5">
+              <div role="tablist" aria-label="AC-DC Analysis Groups" className="flex flex-nowrap sm:flex-wrap items-center gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
                 {acdcGroups.map((grp) => {
                   const isActive = grp.id === activeGroup.id;
                   return (
@@ -1090,10 +1091,10 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                       onClick={() => setActiveSubTab(grp.views[0].id)}
                       className={`px-3 py-1.5 rounded-lg border text-xs font-medium inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
                         isActive
-                          ? 'bg-[#eceff4] dark:bg-[#1a1e28] border-cyan-500/60 text-cyan-700 dark:text-cyan-300 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
+                          ? 'bg-[#eff1f5] dark:bg-[#1c202b] border-blue-500/60 text-blue-700 dark:text-blue-300 shadow-2xs'
                           : grp.alert
                           ? 'bg-rose-500/10 border-rose-500/40 text-rose-600 dark:text-rose-400'
-                          : 'bg-white dark:bg-[#11141c] border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-[#a3a9b8] hover:border-slate-300 dark:hover:border-white/[0.16] hover:text-slate-900 dark:hover:text-[#eef0f5]'
+                          : 'bg-white dark:bg-[#14171f] border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-[#a1a8b8] hover:border-slate-300 dark:hover:border-white/[0.16] hover:text-slate-900 dark:hover:text-[#eef0f6]'
                       }`}
                     >
                       <span aria-hidden="true">{grp.icon}</span>
@@ -1110,7 +1111,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
               </div>
 
               {activeGroup.views.length > 1 && (
-                <div role="tablist" aria-label={`${activeGroup.label} views`} className="flex flex-wrap items-center gap-1 bg-[#eceff4]/75 dark:bg-[#07080d] p-1 rounded-lg border border-slate-200/80 dark:border-white/[0.07]">
+                <div role="tablist" aria-label={`${activeGroup.label} views`} className="flex flex-nowrap sm:flex-wrap items-center gap-1 bg-[#eceef2]/80 dark:bg-[#090a0d] p-1 rounded-lg border border-slate-200/80 dark:border-white/[0.07] overflow-x-auto no-scrollbar">
                   {activeGroup.views.map((view) => {
                     const active = activeSubTab === view.id;
                     return (
@@ -1120,12 +1121,12 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                         role="tab"
                         aria-selected={active}
                         onClick={() => setActiveSubTab(view.id)}
-                        className={`px-2.5 py-1 text-[11px] font-medium rounded-md inline-flex items-center gap-1.5 whitespace-nowrap cursor-pointer transition-colors ${
+                        className={`px-2.5 py-1 text-[11px] font-medium rounded-md inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
                           active
-                            ? 'bg-white dark:bg-[#1a1e28] text-cyan-700 dark:text-cyan-300 border border-slate-200 dark:border-white/[0.12] shadow-xs'
+                            ? 'bg-white dark:bg-[#1c202b] text-blue-700 dark:text-blue-300 border border-slate-200 dark:border-white/[0.12] shadow-2xs'
                             : view.alert
                             ? 'text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 border border-transparent'
-                            : 'text-slate-600 dark:text-[#a3a9b8] hover:text-slate-900 dark:hover:text-[#eef0f5] border border-transparent'
+                            : 'text-slate-600 dark:text-[#a1a8b8] hover:text-slate-900 dark:hover:text-[#eef0f6] border border-transparent'
                         }`}
                       >
                         <span>{view.label}</span>
@@ -1233,7 +1234,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                           onClick={() => update('topology', row.id)}
                           className={`cursor-pointer transition-colors ${
                             active
-                              ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-300 font-semibold'
+                              ? 'bg-blue-500/10 text-blue-600 dark:text-blue-300 font-semibold'
                               : 'hover:bg-slate-50 dark:hover:bg-slate-900/40'
                           }`}
                         >
@@ -1277,7 +1278,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                       <tr key={i} className="hover:bg-slate-50/60 dark:hover:bg-slate-900/30">
                         <td className="py-3 px-3 align-middle">
                           <div className="flex flex-col gap-0.5">
-                            <span className="text-cyan-600 dark:text-cyan-400 font-semibold text-sm">
+                            <span className="text-blue-600 dark:text-blue-400 font-semibold text-sm">
                               <MathFormula tex={eq.symbolTex || eq.symbol} />
                             </span>
                             <span className="text-[11px] text-slate-600 dark:text-slate-400 font-sans font-medium">
@@ -1482,13 +1483,13 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                 <div className="grid grid-cols-2 gap-2.5 text-xs font-mono">
                   <div className="p-2.5 bg-slate-50 dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-800">
                     <div className="text-slate-500 text-[10px]">Inner Proportional Kp,i</div>
-                    <div className="text-sm font-bold text-cyan-600 dark:text-cyan-400 mt-0.5 tabular-nums">
+                    <div className="text-sm font-bold text-blue-600 dark:text-blue-400 mt-0.5 tabular-nums">
                       {res.Kp_i.toFixed(5)} V/A
                     </div>
                   </div>
                   <div className="p-2.5 bg-slate-50 dark:bg-slate-900 rounded border border-slate-200 dark:border-slate-800">
                     <div className="text-slate-500 text-[10px]">Inner Integral Ki,i</div>
-                    <div className="text-sm font-bold text-cyan-600 dark:text-cyan-400 mt-0.5 tabular-nums">
+                    <div className="text-sm font-bold text-blue-600 dark:text-blue-400 mt-0.5 tabular-nums">
                       {res.Ki_i.toFixed(1)} rad/s
                     </div>
                   </div>
@@ -1507,7 +1508,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                 </div>
 
                 <div className="p-3 bg-slate-900 text-slate-200 rounded font-mono text-xs space-y-1">
-                  <div className="text-cyan-400 font-bold text-[11px]">
+                  <div className="text-blue-400 font-bold text-[11px]">
                     Pre-Warped Tustin 2P2Z Coefficients (fs = {state.fs_ctrl_kHz} kHz):
                   </div>
                   <div>
@@ -1529,7 +1530,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                   <button
                     type="button"
                     onClick={copyDspCode}
-                    className="px-2.5 py-1 text-xs font-mono bg-cyan-600 text-white rounded hover:bg-cyan-500 inline-flex items-center gap-1 cursor-pointer"
+                    className="px-2.5 py-1 text-xs font-mono bg-blue-600 text-white rounded hover:bg-blue-500 inline-flex items-center gap-1 cursor-pointer"
                   >
                     {copiedCode ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                     {copiedCode ? 'Copied' : 'Copy C Code'}
@@ -1550,16 +1551,16 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
           <div className="space-y-4">
             {/* Top Summary Banner */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
+              <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
                 <div className="text-[10px] font-mono uppercase text-slate-500">True Power Factor (PF)</div>
-                <div className="text-lg font-mono font-bold text-cyan-600 dark:text-cyan-400 mt-1 tabular-nums">
+                <div className="text-lg font-mono font-bold text-blue-600 dark:text-blue-400 mt-1 tabular-nums">
                   {res.powerFactor_true.toFixed(4)}
                 </div>
                 <div className="text-[11px] font-mono text-slate-500 mt-0.5">
                   DPF = {res.displacementPF.toFixed(4)} · K_THD = {res.distortionPF.toFixed(4)}
                 </div>
               </div>
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
+              <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
                 <div className="text-[10px] font-mono uppercase text-slate-500">Total Harmonic Distortion</div>
                 <div className="text-lg font-mono font-bold text-emerald-600 dark:text-emerald-400 mt-1 tabular-nums">
                   {res.THD_est_pct.toFixed(2)}%
@@ -1568,7 +1569,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                   IEEE 519 / IEC Limit &lt; 5.0%
                 </div>
               </div>
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
+              <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
                 <div className="text-[10px] font-mono uppercase text-slate-500">Dominant 3rd Harmonic (I3)</div>
                 <div className="text-lg font-mono font-bold text-amber-600 dark:text-amber-400 mt-1 tabular-nums">
                   {res.harmonicSpectrum[0].In_rms_A.toFixed(2)} A ({res.harmonicSpectrum[0].In_pct.toFixed(2)}%)
@@ -1577,7 +1578,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                   Limit: {res.harmonicSpectrum[0].iecLimit_A.toFixed(2)} A (fc,v = {state.fc_v_Hz} Hz)
                 </div>
               </div>
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
+              <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
                 <div className="text-[10px] font-mono uppercase text-slate-500">Zero-Crossing Dead-Time Spike</div>
                 <div className="text-lg font-mono font-bold text-rose-500 mt-1 tabular-nums">
                   ±{customZcdSpike_A.toFixed(2)} A
@@ -1628,7 +1629,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
 
               {/* Zero-Crossing Distortion & Soft-Start Blanking Waveform */}
               <div className="space-y-2">
-                <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 flex items-center justify-between gap-2">
+                <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-2 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5">
                     <span className="text-[11px] font-mono text-slate-500">
                       Polarity-Swap Dead-Time t_dead:
@@ -1649,9 +1650,9 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                       step={10}
                       value={customDeadTime_ns}
                       onChange={(e) => update('deadTime_zcd_ns', Number(e.target.value))}
-                      className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                      className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
                     />
-                    <span className="text-xs font-mono text-cyan-500 font-bold w-14 text-right tabular-nums">
+                    <span className="text-xs font-mono text-blue-500 font-bold w-14 text-right tabular-nums">
                       {customDeadTime_ns} ns
                     </span>
                   </div>
@@ -1736,16 +1737,16 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
+              <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
                 <div className="text-[10px] font-mono uppercase text-slate-500">Turns / Magnetizing Force</div>
-                <div className="text-lg font-mono font-bold text-cyan-600 dark:text-cyan-400 mt-1 tabular-nums">
+                <div className="text-lg font-mono font-bold text-blue-600 dark:text-blue-400 mt-1 tabular-nums">
                   N = {res.N_pfc_turns} Turns
                 </div>
                 <div className="text-[11px] font-mono text-slate-500 mt-0.5">
                   H_pk = {res.Hdc_pk_Oe.toFixed(1)} Oe @ Low-Line Peak
                 </div>
               </div>
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
+              <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
                 <div className="text-[10px] font-mono uppercase text-slate-500">Kool Mµ / Sendust L @ Ipk</div>
                 <div className="text-lg font-mono font-bold text-amber-600 dark:text-amber-400 mt-1 tabular-nums">
                   {res.L_at_peak_koolMu_uH.toFixed(1)} µH (-{res.inductanceRollOff_pct.toFixed(1)}%)
@@ -1760,7 +1761,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                     ? 'bg-rose-50 dark:bg-rose-950/35 border-rose-500'
                     : res.saturationCheck.status === 'warning'
                     ? 'bg-amber-50 dark:bg-amber-950/25 border-amber-500/70'
-                    : 'bg-white dark:bg-[#111827] border-slate-200 dark:border-slate-800'
+                    : 'bg-white dark:bg-[#14171f] border-slate-200 dark:border-slate-800'
                 }`}
               >
                 <div className="text-[10px] font-mono uppercase text-slate-500">Peak Flux Density B_pk</div>
@@ -1779,7 +1780,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                   Bdc={res.Bdc_pk_T.toFixed(2)}T + ΔB/2={(res.deltaB_max_T / 2).toFixed(2)}T (Bsat=1.05T)
                 </div>
               </div>
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
+              <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
                 <div className="text-[10px] font-mono uppercase text-slate-500">Inductor Loss & Temp</div>
                 <div className="text-lg font-mono font-bold text-slate-900 dark:text-white mt-1 tabular-nums">
                   {res.Pind_total_W.toFixed(1)} W ({res.Tcore_pfc_C.toFixed(0)}°C)
@@ -1841,7 +1842,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
         {activeSubTab === 'inrush' && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
+              <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
                 <div className="text-[10px] font-mono uppercase text-slate-500">Unmitigated Peak Inrush</div>
                 <div className="text-lg font-mono font-bold text-rose-500 mt-1 tabular-nums">
                   {res.Iinrush_unmitigated_pk_A.toFixed(0)} Apk
@@ -1850,7 +1851,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                   At 90° Line Peak ({customVpk_max_V.toFixed(0)} Vpk)
                 </div>
               </div>
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
+              <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
                 <div className="text-[10px] font-mono uppercase text-slate-500">Pre-Charged Peak Current</div>
                 <div className="text-lg font-mono font-bold text-emerald-600 dark:text-emerald-400 mt-1 tabular-nums">
                   {customIinrush_pk_A.toFixed(1)} Apk
@@ -1859,7 +1860,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                   With R_pre = {customPrechargeR_Ohm} Ω NTC/Wirewound
                 </div>
               </div>
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
+              <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
                 <div className="text-[10px] font-mono uppercase text-slate-500">Pre-Charge Pulse Energy & I²t</div>
                 <div className="text-lg font-mono font-bold text-amber-600 dark:text-amber-400 mt-1 tabular-nums">
                   {res.inrushEnergy_J.toFixed(1)} J / {customI2t_A2s.toFixed(1)} A²s
@@ -1868,9 +1869,9 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                   E = ½·Cdc·Vpk² ({state.Cdc_uF} µF)
                 </div>
               </div>
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
+              <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
                 <div className="text-[10px] font-mono uppercase text-slate-500">Relay K_BYPASS Pull-In Time</div>
-                <div className="text-lg font-mono font-bold text-cyan-600 dark:text-cyan-400 mt-1 tabular-nums">
+                <div className="text-lg font-mono font-bold text-blue-600 dark:text-blue-400 mt-1 tabular-nums">
                   {customRelayTime_ms.toFixed(1)} ms
                 </div>
                 <div className="text-[11px] font-mono text-slate-500 mt-0.5">
@@ -1880,7 +1881,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
             </div>
 
             <div className="space-y-2">
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2.5 flex flex-wrap items-center justify-between gap-2">
+              <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2.5 flex flex-wrap items-center justify-between gap-2">
                 <div className="text-[11px] font-mono text-slate-500">
                   Pre-Charge Resistance R_NTC: Peak Surge {customIinrush_pk_A.toFixed(1)} A · Relay Pull-In {customRelayTime_ms.toFixed(1)} ms
                 </div>
@@ -1900,9 +1901,9 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                     step={1}
                     value={customPrechargeR_Ohm}
                     onChange={(e) => update('prechargeR_Ohm', Number(e.target.value))}
-                    className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                    className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
                   />
-                  <span className="text-xs font-mono text-cyan-500 font-bold w-12 text-right tabular-nums">
+                  <span className="text-xs font-mono text-blue-500 font-bold w-12 text-right tabular-nums">
                     {customPrechargeR_Ohm} Ω
                   </span>
                 </div>
@@ -1944,16 +1945,16 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
         {activeSubTab === 'dc-link' && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
+              <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
                 <div className="text-[10px] font-mono uppercase text-slate-500">100/120Hz 2f_line Ripple</div>
-                <div className="text-lg font-mono font-bold text-cyan-600 dark:text-cyan-400 mt-1 tabular-nums">
+                <div className="text-lg font-mono font-bold text-blue-600 dark:text-blue-400 mt-1 tabular-nums">
                   {res.ICdc_lf_rms_A.toFixed(2)} Arms
                 </div>
                 <div className="text-[11px] font-mono text-slate-500 mt-0.5">
                   I_LF = I_dc / √2 (Single-Phase Pulsating Power)
                 </div>
               </div>
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
+              <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
                 <div className="text-[10px] font-mono uppercase text-slate-500">HF Switching Ripple</div>
                 <div className="text-lg font-mono font-bold text-emerald-600 dark:text-emerald-400 mt-1 tabular-nums">
                   {res.ICdc_hf_rms_A.toFixed(2)} Arms
@@ -1962,7 +1963,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                   At {res.f_emi_fundamental_kHz} kHz ({res.nPhases}-Ph Cancellation)
                 </div>
               </div>
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
+              <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
                 <div className="text-[10px] font-mono uppercase text-slate-500">100Hz-Equivalent Stress</div>
                 <div className="text-lg font-mono font-bold text-amber-600 dark:text-amber-400 mt-1 tabular-nums">
                   {res.ICdc_freq_weighted_100Hz_A.toFixed(2)} Arms
@@ -1971,7 +1972,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                   Total Unweighted: {res.ICdc_total_rms_A.toFixed(2)} Arms
                 </div>
               </div>
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
+              <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
                 <div className="text-[10px] font-mono uppercase text-slate-500">Arrhenius Expected Life</div>
                 <div className="text-lg font-mono font-bold text-emerald-500 mt-1 tabular-nums">
                   {(customCapLife_hrs / 1000).toFixed(1)}k hrs ({(customCapLife_hrs / 8760).toFixed(1)} yrs)
@@ -1982,10 +1983,10 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
               </div>
             </div>
 
-            <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-3">
+            <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <div className="text-xs font-mono font-bold uppercase text-cyan-600 dark:text-cyan-400">
+                  <div className="text-xs font-mono font-bold uppercase text-blue-600 dark:text-blue-400">
                     DUAL-FREQUENCY CAPACITOR ELECTRO-THERMAL &amp; ARRHENIUS LIFETIME SYNTHESIS
                   </div>
                   <div className="text-[11px] font-mono text-slate-500">
@@ -1996,7 +1997,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                   <div className="flex justify-between items-center gap-1 text-[10px] font-mono text-slate-500 mb-0.5">
                     <span>Ambient Temp Ta:</span>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-cyan-500 font-bold tabular-nums">{capAmbient_C}°C</span>
+                      <span className="text-blue-500 font-bold tabular-nums">{capAmbient_C}°C</span>
                       <LockToggleButton
                         compact
                         locked={lockedParams.capAmbient_C}
@@ -2013,7 +2014,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                     step={5}
                     value={capAmbient_C}
                     onChange={(e) => update('capAmbient_C', Number(e.target.value))}
-                    className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                    className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
                   />
                 </div>
               </div>
@@ -2054,16 +2055,16 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
         {activeSubTab === 'emi' && (
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
+              <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
                 <div className="text-[10px] font-mono uppercase text-slate-500">DM Filter (Cx / Ldm)</div>
-                <div className="text-lg font-mono font-bold text-cyan-600 dark:text-cyan-400 mt-1 tabular-nums">
+                <div className="text-lg font-mono font-bold text-blue-600 dark:text-blue-400 mt-1 tabular-nums">
                   2× {res.Cx_each_uF}µF + {res.Ldm_uH.toFixed(0)}µH
                 </div>
                 <div className="text-[11px] font-mono text-slate-500 mt-0.5">
                   fc,DM = {res.fc_dm_kHz.toFixed(1)} kHz (Att = {res.RequiredAtt_dB.toFixed(0)} dB)
                 </div>
               </div>
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
+              <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
                 <div className="text-[10px] font-mono uppercase text-slate-500">CM Choke & Y2 Caps</div>
                 <div className="text-lg font-mono font-bold text-emerald-600 dark:text-emerald-400 mt-1 tabular-nums">
                   Lcm = {res.Lcm_mH.toFixed(1)} mH + 2× {customCy_nF}nF
@@ -2072,7 +2073,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                   Nanocrystalline / High-µ MnZn Toroid
                 </div>
               </div>
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
+              <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
                 <div className="text-[10px] font-mono uppercase text-slate-500">PE Earth Leakage Current</div>
                 <div
                   className={`text-lg font-mono font-bold mt-1 tabular-nums ${
@@ -2089,7 +2090,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                   IEC 62368-1 Limit: &lt;0.75mA (Handheld) / &lt;3.5mA (Ind.)
                 </div>
               </div>
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
+              <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5">
                 <div className="text-[10px] font-mono uppercase text-slate-500">Safety X-Cap Bleeder</div>
                 <div className="text-lg font-mono font-bold text-amber-600 dark:text-amber-400 mt-1 tabular-nums">
                   R_bleed = {res.R_bleed_kOhm} kΩ
@@ -2101,7 +2102,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
             </div>
 
             <div className="space-y-2">
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2.5 flex flex-wrap items-center justify-between gap-2">
+              <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg px-4 py-2.5 flex flex-wrap items-center justify-between gap-2">
                 <div className="text-[11px] font-mono text-slate-500">
                   Safety Y-Capacitor Cy (L/N to PE) — Earth Leakage = {customEarthLeakage_mA.toFixed(2)} mA
                 </div>
@@ -2121,9 +2122,9 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                     step={0.5}
                     value={customCy_nF}
                     onChange={(e) => update('Cy_nF', Number(e.target.value))}
-                    className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                    className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
                   />
-                  <span className="text-xs font-mono text-cyan-500 font-bold w-14 text-right tabular-nums">
+                  <span className="text-xs font-mono text-blue-500 font-bold w-14 text-right tabular-nums">
                     {customCy_nF} nF
                   </span>
                 </div>
@@ -2182,35 +2183,35 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
         {activeSubTab === 'efficiency' && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-3">
+              <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-3">
                 <div className="text-[10px] font-mono uppercase text-slate-500">Fast Leg Cond.</div>
-                <div className="text-base font-mono font-bold text-cyan-600 dark:text-cyan-400 mt-0.5 tabular-nums">
+                <div className="text-base font-mono font-bold text-blue-600 dark:text-blue-400 mt-0.5 tabular-nums">
                   {res.Pcond_fast_W.toFixed(1)} W
                 </div>
                 <div className="text-[10px] font-mono text-slate-500">Tj = {res.Tj_fast_C.toFixed(0)}°C</div>
               </div>
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-3">
+              <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-3">
                 <div className="text-[10px] font-mono uppercase text-slate-500">Fast Leg Sw + Qrr</div>
                 <div className="text-base font-mono font-bold text-amber-600 dark:text-amber-400 mt-0.5 tabular-nums">
                   {res.Psw_total_W.toFixed(1)} W
                 </div>
                 <div className="text-[10px] font-mono text-slate-500">Prr = {res.Prr_W.toFixed(1)} W</div>
               </div>
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-3">
+              <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-3">
                 <div className="text-[10px] font-mono uppercase text-slate-500">Slow Leg / Bridge</div>
                 <div className="text-base font-mono font-bold text-purple-400 mt-0.5 tabular-nums">
                   {res.Pcond_slow_W.toFixed(1)} W
                 </div>
                 <div className="text-[10px] font-mono text-slate-500">{state.f_line_Hz}Hz Unfolding</div>
               </div>
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-3">
+              <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-3">
                 <div className="text-[10px] font-mono uppercase text-slate-500">Boost Inductors</div>
                 <div className="text-base font-mono font-bold text-emerald-500 mt-0.5 tabular-nums">
                   {res.Pind_total_W.toFixed(1)} W
                 </div>
                 <div className="text-[10px] font-mono text-slate-500">Cu + Core Loss</div>
               </div>
-              <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-3">
+              <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-3">
                 <div className="text-[10px] font-mono uppercase text-slate-500">High vs Low Line η</div>
                 <div className="text-base font-mono font-bold text-emerald-400 mt-0.5 tabular-nums">
                   {res.efficiency_pct.toFixed(2)}% / {res.efficiency_lowLine_pct.toFixed(2)}%

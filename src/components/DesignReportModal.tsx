@@ -76,7 +76,7 @@ const CalcStep: React.FC<ReportStep> = ({
   <div className="report-avoid-break border border-slate-200 rounded-md p-3.5 bg-white space-y-2">
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-1.5">
       <div className="text-xs font-semibold text-slate-900">
-        <span className="font-mono text-cyan-700 mr-2">Step {step}</span>
+        <span className="font-mono text-blue-700 mr-2">Step {step}</span>
         {title}
       </div>
       {verdict && (
@@ -122,8 +122,8 @@ const CalcStep: React.FC<ReportStep> = ({
             <MathFormula tex={tex} displayMode />
           </div>
         </div>
-        <div className="flex items-baseline justify-between gap-2 bg-cyan-50/70 border border-cyan-200 rounded px-2.5 py-1.5">
-          <span className="text-[10px] font-mono uppercase tracking-wider text-cyan-800 shrink-0">
+        <div className="flex items-baseline justify-between gap-2 bg-blue-50/70 border border-blue-200 rounded px-2.5 py-1.5">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-blue-800 shrink-0">
             4. Computed Result
           </span>
           <span className="font-mono font-bold text-xs text-slate-900 tabular-nums text-right">
@@ -328,7 +328,7 @@ export const DesignReportModal: React.FC<DesignReportModalProps> = ({
       ch.stage === 'acdc'
         ? 'border-indigo-700'
         : ch.stage === 'dcdc'
-        ? 'border-cyan-700'
+        ? 'border-blue-700'
         : 'border-slate-900';
 
     return (
@@ -624,7 +624,7 @@ export const DesignReportModal: React.FC<DesignReportModalProps> = ({
       {/* STICKY TOOLBAR (Hidden when printing) */}
       <div className="no-print bg-slate-950 text-slate-100 border-b border-slate-800 px-4 lg:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 shrink-0">
         <div className="flex items-center gap-2.5">
-          <BookOpen className="w-4 h-4 text-cyan-400 shrink-0" />
+          <BookOpen className="w-4 h-4 text-blue-400 shrink-0" />
           <div>
             <div className="text-xs font-semibold tracking-tight text-white">
               Engineering Design Book &amp; Step-by-Step Verification Report
@@ -651,7 +651,7 @@ export const DesignReportModal: React.FC<DesignReportModalProps> = ({
                 onClick={() => setScope(opt.id)}
                 className={`px-2.5 py-1 rounded text-xs font-medium cursor-pointer transition-colors whitespace-nowrap ${
                   scope === opt.id
-                    ? 'bg-cyan-600 text-white'
+                    ? 'bg-blue-600 text-white'
                     : 'text-slate-300 hover:text-white'
                 }`}
               >
@@ -708,7 +708,7 @@ export const DesignReportModal: React.FC<DesignReportModalProps> = ({
           <header className="border-b-2 border-slate-900 pb-6 space-y-4">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="space-y-1">
-                <div className="text-[11px] font-mono font-bold uppercase tracking-widest text-cyan-800">
+                <div className="text-[11px] font-mono font-bold uppercase tracking-widest text-blue-800">
                   POWER CONVERTER DESIGN STUDIO · ENGINEERING DESIGN SPECIFICATION BOOK
                 </div>
                 <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
@@ -781,7 +781,7 @@ export const DesignReportModal: React.FC<DesignReportModalProps> = ({
 
               {includeDcDc && (
                 <div className="border border-slate-200 rounded p-3 bg-slate-50/70">
-                  <div className="text-[11px] font-medium text-cyan-800 mb-1.5">
+                  <div className="text-[11px] font-medium text-blue-800 mb-1.5">
                     Stage B · DC-DC Converter Summary ({dcdcState.topology.toUpperCase()})
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-xs font-mono tabular-nums">
@@ -820,7 +820,7 @@ export const DesignReportModal: React.FC<DesignReportModalProps> = ({
           <section id="toc" className="border border-slate-300 rounded-md p-5 bg-slate-50/60 space-y-3">
             <div className="flex items-center justify-between border-b border-slate-300 pb-2">
               <div className="flex items-center gap-2 text-sm font-medium text-slate-900">
-                <ListTree className="w-4 h-4 text-cyan-700" />
+                <ListTree className="w-4 h-4 text-blue-700" />
                 <span>Table of Contents</span>
               </div>
               <span className="text-[11px] font-mono text-slate-500">
@@ -842,10 +842,10 @@ export const DesignReportModal: React.FC<DesignReportModalProps> = ({
                     className="group flex items-baseline justify-between gap-3 py-1 px-2 rounded hover:bg-white border border-transparent hover:border-slate-200 transition-colors"
                   >
                     <div className="min-w-0">
-                      <span className="font-mono font-bold text-xs text-cyan-800 mr-2">
+                      <span className="font-mono font-bold text-xs text-blue-800 mr-2">
                         Chapter {ch.num}.
                       </span>
-                      <span className="text-xs font-semibold text-slate-900 group-hover:text-cyan-800">
+                      <span className="text-xs font-semibold text-slate-900 group-hover:text-blue-800">
                         {ch.title}
                       </span>
                       <span className="text-[11px] text-slate-500 ml-2 hidden sm:inline">

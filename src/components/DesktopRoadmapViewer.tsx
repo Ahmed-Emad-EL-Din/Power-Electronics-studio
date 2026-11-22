@@ -200,7 +200,7 @@ export const DesktopRoadmapViewer: React.FC = () => {
       case 'roadmap':
         return <FolderOpen className="w-4 h-4 text-amber-500" />;
       case 'tauri':
-        return <Terminal className="w-4 h-4 text-cyan-500" />;
+        return <Terminal className="w-4 h-4 text-blue-500" />;
       case 'simd':
         return <Cpu className="w-4 h-4 text-emerald-500" />;
       case 'gpu':
@@ -221,7 +221,7 @@ export const DesktopRoadmapViewer: React.FC = () => {
   return (
     <div className="space-y-4">
       {/* TOP BANNER: PC .EXE ARCHITECTURE & HARDWARE ACCELERATION MATRIX */}
-      <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm">
+      <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="inline-flex items-center gap-2 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 text-xs font-mono font-medium mb-2">
@@ -229,10 +229,10 @@ export const DesktopRoadmapViewer: React.FC = () => {
               /antigravity-desktop-roadmap/
             </div>
             <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-              Native Windows <span className="font-mono text-cyan-600 dark:text-cyan-400">.EXE</span> Agent Roadmap &amp; Prompt Suite (Antigravity / Desktop AI Agent)
+              Native Windows <span className="font-mono text-blue-600 dark:text-blue-400">.EXE</span> Agent Roadmap &amp; Prompt Suite (Antigravity / Desktop AI Agent)
             </h1>
             <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 max-w-4xl">
-              Complete 8-stage prompt folder and plain-text master roadmap instructing an autonomous coding agent how to port this workbench into a native 64-bit Windows executable (<code className="font-mono text-cyan-600 dark:text-cyan-400">PowerStageStudio.exe</code>) using <strong>Tauri v2 + Rust (`rayon` AVX2 SIMD + `wgpu` DX12/Vulkan + `ngspice.dll` FFI + `LTspice.exe` CLI + `rusqlite` + USB/VISA HIL)</strong>.
+              Complete 8-stage prompt folder and plain-text master roadmap instructing an autonomous coding agent how to port this workbench into a native 64-bit Windows executable (<code className="font-mono text-blue-600 dark:text-blue-400">PowerStageStudio.exe</code>) using <strong>Tauri v2 + Rust (`rayon` AVX2 SIMD + `wgpu` DX12/Vulkan + `ngspice.dll` FFI + `LTspice.exe` CLI + `rusqlite` + USB/VISA HIL)</strong>.
             </p>
           </div>
 
@@ -240,7 +240,7 @@ export const DesktopRoadmapViewer: React.FC = () => {
             <button
               type="button"
               onClick={handleCopyAllBundle}
-              className="px-3 py-2 text-xs font-mono font-semibold rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white transition-colors inline-flex items-center gap-1.5 cursor-pointer shadow-sm"
+              className="px-3 py-2 text-xs font-mono font-semibold rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors inline-flex items-center gap-1.5 cursor-pointer shadow-sm"
             >
               {copiedAll ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
               {copiedAll ? 'Copied All 9 Files!' : 'Copy Full Roadmap + All 8 Prompts'}
@@ -303,11 +303,11 @@ export const DesktopRoadmapViewer: React.FC = () => {
       {/* MAIN 2-COLUMN WORKSPACE: FILE TREE SIDEBAR + PROMPT INSPECTOR */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* LEFT COLUMN: FOLDER FILE SELECTOR */}
-        <div className="lg:col-span-4 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-xl p-3 flex flex-col justify-between">
+        <div className="lg:col-span-4 bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-xl p-3 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between px-2 pb-2.5 mb-2 border-b border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-2 text-xs font-mono font-bold text-slate-800 dark:text-slate-200">
-                <FolderOpen className="w-4 h-4 text-cyan-500" />
+                <FolderOpen className="w-4 h-4 text-blue-500" />
                 /antigravity-desktop-roadmap/
               </div>
               <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
@@ -325,12 +325,12 @@ export const DesktopRoadmapViewer: React.FC = () => {
                     onClick={() => setSelectedId(item.id)}
                     className={`w-full text-left p-2.5 rounded-lg border transition-colors cursor-pointer ${
                       isSelected
-                        ? 'bg-cyan-500/10 dark:bg-cyan-500/15 border-cyan-500/60 shadow-xs'
+                        ? 'bg-blue-500/10 dark:bg-blue-500/15 border-blue-500/60 shadow-xs'
                         : 'bg-slate-50/70 dark:bg-slate-900/50 border-slate-200/80 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="inline-flex items-center gap-1.5 text-[11px] font-mono font-bold text-cyan-700 dark:text-cyan-400">
+                      <span className="inline-flex items-center gap-1.5 text-[11px] font-mono font-bold text-blue-700 dark:text-blue-400">
                         {renderIcon(item.icon)}
                         {item.phase}
                       </span>
@@ -365,12 +365,12 @@ export const DesktopRoadmapViewer: React.FC = () => {
         </div>
 
         {/* RIGHT COLUMN: ACTIVE FILE VIEWER & ONE-CLICK COPY */}
-        <div className="lg:col-span-8 bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col overflow-hidden">
+        <div className="lg:col-span-8 bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-xl flex flex-col overflow-hidden">
           {/* Viewer Header */}
           <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/60 flex flex-wrap items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 text-[11px] font-mono font-bold rounded bg-cyan-500/15 text-cyan-700 dark:text-cyan-300 border border-cyan-500/30">
+                <span className="px-2 py-0.5 text-[11px] font-mono font-bold rounded bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30">
                   {activeFile.phase}
                 </span>
                 <code className="text-xs font-mono text-slate-600 dark:text-slate-400">
@@ -386,7 +386,7 @@ export const DesktopRoadmapViewer: React.FC = () => {
               <button
                 type="button"
                 onClick={() => handleCopy(activeFile.content, activeFile.id)}
-                className="px-3 py-1.5 text-xs font-mono font-semibold rounded-md bg-cyan-600 hover:bg-cyan-500 text-white transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                className="px-3 py-1.5 text-xs font-mono font-semibold rounded-md bg-blue-600 hover:bg-blue-500 text-white transition-colors inline-flex items-center gap-1.5 cursor-pointer"
               >
                 {copiedId === activeFile.id ? (
                   <>

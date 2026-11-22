@@ -485,18 +485,18 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-3xl bg-white dark:bg-[#0F172A] border-l border-slate-200 dark:border-slate-800 h-full flex flex-col shadow-2xl overflow-hidden overscroll-contain"
+        className="w-full max-w-3xl bg-white dark:bg-[#14171f] border-l border-slate-200 dark:border-slate-800 h-full flex flex-col shadow-2xl overflow-hidden overscroll-contain"
       >
         {/* Drawer Header */}
-        <div className="px-4 py-3 bg-slate-50 dark:bg-[#111827] border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
+        <div className="px-4 py-3 bg-slate-50 dark:bg-[#14171f] border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded bg-cyan-500/15 border border-cyan-500/40 flex items-center justify-center text-cyan-400 font-mono font-bold text-xs">
+            <div className="w-8 h-8 rounded bg-blue-500/15 border border-blue-500/40 flex items-center justify-center text-blue-400 font-mono font-bold text-xs">
               LCSC
             </div>
             <div>
               <div className="text-sm font-bold font-mono text-slate-900 dark:text-slate-100 flex flex-wrap items-center gap-2">
                 LCSC / JLCPCB &amp; DigiKey Component Database
-                <span className="px-1.5 py-0.5 text-[10px] rounded bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
+                <span className="px-1.5 py-0.5 text-[10px] rounded bg-blue-500/15 text-blue-400 border border-blue-500/30">
                   {SEMICONDUCTOR_DATABASE.length} Power Switches + C-Numbers
                 </span>
                 <span className="px-1.5 py-0.5 text-[10px] rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
@@ -517,10 +517,10 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
                 setDrawerTab('live-search');
                 setSettingsOpen((s) => !s);
               }}
-              className="px-2.5 py-1.5 text-[11px] font-mono font-medium rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:border-cyan-500 inline-flex items-center gap-1 cursor-pointer"
+              className="px-2.5 py-1.5 text-[11px] font-mono font-medium rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:border-blue-500 inline-flex items-center gap-1 cursor-pointer"
               title={`Configure AI Provider & API Key (${AI_PROVIDER_META[aiConfig.provider].label})`}
             >
-              <Settings className="w-3.5 h-3.5 text-cyan-500" />
+              <Settings className="w-3.5 h-3.5 text-blue-500" />
               <span>{AI_PROVIDER_META[aiConfig.provider].shortLabel} Key</span>
             </button>
             <button
@@ -551,7 +551,7 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
               onClick={() => setDrawerTab('lcsc-catalog')}
               className={`px-3 py-1.5 text-xs font-mono rounded transition-colors inline-flex items-center gap-1.5 cursor-pointer ${
                 drawerTab === 'lcsc-catalog'
-                  ? 'bg-cyan-600 text-white font-semibold'
+                  ? 'bg-blue-600 text-white font-semibold'
                   : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
               }`}
             >
@@ -563,7 +563,7 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
               onClick={() => setDrawerTab('live-search')}
               className={`px-3 py-1.5 text-xs font-mono rounded transition-colors inline-flex items-center gap-1.5 cursor-pointer ${
                 drawerTab === 'live-search'
-                  ? 'bg-cyan-600 text-white font-semibold'
+                  ? 'bg-blue-600 text-white font-semibold'
                   : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
               }`}
             >
@@ -575,7 +575,7 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
               onClick={() => setDrawerTab('jlcpcb-bom')}
               className={`px-3 py-1.5 text-xs font-mono rounded transition-colors inline-flex items-center gap-1.5 cursor-pointer ${
                 drawerTab === 'jlcpcb-bom'
-                  ? 'bg-cyan-600 text-white font-semibold'
+                  ? 'bg-blue-600 text-white font-semibold'
                   : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
               }`}
             >
@@ -603,13 +603,13 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
         )}
 
         {/* Currently Equipped Active Converter Devices Strip */}
-        <div className="mx-4 mt-3 p-2.5 rounded bg-slate-50 dark:bg-[#111827] border border-slate-200 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] font-mono">
+        <div className="mx-4 mt-3 p-2.5 rounded bg-slate-50 dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] font-mono">
           <div className="flex items-center justify-between sm:block">
             <div className="text-[10px] uppercase text-slate-400">Active DC-DC Primary</div>
-            <div className="font-bold text-cyan-400 truncate">
+            <div className="font-bold text-blue-400 truncate">
               {currentPriDevice.id}{' '}
               {currentPriDevice.lcscPartNumber && (
-                <span className="text-[10px] px-1 py-0.2 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                <span className="text-[10px] px-1 py-0.2 rounded bg-blue-500/15 text-blue-300 border border-blue-500/30">
                   {currentPriDevice.lcscPartNumber}
                 </span>
               )}
@@ -658,7 +658,7 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
           {drawerTab === 'lcsc-catalog' && (
             <div className="space-y-3">
               {/* Filter Bar */}
-              <div className="p-3 rounded-lg bg-slate-50 dark:bg-[#111827] border border-slate-200 dark:border-slate-800 space-y-2.5">
+              <div className="p-3 rounded-lg bg-slate-50 dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 space-y-2.5">
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="relative flex-1 min-w-[220px]">
                     <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
@@ -702,7 +702,7 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
                           onClick={() => setTechFilter(tech)}
                           className={`px-2 py-0.5 text-[10px] font-mono rounded border transition-colors cursor-pointer ${
                             techFilter === tech
-                              ? 'bg-cyan-600 text-white border-cyan-500 font-semibold'
+                              ? 'bg-blue-600 text-white border-blue-500 font-semibold'
                               : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300'
                           }`}
                         >
@@ -732,8 +732,8 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
                       key={dev.id}
                       className={`p-3 rounded-lg border transition-colors font-mono text-xs ${
                         isPriEquipped || isSecEquipped || isPfcEquipped
-                          ? 'bg-cyan-500/10 border-cyan-500/50'
-                          : 'bg-slate-50 dark:bg-[#111827] border-slate-200 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-700'
+                          ? 'bg-blue-500/10 border-blue-500/50'
+                          : 'bg-slate-50 dark:bg-[#14171f] border-slate-200 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-700'
                       }`}
                     >
                       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -747,7 +747,7 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
                                 href={lcscSearchHref}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="px-2 py-0.5 text-[10px] font-bold rounded bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 inline-flex items-center gap-1"
+                                className="px-2 py-0.5 text-[10px] font-bold rounded bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 inline-flex items-center gap-1"
                                 title="Open part on LCSC.com"
                               >
                                 LCSC {dev.lcscPartNumber}
@@ -805,7 +805,7 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
                           </span>
                           <span>
                             Coss(er):{' '}
-                            <strong className="text-cyan-400">{dev.Coss_er_pF}pF</strong>
+                            <strong className="text-blue-400">{dev.Coss_er_pF}pF</strong>
                           </span>
                           <span>
                             Qg: <strong className="text-emerald-400">{dev.Qg_nC}nC</strong>
@@ -826,8 +826,8 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
                               onClick={() => handleEquip(dev, 'pri')}
                               className={`px-2 py-1 text-[10px] rounded border cursor-pointer ${
                                 isPriEquipped
-                                  ? 'bg-cyan-600 text-white border-cyan-400 font-bold'
-                                  : 'bg-cyan-600/15 hover:bg-cyan-600/30 text-cyan-300 border-cyan-500/40'
+                                  ? 'bg-blue-600 text-white border-blue-400 font-bold'
+                                  : 'bg-blue-600/15 hover:bg-blue-600/30 text-blue-300 border-blue-500/40'
                               }`}
                             >
                               {isPriEquipped ? '✓ Pri Equipped' : 'Equip Primary'}
@@ -883,11 +883,11 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
           {drawerTab === 'live-search' && (
             <div className="space-y-4">
               {/* Active AI Provider Bar & Expandable Settings */}
-              <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-[#111827] border border-slate-200 dark:border-slate-800 space-y-2.5">
+              <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 space-y-2.5">
                 <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono">
                   <div className="text-slate-600 dark:text-slate-300 truncate">
                     AI Engine:{' '}
-                    <span className="font-semibold text-cyan-600 dark:text-cyan-400">
+                    <span className="font-semibold text-blue-600 dark:text-blue-400">
                       {AI_PROVIDER_META[aiConfig.provider].label}
                     </span>{' '}
                     · <span className="text-slate-500 dark:text-slate-400">{aiConfig.model}</span>
@@ -895,9 +895,9 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
                   <button
                     type="button"
                     onClick={() => setSettingsOpen((s) => !s)}
-                    className="px-2.5 py-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-cyan-500 text-[11px] font-medium text-slate-700 dark:text-slate-200 inline-flex items-center gap-1 cursor-pointer"
+                    className="px-2.5 py-1 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-blue-500 text-[11px] font-medium text-slate-700 dark:text-slate-200 inline-flex items-center gap-1 cursor-pointer"
                   >
-                    <Settings className="w-3 h-3 text-cyan-500" />
+                    <Settings className="w-3 h-3 text-blue-500" />
                     <span>{settingsOpen ? 'Hide Provider Settings' : 'Provider & API Key'}</span>
                   </button>
                 </div>
@@ -932,7 +932,7 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
                   <button
                     type="submit"
                     disabled={loading}
-                    className="px-4 py-2 text-xs font-mono font-semibold bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white rounded inline-flex items-center gap-1.5 shrink-0 cursor-pointer"
+                    className="px-4 py-2 text-xs font-mono font-semibold bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded inline-flex items-center gap-1.5 shrink-0 cursor-pointer"
                   >
                     {loading ? (
                       <>
@@ -974,7 +974,7 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
                           setQuery(chip.query);
                           runGroundedSearch(chip.query);
                         }}
-                        className="px-2 py-1 text-[11px] font-mono bg-slate-100 dark:bg-slate-800/90 hover:border-cyan-500/50 border border-slate-300 dark:border-slate-700 rounded text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
+                        className="px-2 py-1 text-[11px] font-mono bg-slate-100 dark:bg-slate-800/90 hover:border-blue-500/50 border border-slate-300 dark:border-slate-700 rounded text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
                       >
                         {chip.label}
                       </button>
@@ -993,7 +993,7 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
                   <button
                     type="button"
                     onClick={() => setSettingsOpen(true)}
-                    className="px-2.5 py-1 rounded border border-rose-400/50 bg-rose-950/40 hover:border-cyan-400 text-[11px] font-medium text-rose-200 cursor-pointer shrink-0"
+                    className="px-2.5 py-1 rounded border border-rose-400/50 bg-rose-950/40 hover:border-blue-400 text-[11px] font-medium text-rose-200 cursor-pointer shrink-0"
                   >
                     Configure API Key
                   </button>
@@ -1019,7 +1019,7 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
                           onClick={() => setSelectedIdx(idx)}
                           className={`px-2.5 py-1.5 text-xs font-mono rounded border transition-colors cursor-pointer ${
                             selectedIdx === idx
-                              ? 'bg-cyan-600 text-white border-cyan-400 font-semibold'
+                              ? 'bg-blue-600 text-white border-blue-400 font-semibold'
                               : 'bg-slate-100 dark:bg-slate-900 border-slate-300 dark:border-slate-800 text-slate-600 dark:text-slate-300'
                           }`}
                         >
@@ -1031,11 +1031,11 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
                   )}
 
                   {/* Selected Part Datasheet Card */}
-                  <div className="bg-slate-50 dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5 space-y-3">
+                  <div className="bg-slate-50 dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-3.5 space-y-3">
                     <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-2.5">
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm font-bold font-mono text-cyan-400">{activePart.id}</span>
+                          <span className="text-sm font-bold font-mono text-blue-400">{activePart.id}</span>
                           {activePart.lcscPartNumber && (
                             <a
                               href={`https://www.lcsc.com/search?q=${encodeURIComponent(
@@ -1043,7 +1043,7 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
                               )}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 inline-flex items-center gap-1"
+                              className="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-blue-500/20 text-blue-300 border border-blue-500/40 inline-flex items-center gap-1"
                             >
                               LCSC {activePart.lcscPartNumber}
                               <ExternalLink className="w-2.5 h-2.5" />
@@ -1081,7 +1081,7 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
                       <span>Extracted LCSC &amp; Datasheet Parameters (Editable before applying):</span>
                       <span>
                         Comparing vs Equipped:{' '}
-                        <strong className="text-cyan-300">{refCompareDevice.id}</strong>
+                        <strong className="text-blue-300">{refCompareDevice.id}</strong>
                       </span>
                     </div>
 
@@ -1092,7 +1092,7 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
                           type="text"
                           value={activePart.lcscPartNumber || ''}
                           onChange={(e) => updateActivePartField('lcscPartNumber', e.target.value)}
-                          className="w-full mt-1 px-1.5 py-0.5 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded font-bold text-cyan-400"
+                          className="w-full mt-1 px-1.5 py-0.5 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded font-bold text-blue-400"
                         />
                       </div>
 
@@ -1139,7 +1139,7 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
                           type="number"
                           value={activePart.Coss_er_pF}
                           onChange={(e) => updateActivePartField('Coss_er_pF', Number(e.target.value))}
-                          className="w-full mt-1 px-1.5 py-0.5 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded font-bold text-cyan-400"
+                          className="w-full mt-1 px-1.5 py-0.5 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded font-bold text-blue-400"
                         />
                       </div>
 
@@ -1230,7 +1230,7 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
                       <button
                         type="button"
                         onClick={() => handleEquip({ ...activePart, isCustomGrounded: true }, 'pri')}
-                        className="px-3 py-1.5 text-xs font-mono font-semibold bg-cyan-600 hover:bg-cyan-500 text-white rounded inline-flex items-center gap-1.5 cursor-pointer"
+                        className="px-3 py-1.5 text-xs font-mono font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded inline-flex items-center gap-1.5 cursor-pointer"
                       >
                         <Cpu className="w-3.5 h-3.5" /> Equip as DC-DC Primary Switch{' '}
                         <ArrowRight className="w-3 h-3" />
@@ -1273,7 +1273,7 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
                             href={src.uri}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="px-2 py-1 text-[11px] font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-cyan-500/50 rounded text-cyan-500 inline-flex items-center gap-1 max-w-xs truncate"
+                            className="px-2 py-1 text-[11px] font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-500/50 rounded text-blue-500 inline-flex items-center gap-1 max-w-xs truncate"
                           >
                             <ExternalLink className="w-3 h-3 shrink-0" />
                             <span className="truncate">{src.title}</span>
@@ -1292,7 +1292,7 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
              ===================================================================== */}
           {drawerTab === 'jlcpcb-bom' && (
             <div className="space-y-4 font-mono">
-              <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-[#111827] border border-slate-200 dark:border-slate-800 space-y-3">
+              <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
@@ -1361,7 +1361,7 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
                 {LCSC_AUXILIARY_BOM_DATABASE.map((aux) => (
                   <div
                     key={aux.lcscPartNumber}
-                    className="p-3 rounded-lg bg-slate-50 dark:bg-[#111827] border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs"
+                    className="p-3 rounded-lg bg-slate-50 dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs"
                   >
                     <div className="space-y-0.5">
                       <div className="flex flex-wrap items-center gap-2">
@@ -1372,7 +1372,7 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
                           )}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="px-2 py-0.5 text-[10px] font-bold rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 inline-flex items-center gap-1"
+                          className="px-2 py-0.5 text-[10px] font-bold rounded bg-blue-500/20 text-blue-300 border border-blue-500/40 inline-flex items-center gap-1"
                         >
                           LCSC {aux.lcscPartNumber}
                           <ExternalLink className="w-2.5 h-2.5" />
@@ -1387,7 +1387,7 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
                       <div className="text-[11px] text-slate-500 dark:text-slate-300">
                         {aux.manufacturer} · {aux.description}
                       </div>
-                      <div className="text-[10px] text-cyan-400">{aux.keySpecs}</div>
+                      <div className="text-[10px] text-blue-400">{aux.keySpecs}</div>
                     </div>
 
                     <div className="text-right shrink-0">

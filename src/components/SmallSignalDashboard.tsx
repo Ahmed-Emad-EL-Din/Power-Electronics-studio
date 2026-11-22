@@ -524,7 +524,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
   return (
     <div className="space-y-5">
       {/* Header & Loop Domain Selector */}
-      <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg p-5">
+      <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -533,7 +533,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                   compactHeader ? 'text-base' : 'text-lg'
                 } font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2`}
               >
-                <Compass className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
+                <Compass className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                 Small-Signal Control Loop Stability &amp; Bode Analyzer
               </h2>
               {manualOverride && (
@@ -548,7 +548,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
           </div>
 
           {/* 3-Loop Selector */}
-          <div className="flex flex-wrap items-center gap-1 bg-slate-100 dark:bg-[#090C12] p-1 rounded-md border border-slate-200 dark:border-slate-800 shrink-0">
+          <div className="flex flex-wrap items-center gap-1 bg-slate-100 dark:bg-[#090a0d] p-1 rounded-md border border-slate-200 dark:border-slate-800 shrink-0">
             <button
               onClick={() => {
                 setActiveLoop('dcdc-loop');
@@ -556,7 +556,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
               }}
               className={`px-2.5 py-1 rounded text-xs font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
                 activeLoop === 'dcdc-loop'
-                  ? 'bg-cyan-600 text-white'
+                  ? 'bg-blue-600 text-white'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
@@ -570,7 +570,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
               }}
               className={`px-2.5 py-1 rounded text-xs font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
                 activeLoop === 'acdc-inner'
-                  ? 'bg-cyan-600 text-white'
+                  ? 'bg-blue-600 text-white'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
@@ -584,7 +584,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
               }}
               className={`px-2.5 py-1 rounded text-xs font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
                 activeLoop === 'acdc-outer'
-                  ? 'bg-cyan-600 text-white'
+                  ? 'bg-blue-600 text-white'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
               }`}
             >
@@ -596,7 +596,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
 
         {/* Top-Level Stability Margin & Sensitivity KPI Strip */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mt-4">
-          <div className="bg-slate-50 dark:bg-[#090C12] border border-slate-200 dark:border-slate-800 rounded-md p-3">
+          <div className="bg-slate-50 dark:bg-[#090a0d] border border-slate-200 dark:border-slate-800 rounded-md p-3">
             <div className="text-[11px] font-medium text-slate-600 dark:text-slate-400">
               Crossover Freq (f_c)
             </div>
@@ -615,7 +615,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
           </div>
 
           <div
-            className={`bg-slate-50 dark:bg-[#090C12] border rounded-md p-3 ${
+            className={`bg-slate-50 dark:bg-[#090a0d] border rounded-md p-3 ${
               loopAnalysis.pm_deg >= 45
                 ? 'border-emerald-500/40'
                 : loopAnalysis.pm_deg >= 30
@@ -650,8 +650,8 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
           </div>
 
           <div
-            className={`bg-slate-50 dark:bg-[#090C12] border rounded-md p-3 ${
-              loopAnalysis.gm_dB >= 6 ? 'border-cyan-500/40' : 'border-rose-500/60'
+            className={`bg-slate-50 dark:bg-[#090a0d] border rounded-md p-3 ${
+              loopAnalysis.gm_dB >= 6 ? 'border-blue-500/40' : 'border-rose-500/60'
             }`}
           >
             <div className="text-[11px] font-medium text-slate-600 dark:text-slate-400">
@@ -659,7 +659,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
             </div>
             <div
               className={`text-lg font-semibold font-mono tabular-nums mt-0.5 ${
-                loopAnalysis.gm_dB >= 6 ? 'text-cyan-600 dark:text-cyan-400' : 'text-rose-600 dark:text-rose-400'
+                loopAnalysis.gm_dB >= 6 ? 'text-blue-600 dark:text-blue-400' : 'text-rose-600 dark:text-rose-400'
               }`}
             >
               +{loopAnalysis.gm_dB.toFixed(1)} dB
@@ -669,7 +669,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
             </div>
           </div>
 
-          <div className="bg-slate-50 dark:bg-[#090C12] border border-slate-200 dark:border-slate-800 rounded-md p-3">
+          <div className="bg-slate-50 dark:bg-[#090a0d] border border-slate-200 dark:border-slate-800 rounded-md p-3">
             <div className="text-[11px] font-medium text-slate-600 dark:text-slate-400">
               Peak Sensitivity M_s
             </div>
@@ -685,7 +685,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
             </div>
           </div>
 
-          <div className="bg-slate-50 dark:bg-[#090C12] border border-slate-200 dark:border-slate-800 rounded-md p-3">
+          <div className="bg-slate-50 dark:bg-[#090a0d] border border-slate-200 dark:border-slate-800 rounded-md p-3">
             <div className="text-[11px] font-medium text-slate-600 dark:text-slate-400">
               Peak Closed-Loop |Z_out|
             </div>
@@ -699,7 +699,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
             </div>
           </div>
 
-          <div className="bg-slate-50 dark:bg-[#090C12] border border-slate-200 dark:border-slate-800 rounded-md p-3">
+          <div className="bg-slate-50 dark:bg-[#090a0d] border border-slate-200 dark:border-slate-800 rounded-md p-3">
             <div className="text-[11px] font-medium text-slate-600 dark:text-slate-400">
               Step-Load Undershoot
             </div>
@@ -719,7 +719,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
         {/* Left Column: Operating Point, Power Stage Filter, and Compensator Tuning Controls */}
         <div className="xl:col-span-4 space-y-4">
           {/* 1. Operating Point Live Sliders */}
-          <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-3">
+          <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-3">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
               <h3 className="text-xs font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
                 <Gauge className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400" />
@@ -818,7 +818,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                     <div className="flex justify-between items-center gap-1 text-slate-300 mb-1">
                       <span>f_sw</span>
                       <div className="flex items-center gap-1">
-                        <span className="font-mono text-cyan-300">{dcdcState.fsw_kHz} kHz</span>
+                        <span className="font-mono text-blue-300">{dcdcState.fsw_kHz} kHz</span>
                         <LockToggleButton
                           compact
                           locked={dcdcLocked.fsw_kHz}
@@ -835,14 +835,14 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                       step={5}
                       value={dcdcState.fsw_kHz}
                       onChange={(e) => updateDcdc('fsw_kHz', Number(e.target.value))}
-                      className="w-full accent-cyan-500"
+                      className="w-full accent-blue-500"
                     />
                   </div>
                   <div>
                     <div className="flex justify-between items-center gap-1 text-slate-300 mb-1">
                       <span>f_s,digital</span>
                       <div className="flex items-center gap-1">
-                        <span className="font-mono text-cyan-300">{dcdcState.fs_digital_kHz} kHz</span>
+                        <span className="font-mono text-blue-300">{dcdcState.fs_digital_kHz} kHz</span>
                         <LockToggleButton
                           compact
                           locked={dcdcLocked.fs_digital_kHz}
@@ -859,7 +859,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                       step={10}
                       value={dcdcState.fs_digital_kHz}
                       onChange={(e) => updateDcdc('fs_digital_kHz', Number(e.target.value))}
-                      className="w-full accent-cyan-500"
+                      className="w-full accent-blue-500"
                     />
                   </div>
                 </div>
@@ -870,7 +870,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                   <div className="flex justify-between items-center gap-1 text-slate-300 mb-1">
                     <span>AC Input Voltage V_ac,rms</span>
                     <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-cyan-300">{acdcState.Vac_rms_V} V</span>
+                      <span className="font-mono text-blue-300">{acdcState.Vac_rms_V} V</span>
                       <LockToggleButton
                         compact
                         locked={acdcLocked.Vac_rms_V}
@@ -887,7 +887,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                     step={5}
                     value={acdcState.Vac_rms_V}
                     onChange={(e) => updateAcdc('Vac_rms_V', Number(e.target.value))}
-                    className="w-full accent-cyan-500"
+                    className="w-full accent-blue-500"
                   />
                 </div>
 
@@ -895,7 +895,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                   <div className="flex justify-between items-center gap-1 text-slate-300 mb-1">
                     <span>DC Bus Voltage V_dc</span>
                     <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-cyan-300">{acdcState.Vdc_bus_V} V</span>
+                      <span className="font-mono text-blue-300">{acdcState.Vdc_bus_V} V</span>
                       <LockToggleButton
                         compact
                         locked={acdcLocked.Vdc_bus_V}
@@ -912,7 +912,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                     step={10}
                     value={acdcState.Vdc_bus_V}
                     onChange={(e) => updateAcdc('Vdc_bus_V', Number(e.target.value))}
-                    className="w-full accent-cyan-500"
+                    className="w-full accent-blue-500"
                   />
                 </div>
 
@@ -920,7 +920,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                   <div className="flex justify-between items-center gap-1 text-slate-300 mb-1">
                     <span>Output Power P_out</span>
                     <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-cyan-300">{acdcState.Pout_W} W</span>
+                      <span className="font-mono text-blue-300">{acdcState.Pout_W} W</span>
                       <LockToggleButton
                         compact
                         locked={acdcLocked.Pout_W}
@@ -937,7 +937,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                     step={100}
                     value={acdcState.Pout_W}
                     onChange={(e) => updateAcdc('Pout_W', Number(e.target.value))}
-                    className="w-full accent-cyan-500"
+                    className="w-full accent-blue-500"
                   />
                 </div>
 
@@ -946,7 +946,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                     <div className="flex justify-between items-center gap-1 text-slate-300 mb-1">
                       <span>f_sw</span>
                       <div className="flex items-center gap-1">
-                        <span className="font-mono text-cyan-300">{acdcState.fsw_kHz} kHz</span>
+                        <span className="font-mono text-blue-300">{acdcState.fsw_kHz} kHz</span>
                         <LockToggleButton
                           compact
                           locked={acdcLocked.fsw_kHz}
@@ -963,14 +963,14 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                       step={5}
                       value={acdcState.fsw_kHz}
                       onChange={(e) => updateAcdc('fsw_kHz', Number(e.target.value))}
-                      className="w-full accent-cyan-500"
+                      className="w-full accent-blue-500"
                     />
                   </div>
                   <div>
                     <div className="flex justify-between items-center gap-1 text-slate-300 mb-1">
                       <span>f_s,ctrl</span>
                       <div className="flex items-center gap-1">
-                        <span className="font-mono text-cyan-300">{acdcState.fs_ctrl_kHz} kHz</span>
+                        <span className="font-mono text-blue-300">{acdcState.fs_ctrl_kHz} kHz</span>
                         <LockToggleButton
                           compact
                           locked={acdcLocked.fs_ctrl_kHz}
@@ -987,7 +987,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                       step={5}
                       value={acdcState.fs_ctrl_kHz}
                       onChange={(e) => updateAcdc('fs_ctrl_kHz', Number(e.target.value))}
-                      className="w-full accent-cyan-500"
+                      className="w-full accent-blue-500"
                     />
                   </div>
                 </div>
@@ -999,7 +999,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
           <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-3">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
               <h3 className="text-[13px] font-medium text-slate-100 flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-cyan-400" />
+                <Layers className="w-3.5 h-3.5 text-blue-400" />
                 2. Power Stage Filter &amp; Plant Values
               </h3>
               {activeLoop === 'dcdc-loop' && (
@@ -1015,7 +1015,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                   <div className="flex justify-between items-center gap-1 text-slate-300 mb-1">
                     <span>Output Filter Inductor L_o</span>
                     <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-cyan-300">{dcdcState.Lo_uH} µH</span>
+                      <span className="font-mono text-blue-300">{dcdcState.Lo_uH} µH</span>
                       <LockToggleButton
                         compact
                         locked={dcdcLocked.Lo_uH}
@@ -1032,7 +1032,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                     step={1}
                     value={dcdcState.Lo_uH}
                     onChange={(e) => updateDcdc('Lo_uH', Number(e.target.value))}
-                    className="w-full accent-cyan-500"
+                    className="w-full accent-blue-500"
                   />
                 </div>
 
@@ -1040,7 +1040,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                   <div className="flex justify-between items-center gap-1 text-slate-300 mb-1">
                     <span>Output Filter Capacitor C_o</span>
                     <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-cyan-300">{dcdcState.Co_uF} µF</span>
+                      <span className="font-mono text-blue-300">{dcdcState.Co_uF} µF</span>
                       <LockToggleButton
                         compact
                         locked={dcdcLocked.Co_uF}
@@ -1057,7 +1057,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                     step={10}
                     value={dcdcState.Co_uF}
                     onChange={(e) => updateDcdc('Co_uF', Number(e.target.value))}
-                    className="w-full accent-cyan-500"
+                    className="w-full accent-blue-500"
                   />
                 </div>
 
@@ -1066,7 +1066,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                     <div className="flex justify-between items-center gap-1 text-slate-300 mb-1">
                       <span>Cap ESR_Co</span>
                       <div className="flex items-center gap-1">
-                        <span className="font-mono text-cyan-300">{dcdcState.ESR_Co_mOhm} mΩ</span>
+                        <span className="font-mono text-blue-300">{dcdcState.ESR_Co_mOhm} mΩ</span>
                         <LockToggleButton
                           compact
                           locked={dcdcLocked.ESR_Co_mOhm}
@@ -1083,14 +1083,14 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                       step={0.5}
                       value={dcdcState.ESR_Co_mOhm}
                       onChange={(e) => updateDcdc('ESR_Co_mOhm', Number(e.target.value))}
-                      className="w-full accent-cyan-500"
+                      className="w-full accent-blue-500"
                     />
                   </div>
                   <div>
                     <div className="flex justify-between items-center gap-1 text-slate-300 mb-1">
                       <span>Leakage L_lk</span>
                       <div className="flex items-center gap-1">
-                        <span className="font-mono text-cyan-300">{dcdcState.Llk_uH} µH</span>
+                        <span className="font-mono text-blue-300">{dcdcState.Llk_uH} µH</span>
                         <LockToggleButton
                           compact
                           locked={dcdcLocked.Llk_uH}
@@ -1107,7 +1107,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                       step={0.5}
                       value={dcdcState.Llk_uH}
                       onChange={(e) => updateDcdc('Llk_uH', Number(e.target.value))}
-                      className="w-full accent-cyan-500"
+                      className="w-full accent-blue-500"
                     />
                   </div>
                 </div>
@@ -1171,7 +1171,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                   <div className="flex justify-between items-center gap-1 text-slate-300 mb-1">
                     <span>PFC Boost Inductor L_pfc</span>
                     <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-cyan-300">{acdcState.Lpfc_uH} µH</span>
+                      <span className="font-mono text-blue-300">{acdcState.Lpfc_uH} µH</span>
                       <LockToggleButton
                         compact
                         locked={acdcLocked.Lpfc_uH}
@@ -1188,7 +1188,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                     step={5}
                     value={acdcState.Lpfc_uH}
                     onChange={(e) => updateAcdc('Lpfc_uH', Number(e.target.value))}
-                    className="w-full accent-cyan-500"
+                    className="w-full accent-blue-500"
                   />
                 </div>
 
@@ -1196,7 +1196,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                   <div className="flex justify-between items-center gap-1 text-slate-300 mb-1">
                     <span>DC Bus Capacitor C_dc</span>
                     <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-cyan-300">{acdcState.Cdc_uF} µF</span>
+                      <span className="font-mono text-blue-300">{acdcState.Cdc_uF} µF</span>
                       <LockToggleButton
                         compact
                         locked={acdcLocked.Cdc_uF}
@@ -1213,7 +1213,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                     step={20}
                     value={acdcState.Cdc_uF}
                     onChange={(e) => updateAcdc('Cdc_uF', Number(e.target.value))}
-                    className="w-full accent-cyan-500"
+                    className="w-full accent-blue-500"
                   />
                 </div>
 
@@ -1222,7 +1222,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                     <div className="flex justify-between items-center gap-1 text-slate-300 mb-1">
                       <span>DCR R_L</span>
                       <div className="flex items-center gap-1">
-                        <span className="font-mono text-cyan-300">{acdcState.RL_mOhm} mΩ</span>
+                        <span className="font-mono text-blue-300">{acdcState.RL_mOhm} mΩ</span>
                         <LockToggleButton
                           compact
                           locked={acdcLocked.RL_mOhm}
@@ -1239,14 +1239,14 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                       step={5}
                       value={acdcState.RL_mOhm}
                       onChange={(e) => updateAcdc('RL_mOhm', Number(e.target.value))}
-                      className="w-full accent-cyan-500"
+                      className="w-full accent-blue-500"
                     />
                   </div>
                   <div>
                     <div className="flex justify-between items-center gap-1 text-slate-300 mb-1">
                       <span>ESR_Cdc</span>
                       <div className="flex items-center gap-1">
-                        <span className="font-mono text-cyan-300">{acdcState.ESR_Cdc_mOhm} mΩ</span>
+                        <span className="font-mono text-blue-300">{acdcState.ESR_Cdc_mOhm} mΩ</span>
                         <LockToggleButton
                           compact
                           locked={acdcLocked.ESR_Cdc_mOhm}
@@ -1263,7 +1263,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                       step={5}
                       value={acdcState.ESR_Cdc_mOhm}
                       onChange={(e) => updateAcdc('ESR_Cdc_mOhm', Number(e.target.value))}
-                      className="w-full accent-cyan-500"
+                      className="w-full accent-blue-500"
                     />
                   </div>
                 </div>
@@ -1275,7 +1275,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
           <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-3">
             <div className="flex items-center justify-between border-b border-slate-800 pb-2">
               <h3 className="text-[13px] font-medium text-slate-100 flex items-center gap-1.5">
-                <Sliders className="w-3.5 h-3.5 text-cyan-400" />
+                <Sliders className="w-3.5 h-3.5 text-blue-400" />
                 3. Compensator Synthesis &amp; Pole/Zero Tuning
               </h3>
               <button
@@ -1365,9 +1365,9 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
 
                 {/* PCMC + Type-II Unified Co-Design Strip */}
                 {(dcdcState.controlType === 'pcmc' || dcdcState.controlType === '2p2z') && (
-                  <div className="bg-slate-950/90 border border-cyan-500/30 rounded-lg p-2.5 space-y-2">
+                  <div className="bg-slate-950/90 border border-blue-500/30 rounded-lg p-2.5 space-y-2">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-mono text-cyan-300 font-semibold">
+                      <span className="text-[11px] font-mono text-blue-300 font-semibold">
                         Type-II Network &amp; PCMC Slope
                       </span>
                       <div className="inline-flex rounded border border-slate-700 bg-slate-900 p-0.5 text-[10px] font-mono">
@@ -1376,7 +1376,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                           onClick={() => updateDcdc('type2Architecture', 'opamp')}
                           className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
                             dcdcRes.type2Architecture === 'opamp'
-                              ? 'bg-cyan-500/20 text-cyan-200 font-semibold'
+                              ? 'bg-blue-500/20 text-blue-200 font-semibold'
                               : 'text-slate-400 hover:text-slate-200'
                           }`}
                         >
@@ -1387,7 +1387,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                           onClick={() => updateDcdc('type2Architecture', 'ota')}
                           className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
                             dcdcRes.type2Architecture === 'ota'
-                              ? 'bg-cyan-500/20 text-cyan-200 font-semibold'
+                              ? 'bg-blue-500/20 text-blue-200 font-semibold'
                               : 'text-slate-400 hover:text-slate-200'
                           }`}
                         >
@@ -1400,7 +1400,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                       <div>
                         <div className="flex justify-between text-[11px] text-slate-300 mb-0.5">
                           <span>OTA Transconductance g_m</span>
-                          <span className="font-mono text-cyan-300">
+                          <span className="font-mono text-blue-300">
                             {dcdcRes.ota_gm_mS.toFixed(2)} mS
                           </span>
                         </div>
@@ -1411,7 +1411,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                           step={0.05}
                           value={dcdcRes.ota_gm_mS}
                           onChange={(e) => updateDcdc('ota_gm_mS', Number(e.target.value))}
-                          className="w-full accent-cyan-500"
+                          className="w-full accent-blue-500"
                         />
                       </div>
                     )}
@@ -1463,7 +1463,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                       <div className="flex justify-between items-center gap-1 text-slate-300 mb-1">
                         <span>Inner f_c,i</span>
                         <div className="flex items-center gap-1">
-                          <span className="font-mono text-cyan-300">{acdcState.fc_i_kHz} kHz</span>
+                          <span className="font-mono text-blue-300">{acdcState.fc_i_kHz} kHz</span>
                           <LockToggleButton
                             compact
                             locked={acdcLocked.fc_i_kHz}
@@ -1480,14 +1480,14 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                         step={0.5}
                         value={acdcState.fc_i_kHz}
                         onChange={(e) => updateAcdc('fc_i_kHz', Number(e.target.value))}
-                        className="w-full accent-cyan-500"
+                        className="w-full accent-blue-500"
                       />
                     </div>
                     <div>
                       <div className="flex justify-between items-center gap-1 text-slate-300 mb-1">
                         <span>Target PM_i</span>
                         <div className="flex items-center gap-1">
-                          <span className="font-mono text-cyan-300">{acdcState.pm_i_deg}°</span>
+                          <span className="font-mono text-blue-300">{acdcState.pm_i_deg}°</span>
                           <LockToggleButton
                             compact
                             locked={acdcLocked.pm_i_deg}
@@ -1504,7 +1504,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                         step={1}
                         value={acdcState.pm_i_deg}
                         onChange={(e) => updateAcdc('pm_i_deg', Number(e.target.value))}
-                        className="w-full accent-cyan-500"
+                        className="w-full accent-blue-500"
                       />
                     </div>
                   </div>
@@ -1702,11 +1702,11 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                       </div>
                       <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
                         <span className="text-slate-500">C1(E24):</span>{' '}
-                        <span className="text-cyan-300">{dcdcRes.C1_ota_e24_nF}nF</span>
+                        <span className="text-blue-300">{dcdcRes.C1_ota_e24_nF}nF</span>
                       </div>
                       <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
                         <span className="text-slate-500">C2(E24):</span>{' '}
-                        <span className="text-cyan-300">{dcdcRes.C2_ota_e24_pF}pF</span>
+                        <span className="text-blue-300">{dcdcRes.C2_ota_e24_pF}pF</span>
                       </div>
                       <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
                         <span className="text-slate-500">OTA g_m:</span>{' '}
@@ -1731,15 +1731,15 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                       </div>
                       <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
                         <span className="text-slate-500">C1:</span>{' '}
-                        <span className="text-cyan-300">{dcdcRes.C1_nF.toFixed(2)}nF</span>
+                        <span className="text-blue-300">{dcdcRes.C1_nF.toFixed(2)}nF</span>
                       </div>
                       <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
                         <span className="text-slate-500">C2:</span>{' '}
-                        <span className="text-cyan-300">{dcdcRes.C2_pF.toFixed(0)}pF</span>
+                        <span className="text-blue-300">{dcdcRes.C2_pF.toFixed(0)}pF</span>
                       </div>
                       <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
                         <span className="text-slate-500">C3:</span>{' '}
-                        <span className={dcdcRes.isTwoZeroComp ? 'text-cyan-300' : 'text-slate-500'}>
+                        <span className={dcdcRes.isTwoZeroComp ? 'text-blue-300' : 'text-slate-500'}>
                           {dcdcRes.isTwoZeroComp ? `${dcdcRes.C3_nF.toFixed(2)}nF` : 'N/A (Type-II)'}
                         </span>
                       </div>
@@ -1764,11 +1764,11 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                 <div className="grid grid-cols-2 gap-1.5 text-[11px] font-mono">
                   <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
                     <span className="text-slate-500">K_p,i:</span>{' '}
-                    <span className="text-cyan-300">{acdcRes.Kp_i.toFixed(4)}</span>
+                    <span className="text-blue-300">{acdcRes.Kp_i.toFixed(4)}</span>
                   </div>
                   <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
                     <span className="text-slate-500">K_i,i:</span>{' '}
-                    <span className="text-cyan-300">{acdcRes.Ki_i.toFixed(1)} s⁻¹</span>
+                    <span className="text-blue-300">{acdcRes.Ki_i.toFixed(1)} s⁻¹</span>
                   </div>
                   <div className="bg-slate-900 px-2 py-1 rounded border border-slate-800">
                     <span className="text-slate-500">f_z,i:</span>{' '}
@@ -2121,7 +2121,7 @@ export const SmallSignalDashboard: React.FC<SmallSignalDashboardProps> = ({
                   phase lag
                 </span>
                 <span>
-                  ● <span className="text-cyan-300">HF Poles</span> attenuate switching ripple
+                  ● <span className="text-blue-300">HF Poles</span> attenuate switching ripple
                   &amp; ESR gain
                 </span>
               </div>

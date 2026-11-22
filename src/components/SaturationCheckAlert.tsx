@@ -158,7 +158,7 @@ export const SaturationCheckAlert: React.FC<SaturationCheckAlertProps> = ({
               <button
                 type="button"
                 onClick={() => onApplyTurns(check.recommendedSafeNp_turns)}
-                className="px-2.5 py-1 text-[11px] font-medium rounded bg-cyan-600 hover:bg-cyan-500 text-white inline-flex items-center gap-1 cursor-pointer transition-colors whitespace-nowrap"
+                className="px-2.5 py-1 text-[11px] font-medium rounded bg-blue-600 hover:bg-blue-500 text-white inline-flex items-center gap-1 cursor-pointer transition-colors whitespace-nowrap"
               >
                 <Check className="w-3 h-3" /> Set Optimal Np = {check.recommendedSafeNp_turns}T (30% Margin)
               </button>
@@ -176,7 +176,7 @@ export const SaturationCheckAlert: React.FC<SaturationCheckAlertProps> = ({
             <button
               type="button"
               onClick={() => onApplyMaterial(check.recommendedMaterialId!)}
-              className="px-2.5 py-1 text-[11px] font-medium rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#131A26] hover:border-slate-400 text-slate-800 dark:text-slate-200 inline-flex items-center gap-1 cursor-pointer transition-colors whitespace-nowrap"
+              className="px-2.5 py-1 text-[11px] font-medium rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#1c202b] hover:border-slate-400 text-slate-800 dark:text-slate-200 inline-flex items-center gap-1 cursor-pointer transition-colors whitespace-nowrap"
             >
               Switch Grade: {check.recommendedMaterialId}
             </button>

@@ -969,12 +969,12 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
     .join(' ');
 
   return (
-    <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-4">
+    <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-4">
       {/* HEADER BAR */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <Radio className="w-4 h-4 text-cyan-400" />
+            <Radio className="w-4 h-4 text-blue-400" />
             <h3 className="text-sm font-bold font-mono text-slate-900 dark:text-slate-100">
               EMI Filter Synthesis — Input &amp; Output Common-Mode (CM) &amp; Differential-Mode (DM)
             </h3>
@@ -999,7 +999,7 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
             </span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Recommends <strong className="text-cyan-400">Input &amp; Output DM Inductors/Capacitors</strong> and{' '}
+            Recommends <strong className="text-blue-400">Input &amp; Output DM Inductors/Capacitors</strong> and{' '}
             <strong className="text-purple-400">Input &amp; Output CM Chokes/Y-Capacitors</strong> based on switching frequency{' '}
             <span className="font-mono text-slate-300">
               f_sw = {activeFsw_kHz} kHz
@@ -1044,7 +1044,7 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
             <button
               type="button"
               onClick={onOpenPartDrawer}
-              className="px-2.5 py-1 text-[11px] font-mono bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 rounded inline-flex items-center gap-1 font-semibold cursor-pointer"
+              className="px-2.5 py-1 text-[11px] font-mono bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/40 text-blue-300 rounded inline-flex items-center gap-1 font-semibold cursor-pointer"
             >
               <ExternalLink className="w-3 h-3" /> Search EMI Parts in LCSC Catalog
             </button>
@@ -1058,7 +1058,7 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
         <div className="lg:col-span-5 bg-slate-50 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-lg p-3.5 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5] inline-flex items-center gap-1.5">
-              <Sliders className="w-3.5 h-3.5 text-cyan-500" /> 1. Switching Frequency, Power &amp; Filter Topology
+              <Sliders className="w-3.5 h-3.5 text-blue-500" /> 1. Switching Frequency, Power &amp; Filter Topology
             </span>
             <span className="text-[11px] font-mono text-slate-400">
               f_rip = {f_ripple_kHz} kHz
@@ -1078,7 +1078,7 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
                   onClick={() => setStandardId(s.id)}
                   className={`px-2 py-1.5 text-left rounded border transition-colors cursor-pointer ${
                     standardId === s.id
-                      ? 'bg-cyan-600/15 border-cyan-500 text-cyan-300 font-semibold'
+                      ? 'bg-blue-600/15 border-blue-500 text-blue-300 font-semibold'
                       : 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:border-slate-700'
                   }`}
                 >
@@ -1095,7 +1095,7 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
               <div className="flex justify-between items-center text-[11px] font-mono">
                 <span className="text-slate-400">Switching Freq f_sw</span>
                 <div className="inline-flex items-center gap-1">
-                  <span className="text-cyan-400 font-bold tabular-nums">{activeFsw_kHz} kHz</span>
+                  <span className="text-blue-400 font-bold tabular-nums">{activeFsw_kHz} kHz</span>
                   <LockToggleButton compact locked={fswSandboxLock.locked} onToggle={fswSandboxLock.toggleLock} label="Sandbox f_sw" />
                 </div>
               </div>
@@ -1106,7 +1106,7 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
                 step={5}
                 value={activeFsw_kHz}
                 onChange={(e) => fswSandboxLock.setManual(Number(e.target.value))}
-                className="w-full accent-cyan-500 cursor-pointer"
+                className="w-full accent-blue-500 cursor-pointer"
               />
               <div className="flex justify-between text-[10px] font-mono text-slate-500">
                 <span>25 kHz</span>
@@ -1156,7 +1156,7 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
                     onClick={() => stageCountLock.setManual(cnt)}
                     className={`px-1.5 py-1 text-[11px] font-mono rounded border cursor-pointer ${
                       stageCount === cnt
-                        ? 'bg-cyan-600/20 border-cyan-500 text-cyan-300 font-semibold'
+                        ? 'bg-blue-600/20 border-blue-500 text-blue-300 font-semibold'
                         : 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-400'
                     }`}
                   >
@@ -1277,7 +1277,7 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
                   type="checkbox"
                   checked={useCmLeakageForDm}
                   onChange={(e) => cmLeakageDmLock.setManual(e.target.checked)}
-                  className="rounded accent-cyan-500"
+                  className="rounded accent-blue-500"
                 />
                 Use LCM Leakage ({emiDesign.L_lk_from_CM_uH} µH) as Input L_DM
               </label>
@@ -1301,12 +1301,12 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
         {/* Right 4-Quadrant Input & Output CM/DM Recommended Component Cards (7 cols) */}
         <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
           {/* Card 1: INPUT Differential-Mode (DM) Recommended L & C */}
-          <div className="bg-slate-50 dark:bg-slate-900/70 border border-cyan-500/30 rounded-lg p-3 flex flex-col justify-between space-y-2">
+          <div className="bg-slate-50 dark:bg-slate-900/70 border border-blue-500/30 rounded-lg p-3 flex flex-col justify-between space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-slate-900 dark:text-[#eef0f5]">
                 1. Input DM Filter (Primary Bus)
               </span>
-              <span className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+              <span className="px-1.5 py-0.5 text-[10px] font-mono rounded bg-blue-500/15 text-blue-300 border border-blue-500/30">
                 Req: {emiDesign.Att_DM_req_dB.toFixed(1)} dB @ {emiDesign.f_crit_kHz} kHz
               </span>
             </div>
@@ -1334,7 +1334,7 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
 
             <div className="border-t border-slate-800 pt-1.5 flex items-center justify-between text-[11px] font-mono">
               <span className="text-slate-400">
-                f_c,DM,in = <strong className="text-cyan-300">{emiDesign.fc_DM_actual_kHz.toFixed(1)} kHz</strong>
+                f_c,DM,in = <strong className="text-blue-300">{emiDesign.fc_DM_actual_kHz.toFixed(1)} kHz</strong>
               </span>
               <span className="text-emerald-400">
                 Actual IL_DM = {emiDesign.critFiltered.IL_DM_dB.toFixed(1)} dB
@@ -1420,7 +1420,7 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
               <span className="text-slate-400">
                 f_c,DM,out = <strong className="text-emerald-300">{emiDesign.fc_DM_out_actual_kHz.toFixed(1)} kHz</strong>
               </span>
-              <span className="text-cyan-400">
+              <span className="text-blue-400">
                 Actual IL_DM,out = {emiDesign.critOutFiltered.IL_DM_dB.toFixed(1)} dB
               </span>
             </div>
@@ -1480,7 +1480,7 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
               </div>
               <div className="text-[11px] font-mono text-slate-400">
                 Negative Input Impedance{' '}
-                <strong className="text-cyan-300">|Z_in,neg| = {emiDesign.Zin_neg_dBOhm.toFixed(1)} dBΩ</strong> vs
+                <strong className="text-blue-300">|Z_in,neg| = {emiDesign.Zin_neg_dBOhm.toFixed(1)} dBΩ</strong> vs
                 Damped Filter Peak{' '}
                 <strong className="text-emerald-300">
                   |Z_out,EMI| = {emiDesign.Zout_damped_pk_dBOhm.toFixed(1)} dBΩ
@@ -1492,7 +1492,7 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
               <span className="px-2 py-1 rounded bg-slate-950 border border-slate-800 text-amber-300">
                 Damper: Rd = <strong>{emiDesign.R_d_Ohm} Ω</strong> + Cd = <strong>{emiDesign.C_d_uF} µF</strong>
               </span>
-              <span className="px-2 py-1 rounded bg-slate-950 border border-slate-800 text-cyan-300">
+              <span className="px-2 py-1 rounded bg-slate-950 border border-slate-800 text-blue-300">
                 Bleeder: R_bleed = <strong>{emiDesign.R_bleed_kOhm} kΩ</strong> ({emiDesign.P_bleed_mW.toFixed(0)} mW)
               </span>
             </div>
@@ -1509,7 +1509,7 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
               onClick={() => setVisualMode('spectrum')}
               className={`px-3 py-1.5 text-xs font-mono rounded inline-flex items-center gap-1.5 cursor-pointer ${
                 visualMode === 'spectrum'
-                  ? 'bg-cyan-600 text-white font-semibold'
+                  ? 'bg-blue-600 text-white font-semibold'
                   : 'bg-slate-100 dark:bg-slate-900 text-slate-400 border border-slate-800'
               }`}
             >
@@ -1547,7 +1547,7 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
                   onClick={() => setSpectrumPort('input')}
                   className={`px-2 py-0.5 rounded cursor-pointer ${
                     spectrumPort === 'input'
-                      ? 'bg-cyan-600 text-white font-semibold'
+                      ? 'bg-blue-600 text-white font-semibold'
                       : 'text-slate-400'
                   }`}
                 >
@@ -1570,7 +1570,7 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
             {activeHarmonic && (
               <div className="text-[11px] font-mono text-slate-400 bg-slate-900/90 px-2.5 py-1 rounded border border-slate-800">
                 {spectrumPort === 'input' ? 'Input' : 'Output'} Harmonic{' '}
-                <strong className="text-cyan-300">n={activeHarmonic.n}</strong> ({activeHarmonic.f_MHz.toFixed(3)} MHz): Unfilt DM={' '}
+                <strong className="text-blue-300">n={activeHarmonic.n}</strong> ({activeHarmonic.f_MHz.toFixed(3)} MHz): Unfilt DM={' '}
                 <span className="text-rose-400">{activeHarmonic.V_dm_unfilt_dBuV.toFixed(1)}</span> / CM={' '}
                 <span className="text-amber-400">{activeHarmonic.V_cm_unfilt_dBuV.toFixed(1)} dBµV</span> → Filtered={' '}
                 <strong className="text-emerald-400">{activeHarmonic.V_tot_filt_dBuV.toFixed(1)} dBµV</strong> (Limit AVG:{' '}
@@ -1828,7 +1828,7 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
                   width={52}
                   height={144}
                   rx={6}
-                  fill="#0f172a"
+                  fill="#14171f"
                   stroke="#a855f7"
                   strokeDasharray="3 2"
                 />
@@ -1872,7 +1872,7 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
                   y={118}
                   width={12}
                   height={28}
-                  fill="#0f172a"
+                  fill="#14171f"
                   stroke="#f59e0b"
                   strokeWidth={1.6}
                 />
@@ -1893,7 +1893,7 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
                   width={100}
                   height={144}
                   rx={6}
-                  fill="#0f172a"
+                  fill="#14171f"
                   stroke="#38bdf8"
                   strokeWidth={1.8}
                 />
@@ -1945,7 +1945,7 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
                   width={48}
                   height={144}
                   rx={6}
-                  fill="#0f172a"
+                  fill="#14171f"
                   stroke="#a855f7"
                   strokeDasharray="3 2"
                 />
@@ -2037,7 +2037,7 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
                   onClick={() => setBomPortFilter(tab.id)}
                   className={`px-2 py-0.5 rounded cursor-pointer ${
                     bomPortFilter === tab.id
-                      ? 'bg-cyan-600 text-white font-semibold'
+                      ? 'bg-blue-600 text-white font-semibold'
                       : 'text-slate-400'
                   }`}
                 >
@@ -2066,7 +2066,7 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
                       <span
                         className={`px-1.5 py-0.5 text-[10px] rounded font-bold ${
                           item.port === 'Input'
-                            ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/30'
+                            ? 'bg-blue-500/15 text-blue-300 border border-blue-500/30'
                             : item.port === 'Output'
                             ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
                             : 'bg-purple-500/15 text-purple-300 border border-purple-500/30'
@@ -2075,7 +2075,7 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
                         {item.port} · {item.mode}
                       </span>
                     </td>
-                    <td className="py-2 pr-2 font-bold text-cyan-300 whitespace-nowrap">
+                    <td className="py-2 pr-2 font-bold text-blue-300 whitespace-nowrap">
                       <div>{item.refDes}</div>
                       <div className="text-[10px] font-normal text-slate-400">{item.role}</div>
                     </td>
@@ -2095,7 +2095,7 @@ export const EmiFilterDesignAssistant: React.FC<EmiFilterDesignAssistantProps> =
                             href={`https://www.lcsc.com/search?q=${encodeURIComponent(item.lcsc)}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-cyan-400 underline ml-1"
+                            className="text-blue-400 underline ml-1"
                           >
                             {item.lcsc}
                           </a>

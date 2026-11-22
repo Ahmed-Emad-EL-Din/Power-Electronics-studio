@@ -600,7 +600,7 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
     capAnalysis.T_core_out_C <= outPreset.Tmax_C - 5;
 
   return (
-    <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-4">
+    <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-4">
       {/* HEADER BAR */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
         <div>
@@ -628,7 +628,7 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
             </span>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Calculates topology-dependent <strong className="text-cyan-400">Input DC-Link (I_Cin,rms)</strong> &amp;{' '}
+            Calculates topology-dependent <strong className="text-blue-400">Input DC-Link (I_Cin,rms)</strong> &amp;{' '}
             <strong className="text-emerald-400">Output Filter (I_Cout,rms)</strong> required ripple current ratings for{' '}
             <span className="font-mono text-slate-300">
               {state.topology.toUpperCase()} ({state.Pout_W} W, {state.fsw_kHz} kHz)
@@ -666,7 +666,7 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
             <button
               type="button"
               onClick={onOpenPartDrawer}
-              className="px-2.5 py-1 text-[11px] font-mono bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 rounded inline-flex items-center gap-1 font-semibold cursor-pointer"
+              className="px-2.5 py-1 text-[11px] font-mono bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/40 text-blue-300 rounded inline-flex items-center gap-1 font-semibold cursor-pointer"
             >
               <ExternalLink className="w-3 h-3" /> LCSC Capacitor Catalog
             </button>
@@ -680,7 +680,7 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
         <div className="lg:col-span-5 bg-slate-50 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-lg p-3.5 space-y-3">
           <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5] flex items-center justify-between">
             <span className="inline-flex items-center gap-1.5">
-              <Sliders className="w-3.5 h-3.5 text-cyan-500" /> Capacitor Dielectrics, ESR &amp; Thermal Controls
+              <Sliders className="w-3.5 h-3.5 text-blue-500" /> Capacitor Dielectrics, ESR &amp; Thermal Controls
             </span>
             {esrLock.locked && (
               <button
@@ -758,7 +758,7 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
               <div className="flex justify-between items-center text-[10px] font-mono">
                 <span className="text-slate-400">In DC-Link (×{inPreset.unitCap_uF}µF)</span>
                 <div className="inline-flex items-center gap-1">
-                  <span className="text-cyan-400 font-bold tabular-nums">{dcLinkParallelCount}× ({capAnalysis.C_dclink_total_uF}µF)</span>
+                  <span className="text-blue-400 font-bold tabular-nums">{dcLinkParallelCount}× ({capAnalysis.C_dclink_total_uF}µF)</span>
                   <LockToggleButton compact locked={dcLinkCountLock.locked} onToggle={dcLinkCountLock.toggleLock} label="DC-Link Cap Count" />
                 </div>
               </div>
@@ -769,7 +769,7 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
                 step={1}
                 value={dcLinkParallelCount}
                 onChange={(e) => dcLinkCountLock.setManual(Number(e.target.value))}
-                className="w-full accent-cyan-500 cursor-pointer"
+                className="w-full accent-blue-500 cursor-pointer"
               />
             </div>
 
@@ -842,7 +842,7 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
               <div className="flex justify-between items-center text-[10px] font-mono">
                 <span className="text-slate-400">Ripple Derating Margin</span>
                 <div className="inline-flex items-center gap-1">
-                  <span className="text-cyan-300 font-bold tabular-nums">{safetyMarginPct}%</span>
+                  <span className="text-blue-300 font-bold tabular-nums">{safetyMarginPct}%</span>
                   <LockToggleButton compact locked={safetyMarginLock.locked} onToggle={safetyMarginLock.toggleLock} label="Ripple Derating Margin" />
                 </div>
               </div>
@@ -853,7 +853,7 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
                 step={5}
                 value={safetyMarginPct}
                 onChange={(e) => safetyMarginLock.setManual(Number(e.target.value))}
-                className="w-full accent-cyan-500 cursor-pointer"
+                className="w-full accent-blue-500 cursor-pointer"
               />
             </div>
           </div>
@@ -862,7 +862,7 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
         {/* Right KPI Cards (7 cols): Card 1 = Input DC-Link Stress, Card 2 = Output Filter Stress */}
         <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-3">
           {/* Card 1: Input Capacitor Bank Stress & Life-Expectancy */}
-          <div className="bg-slate-50 dark:bg-slate-900/70 border border-cyan-500/30 rounded-lg p-3.5 flex flex-col justify-between space-y-2">
+          <div className="bg-slate-50 dark:bg-slate-900/70 border border-blue-500/30 rounded-lg p-3.5 flex flex-col justify-between space-y-2">
             <div>
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-slate-900 dark:text-[#eef0f5]">
@@ -882,7 +882,7 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
               <div className="mt-2 grid grid-cols-2 gap-2 text-xs font-mono">
                 <div className="p-2 rounded bg-slate-950/70 border border-slate-800">
                   <div className="text-[10px] text-slate-400">Operating vs Required I_Cin,rms</div>
-                  <div className="text-sm font-bold text-cyan-400">
+                  <div className="text-sm font-bold text-blue-400">
                     {capAnalysis.I_dclink_rms_A.toFixed(2)} A / {capAnalysis.I_dclink_req_rating_A.toFixed(2)} A
                   </div>
                   <div className="text-[10px] text-slate-500">
@@ -910,7 +910,7 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-400">DC-Link Voltage Ripple &amp; Stored Energy:</span>
-                <span className="text-cyan-300 font-semibold">
+                <span className="text-blue-300 font-semibold">
                   ΔV_in = {capAnalysis.deltaV_dclink_Vpp.toFixed(2)} Vpp | E = {capAnalysis.E_stored_dclink_J.toFixed(2)} J
                 </span>
               </div>
@@ -1006,7 +1006,7 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
               onClick={() => setActiveChart('impedance')}
               className={`px-3 py-1.5 text-xs font-mono rounded inline-flex items-center gap-1.5 cursor-pointer ${
                 activeChart === 'impedance'
-                  ? 'bg-cyan-600 text-white font-semibold'
+                  ? 'bg-blue-600 text-white font-semibold'
                   : 'bg-slate-100 dark:bg-slate-900 text-slate-400 border border-slate-800'
               }`}
             >
@@ -1016,7 +1016,7 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
 
           <div className="text-[11px] font-mono text-slate-400">
             Out MPN: <strong className="text-emerald-300">{outPreset.mpn}</strong> · In MPN:{' '}
-            <strong className="text-cyan-300">{inPreset.mpn}</strong>
+            <strong className="text-blue-300">{inPreset.mpn}</strong>
           </div>
         </div>
 
@@ -1211,7 +1211,7 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs font-mono">
         <div className="p-2.5 rounded bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800">
           <div className="text-[10px] text-slate-400 mb-1 flex items-center gap-1">
-            <Flame className="w-3 h-3 text-cyan-400" /> 1. Topology Input &amp; Output RMS Ripple:
+            <Flame className="w-3 h-3 text-blue-400" /> 1. Topology Input &amp; Output RMS Ripple:
           </div>
           <MathFormula
             tex={

@@ -92,12 +92,12 @@ export const AiProviderSettingsPanel: React.FC<AiProviderSettingsPanelProps> = (
       data-testid="ai-provider-settings-panel"
       className={`${
         compact ? 'p-3' : 'p-3.5'
-      } rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#0B0F17] space-y-3 text-xs`}
+      } rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#0e1015] space-y-3 text-xs`}
     >
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 min-w-0">
-          <KeyRound className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" />
+          <KeyRound className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
           <span className="font-semibold text-slate-900 dark:text-slate-100 truncate">
             AI Provider &amp; API Key Settings
           </span>
@@ -106,7 +106,7 @@ export const AiProviderSettingsPanel: React.FC<AiProviderSettingsPanelProps> = (
           <button
             type="button"
             onClick={handleReset}
-            className="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#131A26] text-[10px] font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white inline-flex items-center gap-1 cursor-pointer transition-colors"
+            className="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1c202b] text-[10px] font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white inline-flex items-center gap-1 cursor-pointer transition-colors"
             title="Reset AI provider settings to default Gemini workspace mode"
           >
             <RotateCcw className="w-3 h-3" />
@@ -117,7 +117,7 @@ export const AiProviderSettingsPanel: React.FC<AiProviderSettingsPanelProps> = (
               type="button"
               onClick={onClose}
               aria-label="Close AI provider settings"
-              className="p-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#131A26] text-slate-500 hover:text-slate-900 dark:hover:text-white cursor-pointer transition-colors"
+              className="p-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1c202b] text-slate-500 hover:text-slate-900 dark:hover:text-white cursor-pointer transition-colors"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -137,8 +137,8 @@ export const AiProviderSettingsPanel: React.FC<AiProviderSettingsPanelProps> = (
               aria-pressed={active}
               className={`px-2 py-1.5 rounded border text-[11px] font-medium transition-colors cursor-pointer text-center truncate ${
                 active
-                  ? 'bg-cyan-600 border-cyan-500 text-white font-semibold'
-                  : 'bg-white dark:bg-[#131A26] border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-cyan-500/60'
+                  ? 'bg-blue-600 border-blue-500 text-white font-semibold'
+                  : 'bg-white dark:bg-[#1c202b] border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-blue-500/60'
               }`}
             >
               {p.label}
@@ -178,14 +178,14 @@ export const AiProviderSettingsPanel: React.FC<AiProviderSettingsPanelProps> = (
             placeholder={meta.keyPlaceholder}
             autoComplete="off"
             spellCheck={false}
-            className="flex-1 min-w-0 px-2.5 py-1.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0E131D] text-xs font-mono text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 focus-visible:border-cyan-500"
+            className="flex-1 min-w-0 px-2.5 py-1.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#14171f] text-xs font-mono text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:border-blue-500"
           />
           <button
             type="button"
             onClick={() => setShowKey((s) => !s)}
             aria-label="Toggle API key visibility"
             title={showKey ? 'Hide API key' : 'Show API key'}
-            className="h-8 w-8 shrink-0 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#131A26] text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white inline-flex items-center justify-center cursor-pointer transition-colors"
+            className="h-8 w-8 shrink-0 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#1c202b] text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white inline-flex items-center justify-center cursor-pointer transition-colors"
           >
             {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
           </button>
@@ -207,7 +207,7 @@ export const AiProviderSettingsPanel: React.FC<AiProviderSettingsPanelProps> = (
           onChange={(e) => handleFieldChange({ model: e.target.value })}
           placeholder={meta.defaultModel}
           spellCheck={false}
-          className="w-full px-2.5 py-1.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0E131D] text-xs font-mono text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 focus-visible:border-cyan-500"
+          className="w-full px-2.5 py-1.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#14171f] text-xs font-mono text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:border-blue-500"
         />
         <div className="flex flex-wrap gap-1 pt-0.5">
           {MODEL_SUGGESTIONS[aiConfig.provider].map((m) => (
@@ -217,8 +217,8 @@ export const AiProviderSettingsPanel: React.FC<AiProviderSettingsPanelProps> = (
               onClick={() => handleFieldChange({ model: m })}
               className={`px-1.5 py-0.5 rounded border text-[10px] font-mono cursor-pointer transition-colors ${
                 aiConfig.model === m
-                  ? 'bg-cyan-600/15 border-cyan-500/60 text-cyan-700 dark:text-cyan-300 font-semibold'
-                  : 'bg-white dark:bg-[#131A26] border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-400'
+                  ? 'bg-blue-600/15 border-blue-500/60 text-blue-700 dark:text-blue-300 font-semibold'
+                  : 'bg-white dark:bg-[#1c202b] border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-400'
               }`}
             >
               {m}
@@ -234,7 +234,7 @@ export const AiProviderSettingsPanel: React.FC<AiProviderSettingsPanelProps> = (
             htmlFor="ai-provider-base-url"
             className="flex items-center gap-1 text-[11px] font-medium text-slate-700 dark:text-slate-300"
           >
-            <Globe className="w-3 h-3 text-cyan-600 dark:text-cyan-400" />
+            <Globe className="w-3 h-3 text-blue-600 dark:text-blue-400" />
             <span>OpenAI-Compatible Base URL</span>
           </label>
           <input
@@ -244,7 +244,7 @@ export const AiProviderSettingsPanel: React.FC<AiProviderSettingsPanelProps> = (
             onChange={(e) => handleFieldChange({ baseUrl: e.target.value })}
             placeholder={meta.defaultBaseUrl}
             spellCheck={false}
-            className="w-full px-2.5 py-1.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0E131D] text-xs font-mono text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 focus-visible:border-cyan-500"
+            className="w-full px-2.5 py-1.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#14171f] text-xs font-mono text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/70 focus-visible:border-blue-500"
           />
           <div className="flex flex-wrap gap-1 pt-0.5">
             {COMPATIBLE_ENDPOINT_PRESETS.map((preset) => (
@@ -257,7 +257,7 @@ export const AiProviderSettingsPanel: React.FC<AiProviderSettingsPanelProps> = (
                     model: preset.model,
                   })
                 }
-                className="px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#131A26] text-[10px] font-mono text-slate-600 dark:text-slate-300 hover:border-cyan-500/60 cursor-pointer"
+                className="px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#1c202b] text-[10px] font-mono text-slate-600 dark:text-slate-300 hover:border-blue-500/60 cursor-pointer"
               >
                 {preset.label}
               </button>
@@ -287,7 +287,7 @@ export const AiProviderSettingsPanel: React.FC<AiProviderSettingsPanelProps> = (
       )}
 
       {aiConfig.provider === 'gemini' && aiConfig.apiKey && (
-        <div className="text-[10px] text-cyan-700 dark:text-cyan-300/90 leading-snug">
+        <div className="text-[10px] text-blue-700 dark:text-blue-300/90 leading-snug">
           Personal Gemini key detected: if a workspace model alias (e.g. gemini-4-hydrogen) is unavailable for your key, requests automatically fall back to gemini-2.5-flash.
         </div>
       )}
@@ -300,7 +300,7 @@ export const AiProviderSettingsPanel: React.FC<AiProviderSettingsPanelProps> = (
 
       {(aiConfig.provider === 'openai' || aiConfig.provider === 'openai-compatible') &&
         isOpenAiReasoningModel(aiConfig.model) && (
-          <div className="text-[10px] text-cyan-700 dark:text-cyan-300/90 leading-snug">
+          <div className="text-[10px] text-blue-700 dark:text-blue-300/90 leading-snug">
             Reasoning model mode ({aiConfig.model}): unsupported temperature parameter is automatically omitted.
           </div>
         )}

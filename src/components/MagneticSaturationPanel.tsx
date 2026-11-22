@@ -434,12 +434,12 @@ export const MagneticSaturationPanel: React.FC<MagneticSaturationPanelProps> = (
   const isNearKnee = !isLimitExceeded && cycleStats.utilization_pct >= 75 && cycleStats.utilization_pct < 90;
 
   return (
-    <div className="bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-4">
+    <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-4">
       {/* HEADER BAR */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
         <div>
           <div className="flex items-center gap-2">
-            <Layers className="w-4 h-4 text-cyan-500" />
+            <Layers className="w-4 h-4 text-blue-500" />
             <h3 className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5]">
               Magnetic Core Saturation Headroom &amp; Instantaneous B-Field vs. Material B-H Analyzer
             </h3>
@@ -475,7 +475,7 @@ export const MagneticSaturationPanel: React.FC<MagneticSaturationPanelProps> = (
           </div>
           <p className="text-[11px] font-mono text-slate-500 dark:text-slate-400 mt-0.5">
             Active Core: <strong className="text-slate-800 dark:text-slate-200">{res.core.name}</strong> ({res.material.name}) ·
-            Np:Ns = <strong className="text-cyan-400">{res.Np_actual}:{res.Ns_actual}</strong> ·
+            Np:Ns = <strong className="text-blue-400">{res.Np_actual}:{res.Ns_actual}</strong> ·
             Ae = {res.core.Ae_mm2} mm², le = {res.core.le_mm} mm ·
             T_core = <strong className="text-amber-400">{activeTemp_C.toFixed(1)}°C</strong> (B_sat = {Bsat_active_mT.toFixed(0)} mT)
           </p>
@@ -565,7 +565,7 @@ export const MagneticSaturationPanel: React.FC<MagneticSaturationPanelProps> = (
       <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2.5">
         <div className="bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded p-2.5">
           <div className="text-[10px] font-mono uppercase text-slate-400">Instantaneous B(t)</div>
-          <div className="text-base font-mono font-bold tabular-nums text-cyan-400">
+          <div className="text-base font-mono font-bold tabular-nums text-blue-400">
             {cursorSample.B_inst_mT >= 0 ? '+' : ''}
             {cursorSample.B_inst_mT.toFixed(1)} mT
           </div>
@@ -642,7 +642,7 @@ export const MagneticSaturationPanel: React.FC<MagneticSaturationPanelProps> = (
 
         <div className="bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded p-2.5">
           <div className="text-[10px] font-mono uppercase text-slate-400">Volt-Second Capacity</div>
-          <div className="text-base font-mono font-bold tabular-nums text-cyan-400">
+          <div className="text-base font-mono font-bold tabular-nums text-blue-400">
             {res.voltSec_applied_Vus.toFixed(1)} / {res.voltSec_max_Vus.toFixed(1)} V·µs
           </div>
           <div className="text-[10px] font-mono text-slate-500">
@@ -670,7 +670,7 @@ export const MagneticSaturationPanel: React.FC<MagneticSaturationPanelProps> = (
           <div className="flex-1">
             <div className="flex justify-between text-[10px] font-mono text-slate-400 mb-0.5">
               <span>Switching Phase Scrubber (t / T_sw)</span>
-              <span className="text-cyan-400 font-bold">
+              <span className="text-blue-400 font-bold">
                 t = {cursorSample.t_us.toFixed(2)} µs ({(phaseCursor * 360).toFixed(0)}°)
               </span>
             </div>
@@ -733,7 +733,7 @@ export const MagneticSaturationPanel: React.FC<MagneticSaturationPanelProps> = (
             <div className="flex justify-between items-center text-[10px] font-mono text-slate-400">
               <span>Core T_fe</span>
               <div className="inline-flex items-center gap-1">
-                <span className="text-cyan-400 font-bold tabular-nums">{activeTemp_C.toFixed(0)}°C</span>
+                <span className="text-blue-400 font-bold tabular-nums">{activeTemp_C.toFixed(0)}°C</span>
                 <LockToggleButton compact locked={tempLock.locked} onToggle={tempLock.toggleLock} label="Core Temp" />
               </div>
             </div>
@@ -744,7 +744,7 @@ export const MagneticSaturationPanel: React.FC<MagneticSaturationPanelProps> = (
               step={1}
               value={Math.round(activeTemp_C)}
               onChange={(e) => tempLock.setManual(Number(e.target.value))}
-              className="w-full accent-cyan-500 cursor-pointer"
+              className="w-full accent-blue-500 cursor-pointer"
             />
           </div>
         </div>
@@ -836,7 +836,7 @@ export const MagneticSaturationPanel: React.FC<MagneticSaturationPanelProps> = (
 
           <svg
             viewBox={`0 0 ${bhSvgW} ${bhSvgH}`}
-            className="w-full h-auto select-none cursor-grab active:cursor-grabbing bg-[#070b14] rounded border border-slate-800/80"
+            className="w-full h-auto select-none cursor-grab active:cursor-grabbing bg-[#090a0d] rounded border border-slate-800/80"
             onWheel={(e) => {
               e.preventDefault();
               const factor = e.deltaY < 0 ? 1.18 : 1 / 1.18;
@@ -1082,7 +1082,7 @@ export const MagneticSaturationPanel: React.FC<MagneticSaturationPanelProps> = (
                       width={132}
                       height={18}
                       rx={3}
-                      fill="#0f172a"
+                      fill="#14171f"
                       stroke="#10b981"
                       strokeWidth={1}
                     />
@@ -1143,7 +1143,7 @@ export const MagneticSaturationPanel: React.FC<MagneticSaturationPanelProps> = (
                       cy={cy}
                       r={5}
                       fill="#22d3ee"
-                      stroke="#0f172a"
+                      stroke="#14171f"
                       strokeWidth={1.5}
                     />
                     <text
@@ -1194,11 +1194,11 @@ export const MagneticSaturationPanel: React.FC<MagneticSaturationPanelProps> = (
               </span>
             )}
             <span className="inline-flex items-center gap-1">
-              <span className="w-3 h-2 inline-block bg-cyan-400/30 border border-cyan-400" />
+              <span className="w-3 h-2 inline-block bg-blue-400/30 border border-blue-400" />
               Active Trajectory (H(t), B(t))
             </span>
             <span className="inline-flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-full inline-block bg-cyan-400" />
+              <span className="w-2.5 h-2.5 rounded-full inline-block bg-blue-400" />
               Instantaneous Cursor
             </span>
           </div>
@@ -1331,7 +1331,7 @@ export const MagneticSaturationPanel: React.FC<MagneticSaturationPanelProps> = (
                           <span>{m.util_pct.toFixed(1)}%</span>
                         </div>
                       </td>
-                      <td className="py-1.5 pr-2 text-cyan-400">
+                      <td className="py-1.5 pr-2 text-blue-400">
                         {m.muRetained_pct.toFixed(1)}%
                       </td>
                       <td className="py-1.5">
