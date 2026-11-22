@@ -34,6 +34,7 @@ import { AllCapacitorsDesigner } from './AllCapacitorsDesigner';
 import { getDefaultHybridCapBank } from '../engine/passiveDesignEngine';
 import { MathFormula } from './MathFormula';
 import { ResizableSidebarWindow } from './ResizableSidebarWindow';
+import { SidebarSection } from './SidebarSection';
 import { SaturationCheckAlert } from './SaturationCheckAlert';
 import { AutoSolverBanner, LockToggleButton } from './AutoSolverControls';
 import { useDesignSolver } from './DesignSolverContext';
@@ -189,160 +190,165 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
           onClearChanges={clearDcdcChanges}
         />
 
-        {/* 1. Primary Topology Selector */}
-        <div className="border-t border-slate-200 dark:border-slate-800 pt-3">
-          <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-2">
-            Converter Topology
-          </label>
-          <div className="grid grid-cols-2 gap-1.5">
-            {(
-              [
-                { id: 'psfb-1ph', label: 'PSFB 1-Phase' },
-                { id: 'psfb-2ph', label: 'PSFB 2-Ph Interl.' },
-                { id: 'llc-fb', label: 'LLC Full-Bridge' },
-                { id: 'llc-hb', label: 'LLC Half-Bridge' },
-              ] as { id: DcDcTopologyFamily; label: string }[]
-            ).map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setField('topology', t.id)}
-                className={`px-2.5 py-1.5 text-xs font-medium rounded-md border transition-colors cursor-pointer truncate ${
-                  state.topology === t.id
-                    ? 'bg-cyan-600/10 border-cyan-600/60 text-cyan-700 dark:text-cyan-300 font-semibold'
-                    : 'bg-slate-50 dark:bg-[#090C12] border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* 2. Transformer Secondary & Rectifier Hardware Variants */}
-        <div className="space-y-2.5 border-t border-slate-200 dark:border-slate-800 pt-3">
+        {/* 1. Primary Topology & Architecture */}
+        <SidebarSection
+          title="Topology & Architecture"
+          summary={`${state.topology.toUpperCase()} · ${state.controlType.toUpperCase()}`}
+          defaultOpen={true}
+        >
           <div>
-            <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
-              Transformer Secondary Winding
-            </label>
-            <div className="grid grid-cols-3 gap-1">
-              {(
-                [
-                  { id: 'center-tapped', label: 'Center-Tap' },
-                  { id: 'full-bridge', label: 'Full-Bridge' },
-                  { id: 'current-doubler', label: 'Curr-Doubler' },
-                ] as { id: TransformerSecondaryType; label: string }[]
-              ).map((tx) => (
-                <button
-                  key={tx.id}
-                  type="button"
-                  onClick={() => setField('txType', tx.id)}
-                  className={`px-1.5 py-1.5 text-[11px] font-medium rounded-md border transition-colors cursor-pointer truncate ${
-                    state.txType === tx.id
-                      ? 'bg-cyan-600/10 border-cyan-600/60 text-cyan-700 dark:text-cyan-300 font-semibold'
-                      : 'bg-slate-50 dark:bg-[#090C12] border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
-                  }`}
-                >
-                  {tx.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
-              Secondary Rectifier Devices
+            <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-2">
+              Converter Topology
             </label>
             <div className="grid grid-cols-2 gap-1.5">
               {(
                 [
-                  { id: 'sync-fet', label: 'Sync MOSFET (SR)' },
-                  { id: 'schottky-diode', label: 'Schottky Diode' },
-                ] as { id: RectifierDeviceType; label: string }[]
-              ).map((rm) => (
+                  { id: 'psfb-1ph', label: 'PSFB 1-Phase' },
+                  { id: 'psfb-2ph', label: 'PSFB 2-Ph Interl.' },
+                  { id: 'llc-fb', label: 'LLC Full-Bridge' },
+                  { id: 'llc-hb', label: 'LLC Half-Bridge' },
+                ] as { id: DcDcTopologyFamily; label: string }[]
+              ).map((t) => (
                 <button
-                  key={rm.id}
+                  key={t.id}
                   type="button"
-                  onClick={() => setField('rectMode', rm.id)}
-                  className={`px-2 py-1.5 text-xs font-medium rounded-md border transition-colors cursor-pointer truncate ${
-                    state.rectMode === rm.id
+                  onClick={() => setField('topology', t.id)}
+                  className={`px-2.5 py-1.5 text-xs font-medium rounded-md border transition-colors cursor-pointer truncate ${
+                    state.topology === t.id
                       ? 'bg-cyan-600/10 border-cyan-600/60 text-cyan-700 dark:text-cyan-300 font-semibold'
                       : 'bg-slate-50 dark:bg-[#090C12] border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
                   }`}
                 >
-                  {rm.label}
+                  {t.label}
                 </button>
               ))}
             </div>
           </div>
 
-          <div>
+          <div className="space-y-2.5 pt-1">
+            <div>
+              <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
+                Transformer Secondary Winding
+              </label>
+              <div className="grid grid-cols-3 gap-1">
+                {(
+                  [
+                    { id: 'center-tapped', label: 'Center-Tap' },
+                    { id: 'full-bridge', label: 'Full-Bridge' },
+                    { id: 'current-doubler', label: 'Curr-Doubler' },
+                  ] as { id: TransformerSecondaryType; label: string }[]
+                ).map((tx) => (
+                  <button
+                    key={tx.id}
+                    type="button"
+                    onClick={() => setField('txType', tx.id)}
+                    className={`px-1.5 py-1.5 text-[11px] font-medium rounded-md border transition-colors cursor-pointer truncate ${
+                      state.txType === tx.id
+                        ? 'bg-cyan-600/10 border-cyan-600/60 text-cyan-700 dark:text-cyan-300 font-semibold'
+                        : 'bg-slate-50 dark:bg-[#090C12] border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
+                    }`}
+                  >
+                    {tx.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
+                Secondary Rectifier Devices
+              </label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {(
+                  [
+                    { id: 'sync-fet', label: 'Sync MOSFET (SR)' },
+                    { id: 'schottky-diode', label: 'Schottky Diode' },
+                  ] as { id: RectifierDeviceType; label: string }[]
+                ).map((rm) => (
+                  <button
+                    key={rm.id}
+                    type="button"
+                    onClick={() => setField('rectMode', rm.id)}
+                    className={`px-2 py-1.5 text-xs font-medium rounded-md border transition-colors cursor-pointer truncate ${
+                      state.rectMode === rm.id
+                        ? 'bg-cyan-600/10 border-cyan-600/60 text-cyan-700 dark:text-cyan-300 font-semibold'
+                        : 'bg-slate-50 dark:bg-[#090C12] border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
+                    }`}
+                  >
+                    {rm.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
+                Clamping / Snubber Network
+              </label>
+              <div className="grid grid-cols-3 gap-1">
+                {(
+                  [
+                    { id: 'pri-diode-clamp', label: 'Pri Dc1/Dc2' },
+                    { id: 'active-clamp', label: 'Active Clamp' },
+                    { id: 'rc-snubber', label: 'RC Snubber' },
+                  ] as { id: ClampVariantType; label: string }[]
+                ).map((cl) => (
+                  <button
+                    key={cl.id}
+                    type="button"
+                    onClick={() => setField('clampVariant', cl.id)}
+                    className={`px-1.5 py-1.5 text-[11px] font-medium rounded-md border transition-colors cursor-pointer truncate ${
+                      state.clampVariant === cl.id
+                        ? 'bg-cyan-600/10 border-cyan-600/60 text-cyan-700 dark:text-cyan-300 font-semibold'
+                        : 'bg-slate-50 dark:bg-[#090C12] border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
+                    }`}
+                  >
+                    {cl.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-1">
             <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
-              Clamping / Snubber Network
+              Control Loop Architecture
             </label>
-            <div className="grid grid-cols-3 gap-1">
+            <div className="grid grid-cols-2 gap-1.5">
               {(
                 [
-                  { id: 'pri-diode-clamp', label: 'Pri Dc1/Dc2' },
-                  { id: 'active-clamp', label: 'Active Clamp' },
-                  { id: 'rc-snubber', label: 'RC Snubber' },
-                ] as { id: ClampVariantType; label: string }[]
-              ).map((cl) => (
+                  { id: '2p2z', label: '2P2Z (Type-II)' },
+                  { id: 'type-iii', label: 'Type-III (3P3Z)' },
+                  { id: 'pcmc', label: 'PCMC + Type-II' },
+                  { id: 'acmc', label: 'ACMC' },
+                  { id: 'cascaded-pi', label: 'Cascaded PI' },
+                  { id: 'charge-control', label: 'Charge Control' },
+                  { id: 'mpc', label: 'Trajectory MPC' },
+                ] as { id: DcDcControlType; label: string }[]
+              ).map((c) => (
                 <button
-                  key={cl.id}
+                  key={c.id}
                   type="button"
-                  onClick={() => setField('clampVariant', cl.id)}
-                  className={`px-1.5 py-1.5 text-[11px] font-medium rounded-md border transition-colors cursor-pointer truncate ${
-                    state.clampVariant === cl.id
+                  onClick={() => setField('controlType', c.id)}
+                  className={`px-2 py-1.5 text-xs font-medium rounded-md border transition-colors cursor-pointer truncate ${
+                    state.controlType === c.id
                       ? 'bg-cyan-600/10 border-cyan-600/60 text-cyan-700 dark:text-cyan-300 font-semibold'
                       : 'bg-slate-50 dark:bg-[#090C12] border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
                   }`}
                 >
-                  {cl.label}
+                  {c.label}
                 </button>
               ))}
             </div>
           </div>
-        </div>
+        </SidebarSection>
 
-        {/* 3. Control Architecture Selector */}
-        <div className="border-t border-slate-200 dark:border-slate-800 pt-3">
-          <label className="block text-xs font-semibold text-slate-800 dark:text-slate-200 mb-1.5">
-            Control Loop Architecture
-          </label>
-          <div className="grid grid-cols-2 gap-1.5">
-            {(
-              [
-                { id: '2p2z', label: '2P2Z (Type-II)' },
-                { id: 'type-iii', label: 'Type-III (3P3Z)' },
-                { id: 'pcmc', label: 'PCMC + Type-II' },
-                { id: 'acmc', label: 'ACMC' },
-                { id: 'cascaded-pi', label: 'Cascaded PI' },
-                { id: 'charge-control', label: 'Charge Control' },
-                { id: 'mpc', label: 'Trajectory MPC' },
-              ] as { id: DcDcControlType; label: string }[]
-            ).map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setField('controlType', c.id)}
-                className={`px-2 py-1.5 text-xs font-medium rounded-md border transition-colors cursor-pointer truncate ${
-                  state.controlType === c.id
-                    ? 'bg-cyan-600/10 border-cyan-600/60 text-cyan-700 dark:text-cyan-300 font-semibold'
-                    : 'bg-slate-50 dark:bg-[#090C12] border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
-                }`}
-              >
-                {c.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* 4. Electrical Specs & Tank Parameters */}
-        <div className="border-t border-slate-200 dark:border-slate-800 pt-3 space-y-2.5">
-          <div className="text-xs font-semibold text-slate-900 dark:text-slate-100">
-            Power Stage &amp; Tank Parameters
-          </div>
+        {/* 2. Electrical Specs & Tank Parameters */}
+        <SidebarSection
+          title="Power Stage & Tank Specs"
+          summary={`${state.Vin_nom_V}→${state.Vout_V}V · ${state.Pout_W}W · ${state.fsw_kHz}kHz`}
+          defaultOpen={true}
+        >
           <div className="grid grid-cols-2 gap-2.5">
             <div>
               <div className="flex items-center justify-between gap-1">
@@ -680,13 +686,15 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
               </div>
             </div>
           </div>
-        </div>
+        </SidebarSection>
 
-        {/* 5. Control & Electro-Thermal Quick Parameters */}
-        <div className="border-t border-slate-200 dark:border-slate-800 pt-3 space-y-2.5">
-          <div className="text-xs font-semibold text-slate-900 dark:text-slate-100">
-            Control, Gate Drive &amp; Thermal
-          </div>
+        {/* 3. Control & Electro-Thermal Quick Parameters */}
+        <SidebarSection
+          title="Control, Gate Drive & Thermal"
+          summary={`fc ${state.fc_target_kHz}kHz · Tj ${Math.max(res.Tj_pri_C, res.Tj_sec_C).toFixed(0)}°C`}
+          defaultOpen={false}
+          alertStatus={res.thermalStable ? 'ok' : 'critical'}
+        >
           <div className="grid grid-cols-2 gap-2.5">
             <div>
               <div className="flex items-center justify-between gap-1">
@@ -1097,13 +1105,15 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
               />
             </div>
           </div>
-        </div>
+        </SidebarSection>
 
-        {/* 6. Devices, Core, Turns & Litz Winding */}
-        <div className="border-t border-slate-200 dark:border-slate-800 pt-3 space-y-2.5">
-          <div className="text-xs font-semibold text-slate-900 dark:text-slate-100">
-            Devices, Magnetics &amp; Litz Winding
-          </div>
+        {/* 4. Devices, Core, Turns & Litz Winding */}
+        <SidebarSection
+          title="Devices, Magnetics & Winding"
+          summary={`${res.Np_actual}:${res.Ns_actual}T · ${state.coreId}`}
+          defaultOpen={false}
+          alertStatus={res.saturationCheck.status}
+        >
           <div className="space-y-2">
             <div>
               <div className="flex items-center justify-between gap-1">
@@ -1384,7 +1394,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
               </div>
             </div>
           </div>
-        </div>
+        </SidebarSection>
       </ResizableSidebarWindow>
 
       {/* RIGHT WORKSPACE: KPI STRIP, SUB-TABS, LIVE SCHEMATIC, GRAPHS, ELECTRO-THERMAL & MAGNETICS */}
@@ -1518,46 +1528,139 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
           </div>
         </div>
 
-        {/* Sub-Navigation Bar */}
-        <div
-          ref={subTabNavRef}
-          className="scroll-mt-20 flex flex-wrap items-center gap-1.5 border-b border-slate-200 dark:border-white/[0.08] pb-2.5"
-        >
-          {(
-            [
-              { id: 'schematic', label: 'Schematic & Equations', icon: <Zap className="w-3.5 h-3.5" /> },
-              { id: 'scope-sim', label: 'Scope & Sim (ODE/MC/SPICE)', icon: <Activity className="w-3.5 h-3.5" /> },
-              { id: 'graphs', label: 'ZVS & Tank Graphs', icon: <Activity className="w-3.5 h-3.5" /> },
-              { id: 'thermal', label: 'Electro-Thermal', icon: <Flame className="w-3.5 h-3.5" /> },
-              { id: 'control', label: 'Control & DSP', icon: <Cpu className="w-3.5 h-3.5" /> },
-              { id: 'all-inductors', label: 'All Inductors', icon: <Magnet className="w-3.5 h-3.5" /> },
-              { id: 'capacitors', label: 'All Capacitors', icon: <BatteryCharging className="w-3.5 h-3.5" /> },
-              { id: 'magnetics', label: 'Tx Magnetics (iGSE)', icon: <Layers className="w-3.5 h-3.5" />, alert: res.saturationCheck.status === 'critical' },
-              { id: 'saturation', label: 'Core Saturation & BH', icon: <ShieldCheck className="w-3.5 h-3.5" />, alert: res.saturationCheck.status === 'critical' },
-              { id: 'emi', label: 'EMI Filter', icon: <Radio className="w-3.5 h-3.5" /> },
-              { id: 'gatedrive', label: 'Gate Drive', icon: <Zap className="w-3.5 h-3.5" /> },
-              { id: 'winding', label: 'Winding Window', icon: <Layers className="w-3.5 h-3.5" /> },
-              { id: 'protection', label: 'OCP & Desat', icon: <ShieldAlert className="w-3.5 h-3.5" /> },
-            ] as { id: typeof subTab; label: string; icon: React.ReactNode; alert?: boolean }[]
-          ).map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setSubTab(tab.id)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-lg border inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
-                subTab === tab.id
-                  ? 'bg-[#eceff4] dark:bg-[#1a1e28] border-cyan-500/50 text-cyan-700 dark:text-cyan-300 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
-                  : tab.alert
-                  ? 'bg-rose-500/10 border-rose-500/40 text-rose-600 dark:text-rose-400'
-                  : 'bg-white dark:bg-[#11141c] border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-[#a3a9b8] hover:border-slate-300 dark:hover:border-white/[0.16] hover:text-slate-900 dark:hover:text-[#eef0f5]'
-              }`}
-            >
-              {tab.icon}
-              <span>{tab.label}</span>
-              {tab.alert && <AlertTriangle className="w-3.5 h-3.5 shrink-0" />}
-            </button>
-          ))}
-        </div>
+        {/* Grouped 6-Tab Sub-Navigation Bar (1 crisp row + contextual sub-views) */}
+        {(() => {
+          const dcdcGroups: {
+            id: string;
+            label: string;
+            icon: React.ReactNode;
+            alert?: boolean;
+            views: { id: DcDcSubTab; label: string; alert?: boolean }[];
+          }[] = [
+            {
+              id: 'overview',
+              label: 'Overview',
+              icon: <Zap className="w-3.5 h-3.5" />,
+              views: [{ id: 'schematic', label: 'Schematic & Equations' }],
+            },
+            {
+              id: 'waveforms',
+              label: 'Waveforms & Sim',
+              icon: <Activity className="w-3.5 h-3.5" />,
+              views: [
+                { id: 'scope-sim', label: 'Scope & Sim (ODE / MC / SPICE)' },
+                { id: 'graphs', label: 'ZVS & Tank Graphs' },
+              ],
+            },
+            {
+              id: 'magnetics-grp',
+              label: 'Magnetics',
+              icon: <Magnet className="w-3.5 h-3.5" />,
+              alert: res.saturationCheck.status === 'critical',
+              views: [
+                {
+                  id: 'magnetics',
+                  label: 'Tx Magnetics (iGSE)',
+                  alert: res.saturationCheck.status === 'critical',
+                },
+                {
+                  id: 'saturation',
+                  label: 'Core Saturation & BH',
+                  alert: res.saturationCheck.status === 'critical',
+                },
+                { id: 'winding', label: 'Winding Window' },
+                { id: 'all-inductors', label: 'All Inductors' },
+              ],
+            },
+            {
+              id: 'devices-thermal',
+              label: 'Devices & Thermal',
+              icon: <Flame className="w-3.5 h-3.5" />,
+              alert: !res.thermalStable,
+              views: [
+                { id: 'thermal', label: 'Electro-Thermal', alert: !res.thermalStable },
+                { id: 'gatedrive', label: 'Gate Drive' },
+                { id: 'protection', label: 'OCP & Desat' },
+              ],
+            },
+            {
+              id: 'passives',
+              label: 'Passives & EMI',
+              icon: <BatteryCharging className="w-3.5 h-3.5" />,
+              views: [
+                { id: 'capacitors', label: 'All Capacitors' },
+                { id: 'emi', label: 'EMI Filter' },
+              ],
+            },
+            {
+              id: 'control-grp',
+              label: 'Control & DSP',
+              icon: <Cpu className="w-3.5 h-3.5" />,
+              views: [{ id: 'control', label: 'Control & DSP' }],
+            },
+          ];
+
+          const activeGroup =
+            dcdcGroups.find((g) => g.views.some((v) => v.id === subTab)) ?? dcdcGroups[0];
+
+          return (
+            <div ref={subTabNavRef} className="scroll-mt-20 space-y-2 border-b border-slate-200 dark:border-white/[0.08] pb-2.5">
+              <div className="flex flex-wrap items-center gap-1.5">
+                {dcdcGroups.map((grp) => {
+                  const isActive = grp.id === activeGroup.id;
+                  return (
+                    <button
+                      key={grp.id}
+                      type="button"
+                      onClick={() => setSubTab(grp.views[0].id)}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-lg border inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+                        isActive
+                          ? 'bg-[#eceff4] dark:bg-[#1a1e28] border-cyan-500/60 text-cyan-700 dark:text-cyan-300 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
+                          : grp.alert
+                          ? 'bg-rose-500/10 border-rose-500/40 text-rose-600 dark:text-rose-400'
+                          : 'bg-white dark:bg-[#11141c] border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-[#a3a9b8] hover:border-slate-300 dark:hover:border-white/[0.16] hover:text-slate-900 dark:hover:text-[#eef0f5]'
+                      }`}
+                    >
+                      {grp.icon}
+                      <span>{grp.label}</span>
+                      {grp.views.length > 1 && (
+                        <span className="text-[10px] font-mono opacity-65">
+                          ({grp.views.length})
+                        </span>
+                      )}
+                      {grp.alert && <AlertTriangle className="w-3.5 h-3.5 shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {activeGroup.views.length > 1 && (
+                <div className="flex flex-wrap items-center gap-1 bg-[#eceff4]/75 dark:bg-[#07080d] p-1 rounded-lg border border-slate-200/80 dark:border-white/[0.07]">
+                  {activeGroup.views.map((view) => {
+                    const active = subTab === view.id;
+                    return (
+                      <button
+                        key={view.id}
+                        type="button"
+                        onClick={() => setSubTab(view.id)}
+                        className={`px-2.5 py-1 text-[11px] font-medium rounded-md inline-flex items-center gap-1.5 whitespace-nowrap cursor-pointer transition-colors ${
+                          active
+                            ? 'bg-white dark:bg-[#1a1e28] text-cyan-700 dark:text-cyan-300 border border-slate-200 dark:border-white/[0.12] shadow-xs'
+                            : view.alert
+                            ? 'text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 border border-transparent'
+                            : 'text-slate-600 dark:text-[#a3a9b8] hover:text-slate-900 dark:hover:text-[#eef0f5] border border-transparent'
+                        }`}
+                      >
+                        <span>{view.label}</span>
+                        {view.alert && <AlertTriangle className="w-3 h-3 shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* SUB-TAB 1: LIVE CAD SCHEMATIC & KaTeX GOVERNING EQUATIONS */}
         {subTab === 'schematic' && (
