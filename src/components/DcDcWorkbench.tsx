@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, lazy, Suspense } from 'react';
 import {
   DcDcDesignState,
   DCDC_PRESETS,
@@ -16,21 +16,49 @@ import {
 import { AcDcResults, solveAcDcDesign } from '../engine/acdcEngine';
 import { DcDcResults } from '../engine/dcdcEngine';
 import type { ProjectOutputMode } from '../engine/systemCascadeEngine';
-import { TransientAndMonteCarloLab } from './TransientAndMonteCarloLab';
 import { DcDcSchematicView } from './CircuitSchematics';
 import { InteractiveChart } from './InteractiveChart';
-import { BodeStabilityGraph } from './BodeStabilityGraph';
-import { BhLoopVisualizer } from './BhLoopVisualizer';
-import { MagneticSaturationPanel } from './MagneticSaturationPanel';
-import { SemiconductorThermalDeratingPanel } from './SemiconductorThermalDeratingPanel';
-import { EmiFilterDesignAssistant } from './EmiFilterDesignAssistant';
-import { EfficiencyLoadPowerChart } from './EfficiencyLoadPowerChart';
-import { GateDriveAnalysisPanel } from './GateDriveAnalysisPanel';
-import { WindingWindowVisualizer } from './WindingWindowVisualizer';
-import { ProtectionCurrentSensePanel } from './ProtectionCurrentSensePanel';
-import { CapacitorBankAnalyzer } from './CapacitorBankAnalyzer';
-import { AllInductorsDesigner } from './AllInductorsDesigner';
-import { AllCapacitorsDesigner } from './AllCapacitorsDesigner';
+import { ErrorBoundary, WorkbenchSkeleton } from './ErrorBoundary';
+
+const TransientAndMonteCarloLab = lazy(() =>
+  import('./TransientAndMonteCarloLab').then((m) => ({ default: m.TransientAndMonteCarloLab }))
+);
+const BodeStabilityGraph = lazy(() =>
+  import('./BodeStabilityGraph').then((m) => ({ default: m.BodeStabilityGraph }))
+);
+const BhLoopVisualizer = lazy(() =>
+  import('./BhLoopVisualizer').then((m) => ({ default: m.BhLoopVisualizer }))
+);
+const MagneticSaturationPanel = lazy(() =>
+  import('./MagneticSaturationPanel').then((m) => ({ default: m.MagneticSaturationPanel }))
+);
+const SemiconductorThermalDeratingPanel = lazy(() =>
+  import('./SemiconductorThermalDeratingPanel').then((m) => ({ default: m.SemiconductorThermalDeratingPanel }))
+);
+const EmiFilterDesignAssistant = lazy(() =>
+  import('./EmiFilterDesignAssistant').then((m) => ({ default: m.EmiFilterDesignAssistant }))
+);
+const EfficiencyLoadPowerChart = lazy(() =>
+  import('./EfficiencyLoadPowerChart').then((m) => ({ default: m.EfficiencyLoadPowerChart }))
+);
+const GateDriveAnalysisPanel = lazy(() =>
+  import('./GateDriveAnalysisPanel').then((m) => ({ default: m.GateDriveAnalysisPanel }))
+);
+const WindingWindowVisualizer = lazy(() =>
+  import('./WindingWindowVisualizer').then((m) => ({ default: m.WindingWindowVisualizer }))
+);
+const ProtectionCurrentSensePanel = lazy(() =>
+  import('./ProtectionCurrentSensePanel').then((m) => ({ default: m.ProtectionCurrentSensePanel }))
+);
+const CapacitorBankAnalyzer = lazy(() =>
+  import('./CapacitorBankAnalyzer').then((m) => ({ default: m.CapacitorBankAnalyzer }))
+);
+const AllInductorsDesigner = lazy(() =>
+  import('./AllInductorsDesigner').then((m) => ({ default: m.AllInductorsDesigner }))
+);
+const AllCapacitorsDesigner = lazy(() =>
+  import('./AllCapacitorsDesigner').then((m) => ({ default: m.AllCapacitorsDesigner }))
+);
 import { getDefaultHybridCapBank } from '../engine/passiveDesignEngine';
 import { MathFormula } from './MathFormula';
 import { ResizableSidebarWindow } from './ResizableSidebarWindow';
@@ -1675,6 +1703,8 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
           );
         })()}
 
+        <ErrorBoundary name="DC-DC Analysis Panel" resetKey={subTab}>
+          <Suspense fallback={<WorkbenchSkeleton label="Loading DC-DC analysis module…" />}>
         {/* SUB-TAB 1: LIVE CAD SCHEMATIC & KaTeX GOVERNING EQUATIONS */}
         {subTab === 'schematic' && (
           <div className="space-y-4">
@@ -3544,6 +3574,8 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
             </div>
           </div>
         )}
+          </Suspense>
+        </ErrorBoundary>
       </div>
     </div>
   );

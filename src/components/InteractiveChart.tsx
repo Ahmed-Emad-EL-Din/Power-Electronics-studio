@@ -701,7 +701,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
             <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-0.5 leading-snug">{subtitle}</p>
           )}
           {clickActionHint && (
-            <p className="text-[10px] font-mono text-blue-400/90 mt-0.5 flex items-center gap-1">
+            <p className="text-[10px] font-mono text-blue-600 dark:text-blue-400/90 mt-0.5 flex items-center gap-1">
               <MousePointerClick className="w-3 h-3" />
               {clickActionHint}
             </p>
@@ -713,7 +713,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
           <button
             type="button"
             onClick={() => handlePan(-1)}
-            className="p-1 text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded border border-slate-700 cursor-pointer"
+            className="p-1 text-slate-600 dark:text-[#a1a8b8] hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-[#1c202b] hover:bg-slate-200 dark:hover:bg-[#252a38] rounded border border-slate-300 dark:border-white/[0.12] cursor-pointer transition-colors"
             title="Pan Left across domain"
           >
             <ChevronLeft className="w-3.5 h-3.5" />
@@ -721,25 +721,25 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
           <button
             type="button"
             onClick={handleZoomIn}
-            className="px-1.5 py-1 text-[10px] font-mono text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded border border-slate-700 inline-flex items-center gap-0.5 cursor-pointer"
+            className="px-1.5 py-1 text-[10px] font-mono text-slate-700 dark:text-[#eef0f6] hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-[#1c202b] hover:bg-slate-200 dark:hover:bg-[#252a38] rounded border border-slate-300 dark:border-white/[0.12] inline-flex items-center gap-0.5 cursor-pointer transition-colors"
             title="Zoom In (or drag a box on the graph)"
           >
-            <ZoomIn className="w-3 h-3 text-blue-400" />
+            <ZoomIn className="w-3 h-3 text-blue-600 dark:text-blue-400" />
             In
           </button>
           <button
             type="button"
             onClick={handleZoomOut}
-            className="px-1.5 py-1 text-[10px] font-mono text-blue-300 hover:text-white bg-blue-950/60 hover:bg-blue-900/70 rounded border border-blue-500/40 inline-flex items-center gap-0.5 cursor-pointer"
+            className="px-1.5 py-1 text-[10px] font-mono text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-500/20 bg-blue-50 dark:bg-blue-500/10 rounded border border-blue-300 dark:border-blue-500/40 inline-flex items-center gap-0.5 cursor-pointer transition-colors"
             title="Zoom Out & Dynamically Calculate Extended Curve"
           >
-            <ZoomOut className="w-3 h-3 text-blue-400" />
+            <ZoomOut className="w-3 h-3 text-blue-600 dark:text-blue-400" />
             Zoom Out
           </button>
           <button
             type="button"
             onClick={() => handlePan(1)}
-            className="p-1 text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded border border-slate-700 cursor-pointer"
+            className="p-1 text-slate-600 dark:text-[#a1a8b8] hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-[#1c202b] hover:bg-slate-200 dark:hover:bg-[#252a38] rounded border border-slate-300 dark:border-white/[0.12] cursor-pointer transition-colors"
             title="Pan Right across domain"
           >
             <ChevronRight className="w-3.5 h-3.5" />
@@ -749,7 +749,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
             <button
               type="button"
               onClick={handleResetView}
-              className="px-1.5 py-1 text-[10px] font-mono bg-amber-500/15 text-amber-300 border border-amber-500/30 rounded hover:bg-amber-500/25 inline-flex items-center gap-0.5 cursor-pointer"
+              className="px-1.5 py-1 text-[10px] font-mono bg-amber-50 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/35 rounded hover:bg-amber-100 dark:hover:bg-amber-500/25 inline-flex items-center gap-0.5 cursor-pointer"
               title="Reset Zoom/Pan (or Double-Click Graph)"
             >
               <RotateCcw className="w-3 h-3" />
@@ -763,7 +763,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
               <button
                 type="button"
                 onClick={() => jumpToIndex(s1Stats.maxIdx)}
-                className="px-1.5 py-1 text-[10px] font-mono bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700 rounded cursor-pointer"
+                className="px-1.5 py-1 text-[10px] font-mono bg-slate-100 dark:bg-[#1c202b] hover:bg-slate-200 dark:hover:bg-[#252a38] text-emerald-700 dark:text-emerald-300 border border-slate-300 dark:border-white/[0.12] rounded cursor-pointer transition-colors"
                 title="Jump cursor to Series 1 Peak"
               >
                 Peak
@@ -771,7 +771,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
               <button
                 type="button"
                 onClick={() => jumpToIndex(s1Stats.minIdx)}
-                className="px-1.5 py-1 text-[10px] font-mono bg-slate-800 hover:bg-slate-700 text-blue-300 border border-slate-700 rounded cursor-pointer"
+                className="px-1.5 py-1 text-[10px] font-mono bg-slate-100 dark:bg-[#1c202b] hover:bg-slate-200 dark:hover:bg-[#252a38] text-blue-700 dark:text-blue-300 border border-slate-300 dark:border-white/[0.12] rounded cursor-pointer transition-colors"
                 title="Jump cursor to Series 1 Minimum"
               >
                 Min
@@ -779,7 +779,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
               <button
                 type="button"
                 onClick={handleAutoLockMinToPeak}
-                className="px-1.5 py-1 text-[10px] font-mono bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 rounded cursor-pointer"
+                className="px-1.5 py-1 text-[10px] font-mono bg-slate-100 dark:bg-[#1c202b] hover:bg-slate-200 dark:hover:bg-[#252a38] text-amber-700 dark:text-amber-300 border border-slate-300 dark:border-white/[0.12] rounded cursor-pointer transition-colors"
                 title="Lock M1 at Minimum and M2 at Peak to inspect full span ΔY, slope, RMS & integral"
               >
                 M1..M2
@@ -791,7 +791,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
             <button
               type="button"
               onClick={handleJumpOperatingPoint}
-              className="px-1.5 py-1 text-[10px] font-mono bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 border border-blue-500/30 rounded inline-flex items-center gap-0.5 cursor-pointer"
+              className="px-1.5 py-1 text-[10px] font-mono bg-blue-50 dark:bg-blue-500/15 hover:bg-blue-100 dark:hover:bg-blue-500/25 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-500/35 rounded inline-flex items-center gap-0.5 cursor-pointer transition-colors"
               title="Jump cursor to Active Operating Point"
             >
               <Target className="w-3 h-3" />
@@ -802,10 +802,10 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
           <button
             type="button"
             onClick={() => setZeroLockY((z) => !z)}
-            className={`px-1.5 py-1 text-[10px] font-mono rounded border inline-flex items-center gap-0.5 cursor-pointer ${
+            className={`px-1.5 py-1 text-[10px] font-mono rounded border inline-flex items-center gap-0.5 cursor-pointer transition-colors ${
               zeroLockY
-                ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
-                : 'bg-slate-800 text-slate-400 hover:text-slate-200 border-slate-700'
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-slate-100 dark:bg-[#1c202b] text-slate-600 dark:text-[#a1a8b8] hover:text-slate-900 dark:hover:text-white border-slate-300 dark:border-white/[0.12]'
             }`}
             title="Anchor Y-Axis to include 0"
           >
@@ -816,10 +816,10 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
           <button
             type="button"
             onClick={() => setShowScrubber((s) => !s)}
-            className={`px-1.5 py-1 text-[10px] font-mono rounded border inline-flex items-center gap-0.5 cursor-pointer ${
+            className={`px-1.5 py-1 text-[10px] font-mono rounded border inline-flex items-center gap-0.5 cursor-pointer transition-colors ${
               showScrubber
-                ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
-                : 'bg-slate-800 text-slate-300 hover:text-white border-slate-700'
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-slate-100 dark:bg-[#1c202b] text-slate-700 dark:text-[#eef0f6] hover:bg-slate-200 dark:hover:bg-[#252a38] border-slate-300 dark:border-white/[0.12]'
             }`}
             title="Toggle Precision Point Scrubber & Goal-Seek Y-Finder"
           >
@@ -837,7 +837,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
                   resolvedSeries[1] ? Number(activePoint[resolvedSeries[1].key]) : undefined
                 )
               }
-              className="px-2 py-1 text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded hover:bg-emerald-500/30 inline-flex items-center gap-1 cursor-pointer font-semibold"
+              className="px-2 py-1 text-[10px] font-mono bg-emerald-600 text-white border border-emerald-600 rounded hover:bg-emerald-500 inline-flex items-center gap-1 cursor-pointer font-semibold"
               title="Apply current cursor X value to converter design"
             >
               <MousePointerClick className="w-3 h-3" />
@@ -853,7 +853,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
                 setCursor1Idx(null);
                 setCursor2Idx(null);
               }}
-              className="px-1.5 py-1 text-[10px] font-mono bg-slate-800 text-slate-300 border border-slate-700 rounded hover:bg-slate-700 cursor-pointer"
+              className="px-1.5 py-1 text-[10px] font-mono bg-slate-100 dark:bg-[#1c202b] text-slate-700 dark:text-[#eef0f6] border border-slate-300 dark:border-white/[0.12] rounded hover:bg-slate-200 dark:hover:bg-[#252a38] cursor-pointer"
             >
               Clear M1/M2
             </button>
@@ -862,7 +862,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
           <button
             type="button"
             onClick={exportCsv}
-            className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-mono text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded border border-slate-700 cursor-pointer"
+            className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-mono text-slate-700 dark:text-[#eef0f6] hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-[#1c202b] hover:bg-slate-200 dark:hover:bg-[#252a38] rounded border border-slate-300 dark:border-white/[0.12] cursor-pointer transition-colors"
             title="Export active calculated curve to CSV"
           >
             <Download className="w-3 h-3" />
@@ -872,12 +872,12 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
       </div>
 
       {/* Live Readout Strip + Peak/Min/RMS Telemetry for Series 1 & Series 2 */}
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-2.5 py-1.5 mb-2 rounded bg-slate-950/90 border border-slate-800/80 text-[11px] font-mono">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-2.5 py-1.5 mb-2 rounded bg-slate-50 dark:bg-[#0e1015] border border-slate-200 dark:border-white/[0.08] text-[11px] font-mono">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1 text-slate-300">
-            <Crosshair className="w-3 h-3 text-blue-400" />
-            <span className="text-slate-400">{xLabel}:</span>
-            <span className="text-white font-semibold">
+          <div className="flex items-center gap-1 text-slate-700 dark:text-[#a1a8b8]">
+            <Crosshair className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+            <span className="text-slate-500 dark:text-[#727b8e]">{xLabel}:</span>
+            <span className="text-slate-900 dark:text-white font-semibold">
               {typeof activePoint[resolvedXKey] === 'number'
                 ? activePoint[resolvedXKey].toFixed(2)
                 : activePoint[resolvedXKey]}{' '}
@@ -909,16 +909,16 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
                 <svg className="w-2.5 h-2.5 shrink-0" viewBox="0 0 10 10">
                   <circle cx="5" cy="5" r="4" fill={s.color} />
                 </svg>
-                <span className="text-slate-400">{s.name}:</span>
-                <span className="font-semibold text-slate-100">
+                <span className="text-slate-600 dark:text-[#a1a8b8]">{s.name}:</span>
+                <span className="font-semibold text-slate-900 dark:text-[#eef0f6]">
                   {Number.isFinite(val) ? val.toFixed(2) : '—'} {s.unit}
                 </span>
                 {delta !== null && (
                   <span
                     className={`text-[10px] px-1 rounded ${
                       delta >= 0
-                        ? 'bg-emerald-500/10 text-emerald-300'
-                        : 'bg-rose-500/10 text-rose-300'
+                        ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                        : 'bg-rose-500/10 text-rose-700 dark:text-rose-300'
                     }`}
                   >
                     ({delta >= 0 ? '+' : ''}
@@ -931,27 +931,27 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
         </div>
 
         {/* Auto-Computed Extrema & RMS Summary for Series 1 & Series 2 */}
-        <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-400">
+        <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 dark:text-[#727b8e]">
           {s1Stats && primarySeries && (
             <>
-              <span className="inline-flex items-center gap-0.5 text-emerald-400/90">
+              <span className="inline-flex items-center gap-0.5 text-emerald-700 dark:text-emerald-400">
                 <ArrowUpRight className="w-3 h-3" />
                 Pk1: <strong>{s1Stats.maxVal.toFixed(2)}</strong>
                 {primarySeries.unit}@{s1Stats.maxX.toFixed(1)}
               </span>
-              <span className="inline-flex items-center gap-0.5 text-blue-400/90">
+              <span className="inline-flex items-center gap-0.5 text-blue-700 dark:text-blue-400">
                 <ArrowDownRight className="w-3 h-3" />
                 Min1: <strong>{s1Stats.minVal.toFixed(2)}</strong>
                 {primarySeries.unit}
               </span>
-              <span className="text-slate-400">
-                RMS1: <strong className="text-slate-200">{s1Stats.rmsVal.toFixed(2)}</strong>
+              <span className="text-slate-600 dark:text-[#a1a8b8]">
+                RMS1: <strong className="text-slate-900 dark:text-[#eef0f6]">{s1Stats.rmsVal.toFixed(2)}</strong>
                 {primarySeries.unit}
               </span>
             </>
           )}
           {s2Stats && secondarySeries && (
-            <span className="text-amber-300/90 border-l border-slate-800 pl-2">
+            <span className="text-amber-700 dark:text-amber-300 border-l border-slate-300 dark:border-white/[0.1] pl-2">
               Pk2: <strong>{s2Stats.maxVal.toFixed(2)}</strong>
               {secondarySeries.unit} · Min2: <strong>{s2Stats.minVal.toFixed(2)}</strong>
               {secondarySeries.unit}
@@ -962,15 +962,15 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
 
       {/* Dual-Cursor M1 / M2 Differential, Slope, RMS & Definite Integral Bar */}
       {c1 && c2 && m1m2Analysis && (
-        <div className="flex flex-wrap items-center justify-between gap-2 px-2.5 py-1.5 mb-2 rounded bg-amber-500/10 border border-amber-500/30 text-[11px] font-mono text-amber-200">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-2.5 py-1.5 mb-2 rounded bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/30 text-[11px] font-mono text-amber-900 dark:text-amber-200">
           <div className="flex flex-wrap items-center gap-3">
-            <span className="font-bold text-amber-300">
+            <span className="font-bold text-amber-800 dark:text-amber-300">
               Δ(M2 − M1): Δ{xLabel} = {m1m2Analysis.dx.toFixed(2)} {xUnit}
             </span>
             {primarySeries && (
               <span>
                 Δ{primarySeries.name}: <strong>{m1m2Analysis.dy1 >= 0 ? '+' : ''}{m1m2Analysis.dy1.toFixed(2)} {primarySeries.unit}</strong>{' '}
-                <span className="text-blue-300">
+                <span className="text-blue-700 dark:text-blue-300">
                   (Slope: {m1m2Analysis.slope1.toFixed(3)} {primarySeries.unit}/{xUnit || 'u'})
                 </span>
               </span>
@@ -982,7 +982,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
             )}
           </div>
           {primarySeries && (
-            <div className="flex flex-wrap items-center gap-3 text-[10px] text-emerald-300">
+            <div className="flex flex-wrap items-center gap-3 text-[10px] text-emerald-700 dark:text-emerald-300">
               <span>
                 Mean: <strong>{m1m2Analysis.mean1.toFixed(2)} {primarySeries.unit}</strong>
               </span>
@@ -999,15 +999,15 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
 
       {/* Optional Precision Point Scrubber & Goal-Seek Y-Value Finder */}
       {showScrubber && (
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-2 px-2.5 py-2 mb-2 rounded bg-slate-950/90 border border-slate-800 text-[11px] font-mono items-center">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-2 px-2.5 py-2 mb-2 rounded bg-slate-50 dark:bg-[#0e1015] border border-slate-200 dark:border-white/[0.08] text-[11px] font-mono items-center">
           <div className="md:col-span-7 flex items-center gap-2">
-            <span className="text-slate-400 shrink-0">
+            <span className="text-slate-600 dark:text-[#a1a8b8] shrink-0">
               Pt [{activeIdx + 1}/{activeData.length}]:
             </span>
             <button
               type="button"
               onClick={() => jumpToIndex(Math.max(0, activeIdx - 1))}
-              className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer"
+              className="px-1.5 py-0.5 rounded bg-white dark:bg-[#1c202b] hover:bg-slate-100 dark:hover:bg-[#252a38] text-slate-700 dark:text-[#eef0f6] border border-slate-300 dark:border-white/[0.12] cursor-pointer"
             >
               -1
             </button>
@@ -1021,33 +1021,33 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
                 setScrubIdx(idx);
                 setHoverIdx(idx);
               }}
-              className="w-full accent-blue-400 cursor-pointer"
+              className="w-full accent-blue-500 cursor-pointer"
             />
             <button
               type="button"
               onClick={() => jumpToIndex(Math.min(activeData.length - 1, activeIdx + 1))}
-              className="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 cursor-pointer"
+              className="px-1.5 py-0.5 rounded bg-white dark:bg-[#1c202b] hover:bg-slate-100 dark:hover:bg-[#252a38] text-slate-700 dark:text-[#eef0f6] border border-slate-300 dark:border-white/[0.12] cursor-pointer"
             >
               +1
             </button>
             <button
               type="button"
               onClick={() => setCursor1Idx(activeIdx)}
-              className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 cursor-pointer shrink-0"
+              className="px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/40 cursor-pointer shrink-0"
             >
               Set M1
             </button>
             <button
               type="button"
               onClick={() => setCursor2Idx(activeIdx)}
-              className="px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300 border border-pink-500/40 cursor-pointer shrink-0"
+              className="px-1.5 py-0.5 rounded bg-pink-50 dark:bg-pink-500/20 text-pink-800 dark:text-pink-300 border border-pink-300 dark:border-pink-500/40 cursor-pointer shrink-0"
             >
               Set M2
             </button>
           </div>
 
           <div className="md:col-span-5 flex items-center justify-end gap-1.5">
-            <span className="text-slate-400 shrink-0">
+            <span className="text-slate-600 dark:text-[#a1a8b8] shrink-0">
               Find {primarySeries?.name.split(' ')[0] || 'Y1'}:
             </span>
             <input
@@ -1059,12 +1059,12 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleFindTargetY();
               }}
-              className="w-24 px-1.5 py-0.5 text-[11px] font-mono bg-slate-900 border border-slate-700 rounded text-slate-100"
+              className="w-24 px-1.5 py-0.5 text-[11px] font-mono bg-white dark:bg-[#14171f] border border-slate-300 dark:border-white/[0.12] rounded text-slate-900 dark:text-[#eef0f6]"
             />
             <button
               type="button"
               onClick={handleFindTargetY}
-              className="px-2 py-0.5 rounded bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 cursor-pointer shrink-0"
+              className="px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-500/20 hover:bg-blue-100 dark:hover:bg-blue-500/30 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-500/40 cursor-pointer shrink-0"
             >
               Find X
             </button>
@@ -1093,8 +1093,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
           y={padT}
           width={plotW}
           height={plotH}
-          fill="#090d16"
-          stroke="#1e293b"
+          className="fill-slate-50 dark:fill-[#090d16] stroke-slate-300 dark:stroke-[#1e293b]"
           strokeWidth={1}
           rx={4}
         />
@@ -1185,7 +1184,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
                 y1={y}
                 x2={padL + plotW}
                 y2={y}
-                stroke="#1e293b"
+                className="stroke-slate-200 dark:stroke-[#1e293b]"
                 strokeDasharray="3 3"
                 strokeWidth={1}
               />
@@ -1193,7 +1192,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
                 x={padL - 6}
                 y={y + 3}
                 textAnchor="end"
-                fill="#94a3b8"
+                className="fill-slate-600 dark:fill-[#94a3b8]"
                 fontSize={10}
                 fontFamily="monospace"
               >
@@ -1204,7 +1203,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
                   x={padL + plotW + 6}
                   y={y + 3}
                   textAnchor="start"
-                  fill="#94a3b8"
+                  className="fill-slate-600 dark:fill-[#94a3b8]"
                   fontSize={10}
                   fontFamily="monospace"
                 >
@@ -1232,7 +1231,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
                 y1={padT}
                 x2={x}
                 y2={padT + plotH}
-                stroke="#1e293b"
+                className="stroke-slate-200 dark:stroke-[#1e293b]"
                 strokeDasharray="3 3"
                 strokeWidth={1}
               />
@@ -1240,7 +1239,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
                 x={x}
                 y={padT + plotH + 14}
                 textAnchor="middle"
-                fill="#94a3b8"
+                className="fill-slate-600 dark:fill-[#94a3b8]"
                 fontSize={10}
                 fontFamily="monospace"
               >
@@ -1400,7 +1399,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
                   cy={py}
                   r={3.5}
                   fill="#10b981"
-                  stroke="#090d16"
+                  className="stroke-white dark:stroke-[#090d16]"
                   strokeWidth={1.2}
                 />
               </g>
@@ -1496,7 +1495,7 @@ export const InteractiveChart: React.FC<InteractiveChartProps> = ({
                   cy={py}
                   r={4.5}
                   fill={s.color}
-                  stroke="#14171f"
+                  className="stroke-white dark:stroke-[#14171f]"
                   strokeWidth={1.5}
                 />
               );

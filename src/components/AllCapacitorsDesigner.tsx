@@ -536,7 +536,7 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
               <div className="text-[10px] text-slate-500">Nom: {formatCapValue(hybridSol.totalCapNominal_uF)}</div>
             </div>
             <div className="p-2.5 rounded border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50">
-              <div className="text-[10px] text-slate-500 uppercase">ESR / |Z| @ {hybridConditions.fsw_kHz.toFixed(0)} kHz</div>
+              <div className="text-[10px] text-slate-500">ESR / |Z| @ {hybridConditions.fsw_kHz.toFixed(0)} kHz</div>
               <div className="font-semibold text-slate-900 dark:text-white tabular-nums">
                 {hybridSol.esrEffAtFsw_mOhm.toFixed(2)} mΩ / {hybridSol.Z_at_fsw_mOhm.toFixed(2)} mΩ
               </div>
@@ -580,31 +580,31 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
           </div>
 
           {/* Branch-by-Branch Editable Table with Exact Ripple Current Sharing */}
-          <div className="overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-lg">
+          <div className="overflow-x-auto border border-slate-200 dark:border-white/[0.08] rounded-lg">
             <table className="w-full text-left border-collapse text-xs font-mono">
               <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase text-slate-500 bg-slate-50/60 dark:bg-slate-900/40">
-                  <th className="py-2 px-2.5">Branch / Technology</th>
-                  <th className="py-2 px-2.5">COTS Part Preset</th>
-                  <th className="py-2 px-2.5">Qty</th>
-                  <th className="py-2 px-2.5">C_each (µF)</th>
-                  <th className="py-2 px-2.5">ESR (mΩ)</th>
-                  <th className="py-2 px-2.5">ESL (nH)</th>
-                  <th className="py-2 px-2.5">V_rated (V)</th>
-                  <th className="py-2 px-2.5">I_rms/ea (A)</th>
-                  <th className="py-2 px-2.5">Shared Ripple</th>
-                  <th className="py-2 px-2.5">T_hot / L10</th>
-                  <th className="py-2 px-2.5 text-right">Del</th>
+                <tr className="border-b border-slate-200 dark:border-white/[0.08] text-[11px] font-semibold text-slate-600 dark:text-[#a1a8b8] bg-slate-50 dark:bg-[#0e1015]">
+                  <th className="py-2 px-2.5 whitespace-nowrap">Branch / Technology</th>
+                  <th className="py-2 px-2.5 whitespace-nowrap">COTS Part Preset</th>
+                  <th className="py-2 px-2.5 whitespace-nowrap">Qty</th>
+                  <th className="py-2 px-2.5 whitespace-nowrap">C_each (µF)</th>
+                  <th className="py-2 px-2.5 whitespace-nowrap">ESR (mΩ)</th>
+                  <th className="py-2 px-2.5 whitespace-nowrap">ESL (nH)</th>
+                  <th className="py-2 px-2.5 whitespace-nowrap">V_rated (V)</th>
+                  <th className="py-2 px-2.5 whitespace-nowrap">I_rms/ea (A)</th>
+                  <th className="py-2 px-2.5 whitespace-nowrap">Shared Ripple</th>
+                  <th className="py-2 px-2.5 whitespace-nowrap">T_hot / L10</th>
+                  <th className="py-2 px-2.5 text-right whitespace-nowrap">Del</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+              <tbody className="divide-y divide-slate-200 dark:divide-white/[0.06] bg-white dark:bg-[#14171f]">
                 {hybridSol.branches.map((br, idx) => (
-                  <tr key={br.branch.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30">
+                  <tr key={br.branch.id} className="hover:bg-slate-50 dark:hover:bg-white/[0.02]">
                     <td className="py-2 px-2.5 space-y-1">
                       <select
                         value={br.branch.technology}
                         onChange={(e) => updateBranchField(idx, 'technology', e.target.value as CapTechnology)}
-                        className="w-28 px-1.5 py-1 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-[11px]"
+                        className="w-36 px-2 py-1 rounded bg-white dark:bg-[#0e1015] border border-slate-300 dark:border-white/[0.12] text-[11px] text-slate-900 dark:text-[#eef0f6]"
                       >
                         <option value="electrolytic">Electrolytic</option>
                         <option value="polymer">Polymer Solid</option>
@@ -615,14 +615,14 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
                         type="text"
                         value={br.branch.label}
                         onChange={(e) => updateBranchField(idx, 'label', e.target.value)}
-                        className="w-28 block px-1.5 py-0.5 rounded bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[10px] text-slate-600 dark:text-slate-300"
+                        className="w-36 block px-2 py-0.5 rounded bg-slate-50 dark:bg-[#090a0d] border border-slate-200 dark:border-white/[0.08] text-[10px] text-slate-700 dark:text-[#a1a8b8]"
                       />
                     </td>
                     <td className="py-2 px-2.5">
                       <select
                         value={READY_COTS_CAPACITORS.find((p) => p.mpn === br.branch.mpn)?.id || ''}
                         onChange={(e) => assignCotsPartToBranch(idx, e.target.value)}
-                        className="w-36 px-1.5 py-1 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-[10px]"
+                        className="w-52 px-2 py-1 rounded bg-white dark:bg-[#0e1015] border border-slate-300 dark:border-white/[0.12] text-[11px] text-slate-900 dark:text-[#eef0f6]"
                       >
                         <option value="">Custom / Manual</option>
                         {READY_COTS_CAPACITORS.map((p) => (
@@ -639,7 +639,7 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
                         max={24}
                         value={br.branch.qty}
                         onChange={(e) => updateBranchField(idx, 'qty', Math.max(1, Number(e.target.value) || 1))}
-                        className="w-12 px-1.5 py-1 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 tabular-nums font-bold"
+                        className="w-12 px-1.5 py-1 rounded bg-white dark:bg-[#0e1015] border border-slate-300 dark:border-white/[0.12] text-slate-900 dark:text-[#eef0f6] tabular-nums font-bold"
                       />
                     </td>
                     <td className="py-2 px-2.5">
@@ -649,11 +649,11 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
                         min={0.01}
                         value={br.branch.capEach_uF}
                         onChange={(e) => updateBranchField(idx, 'capEach_uF', Math.max(0.001, Number(e.target.value) || 0.1))}
-                        className="w-16 px-1.5 py-1 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 tabular-nums"
+                        className="w-16 px-1.5 py-1 rounded bg-white dark:bg-[#0e1015] border border-slate-300 dark:border-white/[0.12] text-slate-900 dark:text-[#eef0f6] tabular-nums"
                       />
                       {br.mlccBiasDerate_pct > 1 && (
-                        <div className="text-[9px] text-amber-600 dark:text-amber-400">
-                          -{br.mlccBiasDerate_pct}% bias
+                        <div className="text-[10px] text-amber-700 dark:text-amber-400 font-medium mt-0.5">
+                          -{br.mlccBiasDerate_pct}% DC bias
                         </div>
                       )}
                     </td>
@@ -664,7 +664,7 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
                         min={0.1}
                         value={br.branch.esrEach_mOhm}
                         onChange={(e) => updateBranchField(idx, 'esrEach_mOhm', Math.max(0.1, Number(e.target.value) || 1))}
-                        className="w-14 px-1.5 py-1 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 tabular-nums"
+                        className="w-14 px-1.5 py-1 rounded bg-white dark:bg-[#0e1015] border border-slate-300 dark:border-white/[0.12] text-slate-900 dark:text-[#eef0f6] tabular-nums"
                       />
                     </td>
                     <td className="py-2 px-2.5">
@@ -674,7 +674,7 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
                         min={0.2}
                         value={br.branch.eslEach_nH}
                         onChange={(e) => updateBranchField(idx, 'eslEach_nH', Math.max(0.2, Number(e.target.value) || 1))}
-                        className="w-14 px-1.5 py-1 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 tabular-nums"
+                        className="w-14 px-1.5 py-1 rounded bg-white dark:bg-[#0e1015] border border-slate-300 dark:border-white/[0.12] text-slate-900 dark:text-[#eef0f6] tabular-nums"
                       />
                     </td>
                     <td className="py-2 px-2.5">
@@ -683,9 +683,9 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
                         min={10}
                         value={br.branch.vRated_V}
                         onChange={(e) => updateBranchField(idx, 'vRated_V', Math.max(10, Number(e.target.value) || 50))}
-                        className="w-14 px-1.5 py-1 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 tabular-nums"
+                        className="w-14 px-1.5 py-1 rounded bg-white dark:bg-[#0e1015] border border-slate-300 dark:border-white/[0.12] text-slate-900 dark:text-[#eef0f6] tabular-nums"
                       />
-                      <div className={`text-[9px] ${br.voltageDerating_pct > 85 ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-slate-500'}`}>
+                      <div className={`text-[10px] mt-0.5 ${br.voltageDerating_pct > 85 ? 'text-amber-700 dark:text-amber-400 font-bold' : 'text-slate-600 dark:text-[#727b8e]'}`}>
                         {br.voltageDerating_pct.toFixed(0)}% V
                       </div>
                     </td>
@@ -696,26 +696,26 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
                         min={0.1}
                         value={br.branch.iRmsEach_A}
                         onChange={(e) => updateBranchField(idx, 'iRmsEach_A', Math.max(0.1, Number(e.target.value) || 1))}
-                        className="w-14 px-1.5 py-1 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 tabular-nums"
+                        className="w-14 px-1.5 py-1 rounded bg-white dark:bg-[#0e1015] border border-slate-300 dark:border-white/[0.12] text-slate-900 dark:text-[#eef0f6] tabular-nums"
                       />
                     </td>
-                    <td className="py-2 px-2.5 tabular-nums">
-                      <div className="font-semibold text-blue-600 dark:text-blue-400">
+                    <td className="py-2 px-2.5 tabular-nums whitespace-nowrap">
+                      <div className="font-semibold text-blue-700 dark:text-blue-400">
                         {br.I_total_branch_A.toFixed(2)} A ({br.rippleShare_pct.toFixed(0)}%)
                       </div>
                       <div className={`text-[10px] ${
                         br.rippleUtilization_pct > 100
-                          ? 'text-rose-600 dark:text-rose-400 font-bold'
+                          ? 'text-rose-700 dark:text-rose-400 font-bold'
                           : br.rippleUtilization_pct > 85
-                          ? 'text-amber-600 dark:text-amber-400'
-                          : 'text-slate-500'
+                          ? 'text-amber-700 dark:text-amber-400'
+                          : 'text-slate-600 dark:text-[#727b8e]'
                       }`}>
                         {br.I_per_cap_A.toFixed(2)} A/ea ({br.rippleUtilization_pct.toFixed(0)}%)
                       </div>
                     </td>
-                    <td className="py-2 px-2.5 tabular-nums">
-                      <div>{br.T_hotspot_C.toFixed(1)}°C</div>
-                      <div className="text-[10px] text-emerald-600 dark:text-emerald-400">
+                    <td className="py-2 px-2.5 tabular-nums whitespace-nowrap">
+                      <div className="text-slate-900 dark:text-[#eef0f6]">{br.T_hotspot_C.toFixed(1)}°C</div>
+                      <div className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
                         {(br.L10_life_hrs / 1000).toFixed(0)}k hrs
                       </div>
                     </td>
@@ -724,8 +724,9 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
                         type="button"
                         disabled={activeHybridConfig.branches.length <= 1}
                         onClick={() => removeHybridBranch(idx)}
-                        className="p-1 rounded text-slate-400 hover:text-rose-500 disabled:opacity-30 cursor-pointer"
+                        className="p-1 rounded text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 disabled:opacity-30 cursor-pointer"
                         title="Remove branch"
+                        aria-label="Remove capacitor branch"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -738,26 +739,26 @@ export const AllCapacitorsDesigner: React.FC<AllCapacitorsDesignerProps> = ({
 
           {/* Hybrid Multi-Branch |Z(f)| Frequency Response & Anti-Resonance Chart */}
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start">
-            <div className="xl:col-span-4 space-y-2 text-xs font-mono">
+            <div className="xl:col-span-4 space-y-2.5 text-xs font-mono">
               <div className={`p-3 rounded-lg border ${
                 hybridSol.status === 'critical'
-                  ? 'border-rose-500/40 bg-rose-500/5 text-rose-700 dark:text-rose-300'
+                  ? 'border-rose-300 dark:border-rose-500/40 bg-rose-50 dark:bg-rose-500/10 text-rose-800 dark:text-rose-300'
                   : hybridSol.status === 'warning'
-                  ? 'border-amber-500/40 bg-amber-500/5 text-amber-700 dark:text-amber-300'
-                  : 'border-emerald-500/40 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300'
+                  ? 'border-amber-300 dark:border-amber-500/40 bg-amber-50 dark:bg-amber-500/10 text-amber-900 dark:text-amber-300'
+                  : 'border-emerald-300 dark:border-emerald-500/40 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-900 dark:text-emerald-300'
               }`}>
-                <div className="font-bold uppercase text-[10px] mb-1">Hybrid Bank Engineering Audit</div>
-                <div className="font-sans text-[11px] leading-relaxed">{hybridSol.statusReason}</div>
+                <div className="font-bold uppercase text-[10px] tracking-wider mb-1">Hybrid Bank Engineering Audit</div>
+                <div className="font-sans text-xs leading-relaxed">{hybridSol.statusReason}</div>
               </div>
-              <div className="p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 space-y-1 text-[11px]">
-                <div className="font-bold text-slate-700 dark:text-slate-200">Why Combine Electrolytic + MLCC?</div>
-                <p className="font-sans text-slate-600 dark:text-slate-400 leading-relaxed">
+              <div className="p-3 rounded-lg border border-slate-200 dark:border-white/[0.08] bg-slate-50 dark:bg-[#0e1015] space-y-1 text-[11px]">
+                <div className="font-semibold text-slate-800 dark:text-[#eef0f6]">Why Combine Electrolytic + MLCC?</div>
+                <p className="font-sans text-slate-600 dark:text-[#a1a8b8] leading-relaxed">
                   Bulk Electrolytic/Polymer carries LF energy &amp; dampens LC resonances with its moderate ESR, while parallel MLCCs provide ~1 nH ESL shunting for fast switching edges. Always check the parallel anti-resonance peak between bulk ESL and MLCC C.
                 </p>
               </div>
             </div>
 
-            <div className="xl:col-span-8 bg-slate-50/40 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-800 rounded-lg p-3">
+            <div className="xl:col-span-8">
               <InteractiveChart
                 title={`Hybrid Parallel Bank Impedance |Z(f)| & Anti-Resonance (${hybridRole === 'dcdc-cin' ? 'C_in' : hybridRole === 'dcdc-cout' ? 'C_out' : 'C_DC'})`}
                 subtitle={`Combined Bank |Z| vs Individual Branches · Switching Ripple Marker @ ${hybridConditions.fsw_kHz.toFixed(0)} kHz`}

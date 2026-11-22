@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import {
   ACDC_PRESETS,
   DCDC_PRESETS,
@@ -11,17 +11,25 @@ import { AcDcResults } from '../engine/acdcEngine';
 import { DcDcResults, solveDcDcDesign } from '../engine/dcdcEngine';
 import type { AcDcDesignState as _AcDcDesignState, DcDcDesignState } from '../data/databases';
 import type { ProjectOutputMode } from '../engine/systemCascadeEngine';
-import { TransientAndMonteCarloLab } from './TransientAndMonteCarloLab';
 import { AcDcSchematicView } from './CircuitSchematics';
 import { InteractiveChart } from './InteractiveChart';
+import { ErrorBoundary, WorkbenchSkeleton } from './ErrorBoundary';
+
+const TransientAndMonteCarloLab = lazy(() =>
+  import('./TransientAndMonteCarloLab').then((m) => ({ default: m.TransientAndMonteCarloLab }))
+);
+const AllInductorsDesigner = lazy(() =>
+  import('./AllInductorsDesigner').then((m) => ({ default: m.AllInductorsDesigner }))
+);
+const AllCapacitorsDesigner = lazy(() =>
+  import('./AllCapacitorsDesigner').then((m) => ({ default: m.AllCapacitorsDesigner }))
+);
 import { MathFormula } from './MathFormula';
 import { ResizableSidebarWindow } from './ResizableSidebarWindow';
 import { SidebarSection } from './SidebarSection';
 import { AutoSolverBanner, LockToggleButton } from './AutoSolverControls';
 import { useDesignSolver } from './DesignSolverContext';
 import { AcDcLockableKey } from '../engine/autoOptimizer';
-import { AllInductorsDesigner } from './AllInductorsDesigner';
-import { AllCapacitorsDesigner } from './AllCapacitorsDesigner';
 import { getDefaultHybridCapBank } from '../engine/passiveDesignEngine';
 import {
   Activity,
@@ -1140,6 +1148,8 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
           );
         })()}
 
+        <ErrorBoundary name="AC-DC Analysis Panel" resetKey={activeSubTab}>
+          <Suspense fallback={<WorkbenchSkeleton label="Loading AC-DC analysis module…" />}>
         {/* SPICE / QSPICE / PLECS SIMULATION EXPORT & LAB VIEW FOR AC-DC */}
         {activeSubTab === 'scope-sim' && (() => {
           const fallbackDcdcState = dcdcState ?? DCDC_PRESETS[0].state;
@@ -2278,6 +2288,8 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
             />
           </div>
         )}
+          </Suspense>
+        </ErrorBoundary>
       </div>
     </div>
   );

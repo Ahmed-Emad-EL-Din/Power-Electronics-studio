@@ -120,7 +120,7 @@ export const ResizableSidebarWindow: React.FC<ResizableSidebarWindowProps> = ({
           type="button"
           onClick={() => setIsOpen(true)}
           title="Open Parameters Panel"
-          className="w-full lg:w-auto lg:sticky lg:top-16 z-20 shrink-0 flex lg:flex-col items-center justify-between lg:justify-center gap-2 px-3 py-2.5 lg:px-2.5 lg:py-3 bg-white dark:bg-[#14171f] hover:border-blue-500/60 text-slate-800 dark:text-[#eef0f6] hover:text-blue-600 dark:hover:text-blue-400 border border-slate-200 dark:border-white/[0.08] rounded-xl lg:rounded-lg transition-colors cursor-pointer shadow-xs lg:shadow-none"
+          className="w-full lg:w-auto lg:sticky lg:top-24 xl:top-16 z-20 shrink-0 flex lg:flex-col items-center justify-between lg:justify-center gap-2 px-3 py-2.5 lg:px-2.5 lg:py-3 bg-white dark:bg-[#14171f] hover:border-blue-500/60 text-slate-800 dark:text-[#eef0f6] hover:text-blue-600 dark:hover:text-blue-400 border border-slate-200 dark:border-white/[0.08] rounded-xl lg:rounded-lg transition-colors cursor-pointer shadow-xs lg:shadow-none"
         >
           <span className="inline-flex items-center gap-2 lg:flex-col">
             <SlidersHorizontal className="w-4 h-4 text-blue-600 dark:text-blue-400 lg:hidden" aria-hidden="true" />
@@ -164,7 +164,7 @@ export const ResizableSidebarWindow: React.FC<ResizableSidebarWindowProps> = ({
             ? 'fixed inset-x-0 bottom-0 z-50 max-h-[88dvh] rounded-t-2xl bg-white dark:bg-[#14171f] border-t border-x border-slate-200 dark:border-white/[0.12] shadow-2xl overflow-y-auto overflow-x-hidden overscroll-contain px-4 pt-2 pb-[max(1.25rem,env(safe-area-inset-bottom))] space-y-4'
             : `relative shrink-0 w-full lg:w-[var(--sidebar-width)] bg-white dark:bg-[#14171f] border border-slate-200 dark:border-white/[0.08] ${
                 isResizing ? 'border-r-2 border-r-blue-500 dark:border-r-blue-400' : ''
-              } rounded-xl lg:sticky lg:top-16 lg:max-h-[calc(100vh-5rem)] overflow-y-auto overflow-x-hidden overscroll-contain p-4 pr-5 space-y-4`
+              } rounded-xl lg:sticky lg:top-24 xl:top-16 lg:max-h-[calc(100vh-6.5rem)] xl:max-h-[calc(100vh-5rem)] overflow-y-auto overflow-x-hidden overscroll-contain p-4 pr-5 space-y-4`
         }
       >
         {/* Mobile grab handle pill */}

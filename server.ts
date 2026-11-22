@@ -1341,6 +1341,15 @@ Return JSON strictly matching the responseSchema.`;
     }
   });
 
+  app.get('/api/health', (_req, res) => {
+    res.json({
+      status: 'ok',
+      service: 'power-electronics-studio',
+      uptimeSec: Math.round(process.uptime()),
+      timestamp: new Date().toISOString(),
+    });
+  });
+
   // Guarantee all /api/* errors and unknown /api/* routes respond with JSON (never HTML)
   app.use('/api', (err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     const status =
@@ -1360,8 +1369,19 @@ Return JSON strictly matching the responseSchema.`;
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(__dirname, 'dist');
-    app.use(express.static(distPath));
+    app.use(
+      express.static(distPath, {
+        maxAge: '1y',
+        immutable: true,
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith('index.html')) {
+            res.setHeader('Cache-Control', 'no-cache');
+          }
+        },
+      })
+    );
     app.get('*', (_req, res) => {
+      res.setHeader('Cache-Control', 'no-cache');
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

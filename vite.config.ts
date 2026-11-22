@@ -11,6 +11,34 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, '.'),
       },
     },
+    build: {
+      chunkSizeWarningLimit: 650,
+      rolldownOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return;
+            if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('/scheduler/')) {
+              return 'vendor-react';
+            }
+            if (id.includes('/recharts/') || id.includes('/d3-')) {
+              return 'vendor-charts';
+            }
+            if (id.includes('/katex/')) {
+              return 'vendor-katex';
+            }
+            if (id.includes('/jspdf/') || id.includes('/html2canvas/')) {
+              return 'vendor-pdf';
+            }
+            if (id.includes('/lucide-react/')) {
+              return 'vendor-icons';
+            }
+            if (id.includes('/motion/')) {
+              return 'vendor-motion';
+            }
+          },
+        },
+      },
+    },
     server: {
       host: '0.0.0.0',
       port: 3000,
