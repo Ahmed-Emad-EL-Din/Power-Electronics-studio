@@ -181,11 +181,12 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
       >
         {/* Preset Selector */}
         <div>
-          <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+          <label htmlFor="acdc-preset-select" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
             Reference Design Preset
           </label>
           <select
-            aria-label="Reference Design Presets"
+            id="acdc-preset-select"
+            aria-label="AC-DC Reference Design Preset"
             onChange={(e) => handlePresetChange(e.target.value)}
             defaultValue={ACDC_PRESETS[0].id}
             className="w-full h-8 bg-slate-50 dark:bg-[#090C12] border border-slate-200 dark:border-slate-700 rounded-md px-2.5 text-xs text-slate-900 dark:text-slate-100"
@@ -918,7 +919,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
       <div className="flex-1 min-w-0 w-full space-y-4">
         {/* Top KPI Telemetry Strip */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
-          <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg p-3">
+          <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 border-t-2 border-t-cyan-500/70 rounded-lg p-3">
             <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Iin,rms / Phase</div>
             <div className="text-xl font-mono font-semibold text-slate-900 dark:text-slate-100 mt-0.5 tabular-nums">
               {res.Iin_rms_A.toFixed(1)} / {res.Iph_rms_A.toFixed(1)} A
@@ -928,7 +929,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
             </div>
           </div>
 
-          <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg p-3">
+          <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 border-t-2 border-t-emerald-500/70 rounded-lg p-3">
             <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Net Input Ripple</div>
             <div className="text-xl font-mono font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5 tabular-nums">
               {res.deltaIin_net_max_A.toFixed(2)} App
@@ -938,7 +939,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
             </div>
           </div>
 
-          <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg p-3">
+          <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 border-t-2 border-t-amber-500/60 rounded-lg p-3">
             <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Hold-Up / ΔV_2f</div>
             <div className="text-xl font-mono font-semibold text-slate-900 dark:text-slate-100 mt-0.5 tabular-nums">
               {res.tHold_actual_ms.toFixed(1)} ms
@@ -948,7 +949,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
             </div>
           </div>
 
-          <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg p-3">
+          <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 border-t-2 border-t-cyan-500/70 rounded-lg p-3">
             <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Power Factor / THDi</div>
             <div className="text-xl font-mono font-semibold text-cyan-600 dark:text-cyan-400 mt-0.5 tabular-nums">
               {res.powerFactor_true.toFixed(4)}
@@ -962,12 +963,12 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
             type="button"
             onClick={() => setActiveSubTab('magnetics')}
             title="Inspect Boost Inductor Magnetics & Saturation Check"
-            className={`text-left rounded-lg p-3 border cursor-pointer transition-colors ${
+            className={`text-left rounded-lg p-3 border border-t-2 cursor-pointer transition-colors ${
               res.saturationCheck.status === 'critical'
-                ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-500/70'
+                ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-500/70 border-t-rose-500'
                 : res.saturationCheck.status === 'warning'
-                ? 'bg-amber-50 dark:bg-amber-950/25 border-amber-500/60'
-                : 'bg-white dark:bg-[#0E131D] border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                ? 'bg-amber-50 dark:bg-amber-950/25 border-amber-500/60 border-t-amber-500'
+                : 'bg-white dark:bg-[#0E131D] border-slate-200 dark:border-slate-800 border-t-emerald-500/60 hover:border-slate-300 dark:hover:border-slate-700'
             }`}
           >
             <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 flex items-center justify-between gap-1">
@@ -996,7 +997,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
             </div>
           </button>
 
-          <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg p-3">
+          <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 border-t-2 border-t-emerald-500/70 rounded-lg p-3">
             <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Efficiency / Losses</div>
             <div className="text-xl font-mono font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5 tabular-nums">
               {res.efficiency_pct.toFixed(2)}%
@@ -1077,13 +1078,15 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
 
           return (
             <div ref={subTabNavRef} className="scroll-mt-20 space-y-2 border-b border-slate-200 dark:border-white/[0.08] pb-2.5">
-              <div className="flex flex-wrap items-center gap-1.5">
+              <div role="tablist" aria-label="AC-DC Analysis Groups" className="flex flex-wrap items-center gap-1.5">
                 {acdcGroups.map((grp) => {
                   const isActive = grp.id === activeGroup.id;
                   return (
                     <button
                       key={grp.id}
                       type="button"
+                      role="tab"
+                      aria-selected={isActive}
                       onClick={() => setActiveSubTab(grp.views[0].id)}
                       className={`px-3 py-1.5 rounded-lg border text-xs font-medium inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
                         isActive
@@ -1093,27 +1096,29 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                           : 'bg-white dark:bg-[#11141c] border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-[#a3a9b8] hover:border-slate-300 dark:hover:border-white/[0.16] hover:text-slate-900 dark:hover:text-[#eef0f5]'
                       }`}
                     >
-                      {grp.icon}
+                      <span aria-hidden="true">{grp.icon}</span>
                       <span>{grp.label}</span>
                       {grp.views.length > 1 && (
                         <span className="text-[10px] font-mono opacity-65">
                           ({grp.views.length})
                         </span>
                       )}
-                      {grp.alert && <AlertTriangle className="w-3.5 h-3.5 shrink-0" />}
+                      {grp.alert && <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />}
                     </button>
                   );
                 })}
               </div>
 
               {activeGroup.views.length > 1 && (
-                <div className="flex flex-wrap items-center gap-1 bg-[#eceff4]/75 dark:bg-[#07080d] p-1 rounded-lg border border-slate-200/80 dark:border-white/[0.07]">
+                <div role="tablist" aria-label={`${activeGroup.label} views`} className="flex flex-wrap items-center gap-1 bg-[#eceff4]/75 dark:bg-[#07080d] p-1 rounded-lg border border-slate-200/80 dark:border-white/[0.07]">
                   {activeGroup.views.map((view) => {
                     const active = activeSubTab === view.id;
                     return (
                       <button
                         key={view.id}
                         type="button"
+                        role="tab"
+                        aria-selected={active}
                         onClick={() => setActiveSubTab(view.id)}
                         className={`px-2.5 py-1 text-[11px] font-medium rounded-md inline-flex items-center gap-1.5 whitespace-nowrap cursor-pointer transition-colors ${
                           active
@@ -1124,7 +1129,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
                         }`}
                       >
                         <span>{view.label}</span>
-                        {view.alert && <AlertTriangle className="w-3 h-3 shrink-0" />}
+                        {view.alert && <AlertTriangle className="w-3 h-3 shrink-0" aria-hidden="true" />}
                       </button>
                     );
                   })}

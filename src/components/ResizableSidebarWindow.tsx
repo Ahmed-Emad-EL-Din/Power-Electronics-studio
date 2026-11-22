@@ -95,12 +95,12 @@ export const ResizableSidebarWindow: React.FC<ResizableSidebarWindowProps> = ({
           isResizing
             ? 'border-r-2 border-r-cyan-500 dark:border-r-cyan-400'
             : ''
-        } rounded-lg lg:sticky lg:top-16 lg:max-h-[calc(100vh-5rem)] overflow-y-auto overflow-x-hidden p-4 pr-5 space-y-4`}
+        } rounded-lg lg:sticky lg:top-16 lg:max-h-[calc(100vh-5rem)] overflow-y-auto overflow-x-hidden overscroll-contain p-4 pr-5 space-y-4`}
       >
         {/* Sticky Window Header Bar */}
         <header className="sticky -top-4 -mx-4 -mr-5 -mt-4 mb-2 px-4 py-2.5 bg-white dark:bg-[#0E131D] border-b border-slate-200 dark:border-slate-800 z-20 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <SlidersHorizontal className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" />
+            <SlidersHorizontal className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" aria-hidden="true" />
             <div className="truncate">
               <div className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">
                 {title}
@@ -135,12 +135,16 @@ export const ResizableSidebarWindow: React.FC<ResizableSidebarWindowProps> = ({
           </div>
         </header>
 
-        {/* Full-Height Sticky Right-Border Drag Handle */}
+        {/* Full-Height Sticky Right-Border Drag Handle (with keyboard ArrowLeft/ArrowRight support) */}
         <span
           role="separator"
+          tabIndex={0}
           aria-orientation="vertical"
-          aria-label="Drag right border to resize parameter window"
-          title="Drag right border to resize window (Double-click to reset)"
+          aria-label="Resize parameter panel width (drag or use Left/Right arrow keys)"
+          aria-valuemin={minWidth}
+          aria-valuemax={maxWidth}
+          aria-valuenow={width}
+          title="Drag right border or press ←/→ to resize (Double-click to reset)"
           onMouseDown={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -149,6 +153,18 @@ export const ResizableSidebarWindow: React.FC<ResizableSidebarWindowProps> = ({
           onDoubleClick={(e) => {
             e.stopPropagation();
             setWidth(defaultWidth);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowRight') {
+              e.preventDefault();
+              setWidth((w) => Math.min(maxWidth, w + 24));
+            } else if (e.key === 'ArrowLeft') {
+              e.preventDefault();
+              setWidth((w) => Math.max(minWidth, w - 24));
+            } else if (e.key === 'Home') {
+              e.preventDefault();
+              setWidth(defaultWidth);
+            }
           }}
           className={`hidden lg:flex sticky top-12 float-right -mr-5 z-30 w-2.5 h-[calc(100vh-9rem)] -mb-[calc(100vh-9rem)] items-center justify-center cursor-col-resize group select-none transition-colors ${
             isResizing ? 'bg-cyan-500/20' : 'hover:bg-cyan-500/10'

@@ -473,8 +473,20 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/70 backdrop-blur-xs">
-      <div className="w-full max-w-3xl bg-white dark:bg-[#0F172A] border-l border-slate-200 dark:border-slate-800 h-full flex flex-col shadow-2xl overflow-hidden">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Component Database and BOM Exporter"
+      onClick={onClose}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') onClose();
+      }}
+      className="fixed inset-0 z-50 flex justify-end bg-slate-950/70 backdrop-blur-xs overscroll-contain"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-3xl bg-white dark:bg-[#0F172A] border-l border-slate-200 dark:border-slate-800 h-full flex flex-col shadow-2xl overflow-hidden overscroll-contain"
+      >
         {/* Drawer Header */}
         <div className="px-4 py-3 bg-slate-50 dark:bg-[#111827] border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
@@ -523,9 +535,10 @@ export const ComponentSearchDrawer: React.FC<ComponentSearchDrawerProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-white cursor-pointer"
+              aria-label="Close component database drawer"
+              className="p-1.5 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white cursor-pointer"
             >
-              <X className="w-4 h-4" />
+              <X className="w-4 h-4" aria-hidden="true" />
             </button>
           </div>
         </div>

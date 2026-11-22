@@ -169,9 +169,59 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
     optimizeAcdcNow,
   } = useDesignSolver();
 
-  const [domainTab, setDomainTab] = useState<'dcdc' | 'acdc' | 'combined' | 'small-signal'>('dcdc');
-  const [dcdcSubTab, setDcdcSubTab] = useState<DcDcSubTab>('schematic');
-  const [acdcSubTab, setAcdcSubTab] = useState<AcDcSubTab>('schematic');
+  const [domainTab, setDomainTab] = useState<'dcdc' | 'acdc' | 'combined' | 'small-signal'>(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const st = sp.get('stage');
+      if (st === 'acdc' || st === 'dcdc' || st === 'combined' || st === 'small-signal') return st;
+    } catch {
+      // ignore URL errors
+    }
+    return 'dcdc';
+  });
+  const [dcdcSubTab, setDcdcSubTab] = useState<DcDcSubTab>(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const v = sp.get('view');
+      const valid: DcDcSubTab[] = [
+        'schematic', 'scope-sim', 'graphs', 'thermal', 'control', 'all-inductors',
+        'magnetics', 'saturation', 'emi', 'gatedrive', 'winding', 'protection', 'capacitors',
+      ];
+      if (v && valid.includes(v as DcDcSubTab)) return v as DcDcSubTab;
+    } catch {
+      // ignore
+    }
+    return 'schematic';
+  });
+  const [acdcSubTab, setAcdcSubTab] = useState<AcDcSubTab>(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const v = sp.get('acView');
+      const valid: AcDcSubTab[] = [
+        'schematic', 'scope-sim', 'graphs', 'control', 'harmonics', 'all-inductors',
+        'magnetics', 'inrush', 'dc-link', 'emi', 'efficiency',
+      ];
+      if (v && valid.includes(v as AcDcSubTab)) return v as AcDcSubTab;
+    } catch {
+      // ignore
+    }
+    return 'schematic';
+  });
+
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('stage', domainTab);
+      if (domainTab === 'dcdc') {
+        url.searchParams.set('view', dcdcSubTab);
+      } else if (domainTab === 'acdc') {
+        url.searchParams.set('acView', acdcSubTab);
+      }
+      window.history.replaceState(null, '', url.toString());
+    } catch {
+      // ignore
+    }
+  }, [domainTab, dcdcSubTab, acdcSubTab]);
   const [jumpState, setJumpState] = useState<{ targetItemId?: string | null; nonce: number }>({
     targetItemId: null,
     nonce: 0,
@@ -285,6 +335,10 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
     } else {
       document.documentElement.classList.remove('dark');
       document.documentElement.classList.add('light');
+    }
+    const metaTheme = document.querySelector('meta[name="theme-color"]');
+    if (metaTheme) {
+      metaTheme.setAttribute('content', darkMode ? '#0b0d14' : '#f5f7fa');
     }
     try {
       localStorage.setItem('powerstage_theme', darkMode ? 'dark' : 'light');
@@ -1511,6 +1565,12 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
 
   return (
     <div className="min-h-screen bg-[#f5f7fa] dark:bg-[#0b0d14] text-[#111827] dark:text-[#eef0f5] flex flex-col transition-colors duration-150">
+      <a
+        href="#main-workbench"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:px-3 focus:py-1.5 focus:rounded-md focus:bg-cyan-600 focus:text-white focus:text-xs focus:font-medium focus:shadow-lg"
+      >
+        Skip to main workbench
+      </a>
       <div className={reportOpen ? 'no-print flex-1 flex flex-col' : 'flex-1 flex flex-col'}>
       {/* 3-ZONE TOP HEADER BAR */}
       <header className="sticky top-0 z-30 min-h-14 py-2 px-3 sm:px-4 lg:px-6 bg-white dark:bg-[#11141c] border-b border-slate-200/90 dark:border-white/[0.08] flex flex-wrap items-center justify-between gap-2 sm:gap-3 lg:gap-6">
@@ -2365,7 +2425,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
 
       {/* WORKBENCH + COLLAPSIBLE RIGHT-SIDE AI ENGINEER DRAWER */}
       <div className="flex-1 flex items-start min-w-0">
-        <main className="flex-1 min-w-0 max-w-[1640px] w-full mx-auto p-3 sm:p-4 lg:p-5 space-y-3">
+        <main id="main-workbench" tabIndex={-1} className="flex-1 min-w-0 max-w-[1640px] w-full mx-auto p-3 sm:p-4 lg:p-5 space-y-3 focus:outline-none">
           {/* Pinned Reference Comparison Chip */}
           {domainTab === 'acdc' && pinnedAcdc && pinnedAcdcRes && (
             <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg border border-amber-500/40 bg-amber-500/10 text-xs font-mono">
@@ -2819,7 +2879,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
                   </span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <label className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#11141c]">
+                  <label className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#11141c] focus-within:ring-2 focus-within:ring-cyan-500/60 focus-within:border-cyan-500">
                     <span className="text-[11px] text-slate-500">DC-DC (µs)</span>
                     <input
                       type="number"
@@ -2834,10 +2894,10 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
                           dcdcSimTime_us: Number.isFinite(v) && v >= 50 ? Math.round(v) : undefined,
                         }));
                       }}
-                      className="w-20 bg-transparent text-right font-bold text-slate-900 dark:text-white outline-none"
+                      className="w-20 bg-transparent text-right font-bold text-slate-900 dark:text-white focus:outline-none"
                     />
                   </label>
-                  <label className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#11141c]">
+                  <label className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#11141c] focus-within:ring-2 focus-within:ring-cyan-500/60 focus-within:border-cyan-500">
                     <span className="text-[11px] text-slate-500">AC-DC (ms)</span>
                     <input
                       type="number"
@@ -2852,10 +2912,10 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
                           acdcSimTime_ms: Number.isFinite(v) && v > 0 ? v : undefined,
                         }));
                       }}
-                      className="w-20 bg-transparent text-right font-bold text-slate-900 dark:text-white outline-none"
+                      className="w-20 bg-transparent text-right font-bold text-slate-900 dark:text-white focus:outline-none"
                     />
                   </label>
-                  <label className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#11141c]">
+                  <label className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#11141c] focus-within:ring-2 focus-within:ring-cyan-500/60 focus-within:border-cyan-500">
                     <span className="text-[11px] text-slate-500">Combined (ms)</span>
                     <input
                       type="number"
@@ -2870,7 +2930,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
                           combinedSimTime_ms: Number.isFinite(v) && v > 0 ? v : undefined,
                         }));
                       }}
-                      className="w-20 bg-transparent text-right font-bold text-slate-900 dark:text-white outline-none"
+                      className="w-20 bg-transparent text-right font-bold text-slate-900 dark:text-white focus:outline-none"
                     />
                   </label>
                 </div>

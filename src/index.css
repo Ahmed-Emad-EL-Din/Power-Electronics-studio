@@ -49,6 +49,25 @@
     max-width: 100%;
   }
 
+  @media (pointer: fine) {
+    html {
+      overscroll-behavior: none;
+    }
+  }
+
+  button, [role="button"], input, select, textarea, a {
+    touch-action: manipulation;
+  }
+
+  select, select option {
+    background-color: var(--surface-panel);
+    color: var(--text-primary);
+  }
+
+  [id] {
+    scroll-margin-top: 5rem;
+  }
+
   body {
     font-family: var(--font-sans);
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";

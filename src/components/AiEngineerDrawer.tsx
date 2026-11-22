@@ -871,8 +871,9 @@ export const AiEngineerDrawer: React.FC<AiEngineerDrawerProps> = ({
                     handleChatSubmit();
                   }
                 }}
-                placeholder="Ask about Danger fixes, thermals, magnetics, ZVS, or Bode margins..."
-                className="flex-1 resize-none rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#0E131D] px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-cyan-500"
+                placeholder="Ask about Danger fixes, thermals, magnetics, ZVS, or Bode margins…"
+                aria-label="Ask the AI Engineer a question"
+                className="flex-1 resize-none rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#0E131D] px-2.5 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 focus-visible:border-cyan-500"
               />
               <button
                 type="submit"
