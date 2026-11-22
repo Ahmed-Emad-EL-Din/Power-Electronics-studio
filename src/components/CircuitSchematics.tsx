@@ -1324,6 +1324,8 @@ export const DcDcSchematicView: React.FC<{ res: DcDcResults }> = ({ res }) => {
           <button
             type="button"
             onClick={() => setZoom((z) => Math.max(75, z - 15))}
+            aria-label="Zoom out schematic"
+            title="Zoom out schematic"
             className="p-1 text-xs font-mono bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded"
           >
             <ZoomOut className="w-3.5 h-3.5" />
@@ -1334,6 +1336,8 @@ export const DcDcSchematicView: React.FC<{ res: DcDcResults }> = ({ res }) => {
           <button
             type="button"
             onClick={() => setZoom((z) => Math.min(145, z + 15))}
+            aria-label="Zoom in schematic"
+            title="Zoom in schematic"
             className="p-1 text-xs font-mono bg-slate-200/80 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded"
           >
             <ZoomIn className="w-3.5 h-3.5" />

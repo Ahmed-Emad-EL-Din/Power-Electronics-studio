@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, lazy, Suspense } from 'react';
 import {
   ACDC_PRESETS,
   DCDC_PRESETS,
@@ -16,14 +16,38 @@ import { solveAcDcDesign } from './engine/acdcEngine';
 import { solveDcDcDesign } from './engine/dcdcEngine';
 import { DesignAlertFix, DesignAlertItem, evaluateDesignAlerts } from './engine/designAlerts';
 import { extractCircuitCapacitors, solveCapacitorBank } from './engine/passiveDesignEngine';
-import { AcDcSubTab, AcDcWorkbench } from './components/AcDcWorkbench';
+import type { AcDcSubTab } from './components/AcDcWorkbench';
 import { DcDcSubTab, DcDcWorkbench } from './components/DcDcWorkbench';
-import { SmallSignalDashboard } from './components/SmallSignalDashboard';
-import { CombinedSystemSchematicView } from './components/CircuitSchematics';
-import { ComponentSearchDrawer } from './components/ComponentSearchDrawer';
-import { DesignReportModal } from './components/DesignReportModal';
-import { CommandPaletteAction, CommandPaletteModal } from './components/CommandPaletteModal';
-import { AiChatMessage, AiEngineerDrawer } from './components/AiEngineerDrawer';
+import type { CommandPaletteAction } from './components/CommandPaletteModal';
+import type { AiChatMessage } from './components/AiEngineerDrawer';
+import { ErrorBoundary, ModalLoadingFallback, WorkbenchSkeleton } from './components/ErrorBoundary';
+
+const loadAcDcWorkbench = () => import('./components/AcDcWorkbench');
+const loadSmallSignalDashboard = () => import('./components/SmallSignalDashboard');
+const loadDesignReportModal = () => import('./components/DesignReportModal');
+
+const AcDcWorkbench = lazy(() => loadAcDcWorkbench().then((m) => ({ default: m.AcDcWorkbench })));
+const SmallSignalDashboard = lazy(() =>
+  loadSmallSignalDashboard().then((m) => ({ default: m.SmallSignalDashboard }))
+);
+const CombinedSystemSchematicView = lazy(() =>
+  import('./components/CircuitSchematics').then((m) => ({ default: m.CombinedSystemSchematicView }))
+);
+const ComponentSearchDrawer = lazy(() =>
+  import('./components/ComponentSearchDrawer').then((m) => ({ default: m.ComponentSearchDrawer }))
+);
+const DesignReportModal = lazy(() =>
+  loadDesignReportModal().then((m) => ({ default: m.DesignReportModal }))
+);
+const CommandPaletteModal = lazy(() =>
+  import('./components/CommandPaletteModal').then((m) => ({ default: m.CommandPaletteModal }))
+);
+const AiEngineerDrawer = lazy(() =>
+  import('./components/AiEngineerDrawer').then((m) => ({ default: m.AiEngineerDrawer }))
+);
+const AiProviderSettingsPanel = lazy(() =>
+  import('./components/AiProviderSettingsPanel').then((m) => ({ default: m.AiProviderSettingsPanel }))
+);
 import {
   AiAgentServerResponse,
   AiAppliedLogEntry,
@@ -43,7 +67,6 @@ import {
   toServerAiConfig,
   validateAiProviderConfig,
 } from './engine/aiProviderConfig';
-import { AiProviderSettingsPanel } from './components/AiProviderSettingsPanel';
 import {
   DEFAULT_CAP_BANK_LOCKS,
   DEFAULT_INDUCTOR_LOCKS,
@@ -1127,6 +1150,24 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
     });
   }, [openAlertFilter, designAlerts, alertStageScope, domainTab]);
 
+  // Idle prefetch secondary workbenches after initial render for zero-lag tab switching
+  useEffect(() => {
+    const win = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    const prefetchSecondary = () => {
+      void loadAcDcWorkbench();
+      void loadSmallSignalDashboard();
+    };
+    if (typeof win.requestIdleCallback === 'function') {
+      const id = win.requestIdleCallback(prefetchSecondary, { timeout: 2500 });
+      return () => win.cancelIdleCallback?.(id);
+    }
+    const timer = window.setTimeout(prefetchSecondary, 1500);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   const handlePinToggle = () => {
     if (domainTab === 'acdc') {
       setPinnedAcdc((prev) => {
@@ -1629,15 +1670,15 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
       </a>
       <div className={reportOpen ? 'no-print flex-1 flex flex-col' : 'flex-1 flex flex-col'}>
       {/* 3-ZONE TOP HEADER BAR (Compact & streamlined on phone, full controls on desktop) */}
-      <header className="sticky top-0 z-30 py-2 px-3 sm:px-4 lg:px-6 bg-white/95 dark:bg-[#14171f]/95 backdrop-blur-md border-b border-slate-200/90 dark:border-white/[0.08] flex flex-col md:flex-row md:flex-wrap md:items-center md:justify-between gap-2 md:gap-3 lg:gap-5">
+      <header className="sticky top-0 z-30 py-2 px-3 sm:px-4 lg:px-5 bg-white/95 dark:bg-[#14171f]/95 backdrop-blur-md border-b border-slate-200/90 dark:border-white/[0.08] flex flex-col md:flex-row md:flex-wrap xl:flex-nowrap md:items-center md:justify-between gap-2 md:gap-2.5">
         {/* Top Row on Mobile: Brand + Compact Alert & Utility Controls */}
         <div className="flex items-center justify-between gap-2 min-w-0 md:contents">
           {/* Zone 1: Brand Title */}
           <div className="shrink-0 min-w-0">
-            <div className="text-[13px] sm:text-[15px] font-semibold tracking-tight text-slate-900 dark:text-[#eef0f6] leading-tight truncate">
+            <div className="text-[13px] sm:text-[14px] font-semibold tracking-tight text-slate-900 dark:text-[#eef0f6] leading-tight truncate">
               Power Converter Studio
             </div>
-            <div className="text-[10px] sm:text-[11px] text-slate-500 dark:text-[#727b8e] leading-tight mt-0.5 whitespace-nowrap">
+            <div className="text-[10px] text-slate-500 dark:text-[#727b8e] leading-tight mt-0.5 whitespace-nowrap md:hidden 2xl:block">
               Precision Magnetics &amp; Control CAD
             </div>
           </div>
@@ -1709,13 +1750,15 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
         {/* Zone 2: Primary Domain Switcher (Horizontal swipeable pill rail on mobile) */}
         <nav
           aria-label="Workbench domains"
-          className="flex items-center gap-1 bg-[#eceef2] dark:bg-[#090a0d] p-1 rounded-lg border border-slate-200/80 dark:border-white/[0.07] overflow-x-auto no-scrollbar max-w-full"
+          className="flex items-center gap-0.5 bg-[#eceef2] dark:bg-[#090a0d] p-1 rounded-lg border border-slate-200/80 dark:border-white/[0.07] overflow-x-auto no-scrollbar max-w-full shrink-0"
         >
           {(outputMode === 'acdc-only' || outputMode === 'combined') && (
             <button
               type="button"
+              onMouseEnter={() => { void loadAcDcWorkbench(); }}
+              onFocus={() => { void loadAcDcWorkbench(); }}
               onClick={() => setDomainTab('acdc')}
-              className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-md transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`px-2 sm:px-2.5 py-1 text-xs font-medium rounded-md transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
                 domainTab === 'acdc'
                   ? 'bg-white dark:bg-[#1c202b] text-blue-700 dark:text-blue-300 border border-slate-200/90 dark:border-white/[0.12] shadow-2xs'
                   : 'text-slate-600 dark:text-[#a1a8b8] hover:text-slate-900 dark:hover:text-[#eef0f6] border border-transparent'
@@ -1729,21 +1772,21 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
             <button
               type="button"
               onClick={() => setDomainTab('dcdc')}
-              className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-md transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`px-2 sm:px-2.5 py-1 text-xs font-medium rounded-md transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
                 domainTab === 'dcdc'
                   ? 'bg-white dark:bg-[#1c202b] text-blue-700 dark:text-blue-300 border border-slate-200/90 dark:border-white/[0.12] shadow-2xs'
                   : 'text-slate-600 dark:text-[#a1a8b8] hover:text-slate-900 dark:hover:text-[#eef0f6] border border-transparent'
               }`}
             >
               <Cpu className="w-3.5 h-3.5" aria-hidden="true" />
-              DC-DC Converter
+              DC-DC
             </button>
           )}
           {outputMode === 'combined' && (
             <button
               type="button"
               onClick={() => setDomainTab('combined')}
-              className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-md transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`px-2 sm:px-2.5 py-1 text-xs font-medium rounded-md transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
                 domainTab === 'combined'
                   ? 'bg-white dark:bg-[#1c202b] text-emerald-700 dark:text-emerald-300 border border-emerald-500/40 shadow-2xs'
                   : 'text-slate-600 dark:text-[#a1a8b8] hover:text-slate-900 dark:hover:text-[#eef0f6] border border-transparent'
@@ -1755,28 +1798,30 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
           )}
           <button
             type="button"
+            onMouseEnter={() => { void loadSmallSignalDashboard(); }}
+            onFocus={() => { void loadSmallSignalDashboard(); }}
             onClick={() => setDomainTab('small-signal')}
-            className={`px-2.5 sm:px-3 py-1.5 text-xs font-medium rounded-md transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+            className={`px-2 sm:px-2.5 py-1 text-xs font-medium rounded-md transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
               domainTab === 'small-signal'
                 ? 'bg-white dark:bg-[#1c202b] text-blue-700 dark:text-blue-300 border border-slate-200/90 dark:border-white/[0.12] shadow-2xs'
                 : 'text-slate-600 dark:text-[#a1a8b8] hover:text-slate-900 dark:hover:text-[#eef0f6] border border-transparent'
             }`}
           >
             <Compass className="w-3.5 h-3.5" aria-hidden="true" />
-            Small-Signal Lab
+            Small-Signal
           </button>
         </nav>
 
         {/* Zone 3: Alert Center + Global Utility Actions (Desktop & Tablet md+) */}
-        <div className="hidden md:flex flex-wrap items-center gap-1.5 w-auto min-w-0">
+        <div className="hidden md:flex flex-wrap xl:flex-nowrap items-center gap-1.5 w-auto min-w-0">
           {/* Danger & Warning Header Counters + Direct Jump Dropdown */}
-          <div ref={alertPopoverRef} className="relative flex items-center gap-1.5 mr-1">
+          <div ref={alertPopoverRef} className="relative flex items-center gap-1">
             <button
               type="button"
               data-popover-trigger="alert"
               onClick={() => toggleAlertPopover('danger')}
               aria-expanded={openAlertFilter === 'danger'}
-              className={`h-8 px-2.5 text-xs font-medium rounded-lg border transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`h-8 px-2 text-xs font-medium rounded-lg border transition-colors inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer ${
                 designAlerts.danger.length > 0
                   ? openAlertFilter === 'danger'
                     ? 'bg-rose-600 border-rose-600 text-white'
@@ -1789,7 +1834,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
             >
               <ShieldAlert className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
               <span className="font-mono font-medium tabular-nums">{designAlerts.danger.length}</span>
-              <span>Danger</span>
+              <span className="hidden 2xl:inline">Danger</span>
             </button>
 
             <button
@@ -1797,7 +1842,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
               data-popover-trigger="alert"
               onClick={() => toggleAlertPopover('warning')}
               aria-expanded={openAlertFilter === 'warning'}
-              className={`h-8 px-2.5 text-xs font-medium rounded-lg border transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`h-8 px-2 text-xs font-medium rounded-lg border transition-colors inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer ${
                 designAlerts.warning.length > 0
                   ? openAlertFilter === 'warning'
                     ? 'bg-amber-600 border-amber-600 text-white'
@@ -1810,7 +1855,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
             >
               <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
               <span className="font-mono font-medium tabular-nums">{designAlerts.warning.length}</span>
-              <span>Warning</span>
+              <span className="hidden 2xl:inline">Warning</span>
             </button>
           </div>
 
@@ -1822,9 +1867,9 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
             title="Quick jump to any view, preset, optimizer, or export (Ctrl+K / Cmd+K)"
           >
             <Search className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" aria-hidden="true" />
-            <span className="hidden xl:inline">Jump</span>
+            <span className="hidden 2xl:inline">Jump</span>
             <kbd className="text-[10px] font-mono px-1 py-0.2 rounded bg-slate-100 dark:bg-[#0e1015] border border-slate-200 dark:border-white/[0.08] text-slate-500 dark:text-[#727b8e]">
-              Ctrl+K
+              ⌘K
             </kbd>
           </button>
 
@@ -1832,11 +1877,11 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
           <button
             type="button"
             onClick={handleAutoOptimizeActive}
-            className="h-8 px-2.5 text-xs font-medium rounded-lg bg-blue-600/10 hover:bg-blue-600/18 border border-blue-500/35 text-blue-700 dark:text-blue-300 transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+            className="h-8 px-2.5 text-xs font-medium rounded-lg bg-blue-50 dark:bg-blue-600/15 hover:bg-blue-100 dark:hover:bg-blue-600/25 border border-blue-300 dark:border-blue-500/35 text-blue-700 dark:text-blue-300 transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
             title="Automatically recalculate unlocked parameters for optimal operation"
           >
             <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-            <span className="hidden lg:inline">Auto-Optimize</span>
+            <span className="hidden lg:inline">Optimize</span>
           </button>
 
           {/* Unified Export Menu Trigger */}
@@ -1861,12 +1906,14 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
 
           <button
             type="button"
+            onMouseEnter={() => { void loadDesignReportModal(); }}
+            onFocus={() => { void loadDesignReportModal(); }}
             onClick={() => setReportOpen(true)}
-            className="h-8 px-3 text-xs font-medium rounded-lg bg-[#111318] dark:bg-blue-600 hover:bg-slate-800 dark:hover:bg-blue-500 text-white transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+            className="h-8 px-2.5 text-xs font-medium rounded-lg bg-blue-600 hover:bg-blue-500 text-white shadow-2xs transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
             title="Generate engineering design report with derivations, graphs & PDF print"
           >
             <FileText className="w-3.5 h-3.5" aria-hidden="true" />
-            Report
+            <span>Report</span>
           </button>
 
           <button
@@ -1875,13 +1922,13 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
             aria-pressed={aiEnabled}
             className={`h-8 px-2.5 text-xs font-medium rounded-lg border transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
               aiEnabled
-                ? 'bg-blue-500/12 border-blue-500/60 text-blue-700 dark:text-blue-300'
+                ? 'bg-blue-50 dark:bg-blue-500/15 border-blue-400 dark:border-blue-500/60 text-blue-700 dark:text-blue-300'
                 : 'bg-white dark:bg-[#1c202b] border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-[#a1a8b8] hover:border-slate-300 dark:hover:border-white/[0.16]'
             }`}
             title={`Toggle AI Engineer Assistant (${AI_PROVIDER_META[aiConfig.provider].label} · ${aiConfig.model})`}
           >
             <Bot className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-            <span>AI Agent</span>
+            <span className="hidden lg:inline">AI</span>
             <span
               className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                 aiEnabled
@@ -1900,7 +1947,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
             title="Open LCSC / DigiKey Component Database and BOM Exporter"
           >
             <Cpu className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" aria-hidden="true" />
-            <span className="hidden lg:inline">Parts DB</span>
+            <span className="hidden xl:inline">Parts</span>
           </button>
 
           <button
@@ -1913,7 +1960,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
             title="Save/Load Projects & Import JSON"
           >
             <FolderOpen className="w-3.5 h-3.5 text-slate-500 dark:text-[#727b8e]" aria-hidden="true" />
-            <span className="hidden lg:inline">Projects</span>
+            <span className="hidden xl:inline">Projects</span>
           </button>
 
           <div className="inline-flex items-center rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#1c202b] overflow-hidden shrink-0">
@@ -2711,63 +2758,69 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
           )}
 
           {domainTab === 'acdc' ? (
-            <AcDcWorkbench
-              state={acdcState}
-              onChange={setAcdcState}
-              res={acdcRes}
-              pinnedRes={pinnedAcdcRes}
-              dcdcState={dcdcState}
-              dcdcRes={dcdcRes}
-              outputMode={outputMode}
-              sharedMcu={sharedMcu}
-              dcdcSimTimeUs={systemLink.dcdcSimTime_us}
-              onChangeDcdcSimTimeUs={(v) =>
-                setSystemLink((s) => ({ ...s, dcdcSimTime_us: v }))
-              }
-              acdcSimTimeMs={systemLink.acdcSimTime_ms}
-              onChangeAcdcSimTimeMs={(v) =>
-                setSystemLink((s) => ({ ...s, acdcSimTime_ms: v }))
-              }
-              combinedSimTimeMs={systemLink.combinedSimTime_ms}
-              onChangeCombinedSimTimeMs={(v) =>
-                setSystemLink((s) => ({ ...s, combinedSimTime_ms: v }))
-              }
-              onOpenPartDrawer={() => setDrawerOpen(true)}
-              onOpenSmallSignalLab={() => setDomainTab('small-signal')}
-              requestedSubTab={acdcSubTab}
-              onChangeSubTab={setAcdcSubTab}
-              jumpTargetId={jumpState.targetItemId}
-              jumpNonce={jumpState.nonce}
-            />
+            <ErrorBoundary name="AC-DC PFC Workbench">
+              <Suspense fallback={<WorkbenchSkeleton label="Loading AC-DC PFC Workbench…" />}>
+                <AcDcWorkbench
+                  state={acdcState}
+                  onChange={setAcdcState}
+                  res={acdcRes}
+                  pinnedRes={pinnedAcdcRes}
+                  dcdcState={dcdcState}
+                  dcdcRes={dcdcRes}
+                  outputMode={outputMode}
+                  sharedMcu={sharedMcu}
+                  dcdcSimTimeUs={systemLink.dcdcSimTime_us}
+                  onChangeDcdcSimTimeUs={(v) =>
+                    setSystemLink((s) => ({ ...s, dcdcSimTime_us: v }))
+                  }
+                  acdcSimTimeMs={systemLink.acdcSimTime_ms}
+                  onChangeAcdcSimTimeMs={(v) =>
+                    setSystemLink((s) => ({ ...s, acdcSimTime_ms: v }))
+                  }
+                  combinedSimTimeMs={systemLink.combinedSimTime_ms}
+                  onChangeCombinedSimTimeMs={(v) =>
+                    setSystemLink((s) => ({ ...s, combinedSimTime_ms: v }))
+                  }
+                  onOpenPartDrawer={() => setDrawerOpen(true)}
+                  onOpenSmallSignalLab={() => setDomainTab('small-signal')}
+                  requestedSubTab={acdcSubTab}
+                  onChangeSubTab={setAcdcSubTab}
+                  jumpTargetId={jumpState.targetItemId}
+                  jumpNonce={jumpState.nonce}
+                />
+              </Suspense>
+            </ErrorBoundary>
           ) : domainTab === 'dcdc' ? (
-            <DcDcWorkbench
-              state={dcdcState}
-              onChange={setDcdcState}
-              res={dcdcRes}
-              pinnedRes={pinnedDcdcRes}
-              acdcState={acdcState}
-              acdcRes={acdcRes}
-              onOpenPartDrawer={() => setDrawerOpen(true)}
-              onOpenSmallSignalLab={() => setDomainTab('small-signal')}
-              activeSubTab={dcdcSubTab}
-              onChangeSubTab={setDcdcSubTab}
-              jumpTargetId={jumpState.targetItemId}
-              jumpNonce={jumpState.nonce}
-              outputMode={outputMode}
-              sharedMcu={sharedMcu}
-              dcdcSimTimeUs={systemLink.dcdcSimTime_us}
-              onChangeDcdcSimTimeUs={(v) =>
-                setSystemLink((s) => ({ ...s, dcdcSimTime_us: v }))
-              }
-              acdcSimTimeMs={systemLink.acdcSimTime_ms}
-              onChangeAcdcSimTimeMs={(v) =>
-                setSystemLink((s) => ({ ...s, acdcSimTime_ms: v }))
-              }
-              combinedSimTimeMs={systemLink.combinedSimTime_ms}
-              onChangeCombinedSimTimeMs={(v) =>
-                setSystemLink((s) => ({ ...s, combinedSimTime_ms: v }))
-              }
-            />
+            <ErrorBoundary name="DC-DC Workbench">
+              <DcDcWorkbench
+                state={dcdcState}
+                onChange={setDcdcState}
+                res={dcdcRes}
+                pinnedRes={pinnedDcdcRes}
+                acdcState={acdcState}
+                acdcRes={acdcRes}
+                onOpenPartDrawer={() => setDrawerOpen(true)}
+                onOpenSmallSignalLab={() => setDomainTab('small-signal')}
+                activeSubTab={dcdcSubTab}
+                onChangeSubTab={setDcdcSubTab}
+                jumpTargetId={jumpState.targetItemId}
+                jumpNonce={jumpState.nonce}
+                outputMode={outputMode}
+                sharedMcu={sharedMcu}
+                dcdcSimTimeUs={systemLink.dcdcSimTime_us}
+                onChangeDcdcSimTimeUs={(v) =>
+                  setSystemLink((s) => ({ ...s, dcdcSimTime_us: v }))
+                }
+                acdcSimTimeMs={systemLink.acdcSimTime_ms}
+                onChangeAcdcSimTimeMs={(v) =>
+                  setSystemLink((s) => ({ ...s, acdcSimTime_ms: v }))
+                }
+                combinedSimTimeMs={systemLink.combinedSimTime_ms}
+                onChangeCombinedSimTimeMs={(v) =>
+                  setSystemLink((s) => ({ ...s, combinedSimTime_ms: v }))
+                }
+              />
+            </ErrorBoundary>
           ) : domainTab === 'combined' ? (
             <div className="space-y-4">
               {/* Combined Simulation & Export Action Bar */}
@@ -2842,15 +2895,19 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
                 </div>
               </div>
 
-              <CombinedSystemSchematicView
-                acdcRes={acdcRes}
-                dcdcRes={dcdcRes}
-                isConnected={systemLink.linkBusVoltage && systemLink.linkLoadPower}
-                sharedMcu={sharedMcu}
-                onToggleSharedMcu={(shared) =>
-                  setSystemLink((s) => ({ ...s, sharedMcu: shared }))
-                }
-              />
+              <ErrorBoundary name="Combined Schematic">
+                <Suspense fallback={<WorkbenchSkeleton label="Loading 2-Stage Combined View…" />}>
+                  <CombinedSystemSchematicView
+                    acdcRes={acdcRes}
+                    dcdcRes={dcdcRes}
+                    isConnected={systemLink.linkBusVoltage && systemLink.linkLoadPower}
+                    sharedMcu={sharedMcu}
+                    onToggleSharedMcu={(shared) =>
+                      setSystemLink((s) => ({ ...s, sharedMcu: shared }))
+                    }
+                  />
+                </Suspense>
+              </ErrorBoundary>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs font-mono">
                 <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-white/[0.08] rounded-lg p-3">
                   <div className="text-[10px] uppercase text-slate-500">Stage 1 AC-DC PFC</div>
@@ -2899,107 +2956,129 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
               </div>
             </div>
           ) : (
-            <SmallSignalDashboard
-              dcdcState={dcdcState}
-              setDcdcState={setDcdcState}
-              dcdcRes={dcdcRes}
-              pinnedDcdcRes={pinnedDcdcRes}
-              acdcState={acdcState}
-              setAcdcState={setAcdcState}
-              acdcRes={acdcRes}
-            />
+            <ErrorBoundary name="Small-Signal Lab">
+              <Suspense fallback={<WorkbenchSkeleton label="Loading Small-Signal Bode Lab…" />}>
+                <SmallSignalDashboard
+                  dcdcState={dcdcState}
+                  setDcdcState={setDcdcState}
+                  dcdcRes={dcdcRes}
+                  pinnedDcdcRes={pinnedDcdcRes}
+                  acdcState={acdcState}
+                  setAcdcState={setAcdcState}
+                  acdcRes={acdcRes}
+                />
+              </Suspense>
+            </ErrorBoundary>
           )}
         </main>
 
-        <AiEngineerDrawer
-          isEnabled={aiEnabled}
-          isCollapsed={aiCollapsed}
-          onToggleCollapse={() => setAiCollapsed((c) => !c)}
-          onTurnOff={() => setAiEnabled(false)}
-          isAuditing={aiAuditing}
-          isVerifyingPass={aiVerifyingPass}
-          auditError={aiAuditError}
-          isAuditStale={isAuditStale}
-          overallVerdict={aiOverallVerdict}
-          headline={aiHeadline}
-          executiveSummary={aiExecutiveSummary}
-          stagedFixes={aiStagedFixes}
-          appliedLog={aiAppliedLog}
-          rollbackSnapshot={aiRollback}
-          chatMessages={aiChatMessages}
-          isSendingChat={aiSendingChat}
-          ctx={aiContextInputs}
-          onRunAudit={() => runAiAudit()}
-          onApplySingleFix={handleAiApplySingleFix}
-          onSkipFix={handleAiSkipFix}
-          onApproveAllSafeFixes={handleAiApproveAllSafeFixes}
-          onUndoLastBatch={handleAiUndoLastBatch}
-          onSendChat={handleAiSendChat}
-          onJumpToAlertId={handleAiJumpToAlertId}
-          onJumpToAlertObj={handleJumpToAlert}
-          aiConfig={aiConfig}
-          onChangeAiConfig={handleChangeAiConfig}
-        />
+        {aiEnabled && (
+          <ErrorBoundary name="AI Engineer">
+            <Suspense fallback={null}>
+              <AiEngineerDrawer
+                isEnabled={aiEnabled}
+                isCollapsed={aiCollapsed}
+                onToggleCollapse={() => setAiCollapsed((c) => !c)}
+                onTurnOff={() => setAiEnabled(false)}
+                isAuditing={aiAuditing}
+                isVerifyingPass={aiVerifyingPass}
+                auditError={aiAuditError}
+                isAuditStale={isAuditStale}
+                overallVerdict={aiOverallVerdict}
+                headline={aiHeadline}
+                executiveSummary={aiExecutiveSummary}
+                stagedFixes={aiStagedFixes}
+                appliedLog={aiAppliedLog}
+                rollbackSnapshot={aiRollback}
+                chatMessages={aiChatMessages}
+                isSendingChat={aiSendingChat}
+                ctx={aiContextInputs}
+                onRunAudit={() => runAiAudit()}
+                onApplySingleFix={handleAiApplySingleFix}
+                onSkipFix={handleAiSkipFix}
+                onApproveAllSafeFixes={handleAiApproveAllSafeFixes}
+                onUndoLastBatch={handleAiUndoLastBatch}
+                onSendChat={handleAiSendChat}
+                onJumpToAlertId={handleAiJumpToAlertId}
+                onJumpToAlertObj={handleJumpToAlert}
+                aiConfig={aiConfig}
+                onChangeAiConfig={handleChangeAiConfig}
+              />
+            </Suspense>
+          </ErrorBoundary>
+        )}
       </div>
 
       {/* REAL-WORLD COMPONENT SEARCH & DATASHEET GROUNDING DRAWER */}
-      <ComponentSearchDrawer
-        isOpen={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        activeDomain={domainTab === 'acdc' ? 'acdc' : 'dcdc'}
-        operatingContext={
-          domainTab !== 'acdc'
-            ? {
-                topology: dcdcState.topology,
-                Vin_V: dcdcState.Vin_nom_V,
-                Vout_V: dcdcState.Vout_V,
-                Pout_W: dcdcState.Pout_W,
-                fsw_kHz: dcdcState.fsw_kHz,
-                Vsec_pk_V: Math.round(dcdcRes.Vsec_unclamped_pk_V),
+      {drawerOpen && (
+        <ErrorBoundary name="Component Search Drawer">
+          <Suspense fallback={<ModalLoadingFallback label="Loading Parts Database…" />}>
+            <ComponentSearchDrawer
+              isOpen={drawerOpen}
+              onClose={() => setDrawerOpen(false)}
+              activeDomain={domainTab === 'acdc' ? 'acdc' : 'dcdc'}
+              operatingContext={
+                domainTab !== 'acdc'
+                  ? {
+                      topology: dcdcState.topology,
+                      Vin_V: dcdcState.Vin_nom_V,
+                      Vout_V: dcdcState.Vout_V,
+                      Pout_W: dcdcState.Pout_W,
+                      fsw_kHz: dcdcState.fsw_kHz,
+                      Vsec_pk_V: Math.round(dcdcRes.Vsec_unclamped_pk_V),
+                    }
+                  : {
+                      topology: acdcState.topology,
+                      Vin_V: acdcState.Vac_rms_V,
+                      Vout_V: acdcState.Vdc_bus_V,
+                      Pout_W: acdcState.Pout_W,
+                      fsw_kHz: acdcState.fsw_kHz,
+                    }
               }
-            : {
-                topology: acdcState.topology,
-                Vin_V: acdcState.Vac_rms_V,
-                Vout_V: acdcState.Vdc_bus_V,
-                Pout_W: acdcState.Pout_W,
-                fsw_kHz: acdcState.fsw_kHz,
-              }
-        }
-        currentPriDevice={dcdcRes.priDevice}
-        currentSecDevice={dcdcRes.secDevice}
-        currentPfcDevice={acdcRes.sw}
-        onEquipDcDcPrimary={handleEquipDcDcPrimary}
-        onEquipDcDcSecondary={handleEquipDcDcSecondary}
-        onEquipAcDcFastSwitch={handleEquipAcDcFastSwitch}
-        aiConfig={aiConfig}
-        onChangeAiConfig={handleChangeAiConfig}
-      />
+              currentPriDevice={dcdcRes.priDevice}
+              currentSecDevice={dcdcRes.secDevice}
+              currentPfcDevice={acdcRes.sw}
+              onEquipDcDcPrimary={handleEquipDcDcPrimary}
+              onEquipDcDcSecondary={handleEquipDcDcSecondary}
+              onEquipAcDcFastSwitch={handleEquipAcDcFastSwitch}
+              aiConfig={aiConfig}
+              onChangeAiConfig={handleChangeAiConfig}
+            />
+          </Suspense>
+        </ErrorBoundary>
+      )}
       </div>
 
       {/* TEXTBOOK-STYLE ENGINEERING DESIGN REPORT MODAL & PDF PRINT ROOT */}
-      <DesignReportModal
-        isOpen={reportOpen}
-        onClose={() => setReportOpen(false)}
-        initialScope={
-          outputMode === 'acdc-only'
-            ? 'acdc'
-            : outputMode === 'dcdc-only'
-            ? 'dcdc'
-            : domainTab === 'acdc'
-            ? 'acdc'
-            : domainTab === 'dcdc'
-            ? 'dcdc'
-            : 'both'
-        }
-        dcdcState={dcdcState}
-        dcdcRes={dcdcRes}
-        acdcState={acdcState}
-        acdcRes={acdcRes}
-        inductorConfigs={inductorConfigs}
-        capacitorConfigs={capacitorConfigs}
-        alerts={designAlerts}
-        sharedMcu={sharedMcu}
-      />
+      {reportOpen && (
+        <ErrorBoundary name="Design Report Modal">
+          <Suspense fallback={<ModalLoadingFallback label="Loading Engineering Report & KaTeX…" />}>
+            <DesignReportModal
+              isOpen={reportOpen}
+              onClose={() => setReportOpen(false)}
+              initialScope={
+                outputMode === 'acdc-only'
+                  ? 'acdc'
+                  : outputMode === 'dcdc-only'
+                  ? 'dcdc'
+                  : domainTab === 'acdc'
+                  ? 'acdc'
+                  : domainTab === 'dcdc'
+                  ? 'dcdc'
+                  : 'both'
+              }
+              dcdcState={dcdcState}
+              dcdcRes={dcdcRes}
+              acdcState={acdcState}
+              acdcRes={acdcRes}
+              inductorConfigs={inductorConfigs}
+              capacitorConfigs={capacitorConfigs}
+              alerts={designAlerts}
+              sharedMcu={sharedMcu}
+            />
+          </Suspense>
+        </ErrorBoundary>
+      )}
 
       {/* TOP-BAR AI PROVIDER & API KEYS MODAL */}
       {aiKeysModalOpen && (
@@ -3014,11 +3093,13 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
             className="w-full max-w-lg rounded-xl shadow-lg bg-white dark:bg-[#11141c] border border-slate-200 dark:border-white/[0.12] overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <AiProviderSettingsPanel
-              aiConfig={aiConfig}
-              onChangeAiConfig={handleChangeAiConfig}
-              onClose={() => setAiKeysModalOpen(false)}
-            />
+            <Suspense fallback={<ModalLoadingFallback label="Loading AI Settings…" />}>
+              <AiProviderSettingsPanel
+                aiConfig={aiConfig}
+                onChangeAiConfig={handleChangeAiConfig}
+                onClose={() => setAiKeysModalOpen(false)}
+              />
+            </Suspense>
           </div>
         </div>
       )}
@@ -3343,11 +3424,15 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
       </nav>
 
       {/* COMMAND PALETTE (Ctrl+K / Cmd+K) */}
-      <CommandPaletteModal
-        isOpen={cmdPaletteOpen}
-        onClose={() => setCmdPaletteOpen(false)}
-        actions={commandPaletteActions}
-      />
+      {cmdPaletteOpen && (
+        <Suspense fallback={null}>
+          <CommandPaletteModal
+            isOpen={cmdPaletteOpen}
+            onClose={() => setCmdPaletteOpen(false)}
+            actions={commandPaletteActions}
+          />
+        </Suspense>
+      )}
 
       {/* NON-BLOCKING TOAST FEEDBACK STACK */}
       {toasts.length > 0 && (

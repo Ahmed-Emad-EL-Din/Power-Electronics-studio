@@ -600,54 +600,53 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
     capAnalysis.T_core_out_C <= outPreset.Tmax_C - 5;
 
   return (
-    <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-slate-800 rounded-lg p-4 space-y-4">
+    <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-white/[0.08] rounded-xl p-4 space-y-4">
       {/* HEADER BAR */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-white/[0.08] pb-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <BatteryCharging className="w-4 h-4 text-emerald-400" />
-            <h3 className="text-sm font-bold font-mono text-slate-900 dark:text-slate-100">
-              Capacitor Stress Analysis: Input &amp; Output RMS Ripple Current Rating &amp; L_10 Life-Expectancy
+            <BatteryCharging className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <h3 className="text-sm font-bold font-mono text-slate-900 dark:text-[#eef0f6]">
+              Capacitor Stress Analysis: RMS Ripple Current Rating &amp; L10 Life
             </h3>
             <span
               className={`px-2 py-0.5 text-[11px] font-mono font-semibold rounded inline-flex items-center gap-1 ${
                 bothBanksSafe
-                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                  : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                  ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/30'
+                  : 'bg-amber-50 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-500/30'
               }`}
             >
               {bothBanksSafe ? (
                 <>
-                  <ShieldCheck className="w-3.5 h-3.5" /> RIPPLE &amp; THERMAL SAFE (Out L_10 = {(capAnalysis.L10_out_hrs / 1e3).toFixed(1)}k hrs · In L_10 = {(capAnalysis.L10_in_hrs / 1e3).toFixed(1)}k hrs)
+                  <ShieldCheck className="w-3.5 h-3.5" /> PASS · Out L10 {(capAnalysis.L10_out_hrs / 1e3).toFixed(0)}k hrs · In L10 {(capAnalysis.L10_in_hrs / 1e3).toFixed(0)}k hrs
                 </>
               ) : (
                 <>
-                  <AlertTriangle className="w-3.5 h-3.5" /> RIPPLE OVERSTRESS (Out: {capAnalysis.outRippleStress_pct.toFixed(0)}% · In: {capAnalysis.inRippleStress_pct.toFixed(0)}%) — CLICK AUTO-SIZE
+                  <AlertTriangle className="w-3.5 h-3.5" /> OVERSTRESS (Out: {capAnalysis.outRippleStress_pct.toFixed(0)}% · In: {capAnalysis.inRippleStress_pct.toFixed(0)}%) — Auto-Size Recommended
                 </>
               )}
             </span>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Calculates topology-dependent <strong className="text-blue-400">Input DC-Link (I_Cin,rms)</strong> &amp;{' '}
-            <strong className="text-emerald-400">Output Filter (I_Cout,rms)</strong> required ripple current ratings for{' '}
-            <span className="font-mono text-slate-300">
+          <p className="text-xs text-slate-600 dark:text-[#a1a8b8] mt-1">
+            Computes <strong className="text-blue-700 dark:text-blue-400">Input DC-Link (I_Cin,rms)</strong> &amp;{' '}
+            <strong className="text-emerald-700 dark:text-emerald-400">Output Filter (I_Cout,rms)</strong> ripple stress for{' '}
+            <span className="font-mono font-semibold text-slate-800 dark:text-[#eef0f6]">
               {state.topology.toUpperCase()} ({state.Pout_W} W, {state.fsw_kHz} kHz)
             </span>
-            , including <strong className="text-amber-400">ESR self-heating ΔT_core</strong> and{' '}
-            <strong className="text-purple-400">Arrhenius / Polymer life-expectancy</strong>.
+            , including <strong className="text-amber-700 dark:text-amber-400">ESR self-heating ΔT_core</strong> and Arrhenius / Polymer life.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => {
               bulkOutLock.setManual(capAnalysis.minParallelOutForRipple);
               dcLinkCountLock.setManual(capAnalysis.minParallelInForRipple);
             }}
-            className="px-2.5 py-1 text-[11px] font-mono bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 text-purple-300 rounded font-semibold cursor-pointer"
+            className="px-2.5 py-1.5 text-[11px] font-mono bg-blue-50 dark:bg-blue-500/15 hover:bg-blue-100 dark:hover:bg-blue-500/25 border border-blue-300 dark:border-blue-500/40 text-blue-700 dark:text-blue-300 rounded-lg font-semibold cursor-pointer transition-colors"
           >
-            Auto-Size Parallel Caps for +{safetyMarginPct}% Ripple Margin (In: {capAnalysis.minParallelInForRipple}×, Out: {capAnalysis.minParallelOutForRipple}×)
+            Auto-Size for +{safetyMarginPct}% Margin (In: {capAnalysis.minParallelInForRipple}×, Out: {capAnalysis.minParallelOutForRipple}×)
           </button>
           <button
             type="button"
@@ -657,18 +656,18 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
                 ESR_Co_mOhm: Number(capAnalysis.atRipple.esrTot_mOhm.toFixed(2)),
               })
             }
-            className="px-2.5 py-1 text-[11px] font-mono bg-emerald-600 hover:bg-emerald-500 text-white rounded inline-flex items-center gap-1 font-semibold cursor-pointer"
+            className="px-2.5 py-1.5 text-[11px] font-mono bg-blue-600 hover:bg-blue-500 text-white rounded-lg inline-flex items-center gap-1.5 font-semibold shadow-2xs cursor-pointer transition-colors"
           >
             <Sliders className="w-3 h-3" /> Apply C_out ({capAnalysis.C_out_total_eff_uF.toFixed(0)}µF,{' '}
-            {capAnalysis.atRipple.esrTot_mOhm.toFixed(1)}mΩ) to Power Stage
+            {capAnalysis.atRipple.esrTot_mOhm.toFixed(1)}mΩ) to Stage
           </button>
           {onOpenPartDrawer && (
             <button
               type="button"
               onClick={onOpenPartDrawer}
-              className="px-2.5 py-1 text-[11px] font-mono bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/40 text-blue-300 rounded inline-flex items-center gap-1 font-semibold cursor-pointer"
+              className="px-2.5 py-1.5 text-[11px] font-mono bg-white dark:bg-[#1c202b] hover:border-blue-400 border border-slate-300 dark:border-white/[0.12] text-slate-700 dark:text-[#eef0f6] rounded-lg inline-flex items-center gap-1.5 font-medium cursor-pointer transition-colors"
             >
-              <ExternalLink className="w-3 h-3" /> LCSC Capacitor Catalog
+              <ExternalLink className="w-3 h-3 text-blue-600 dark:text-blue-400" /> Parts Catalog
             </button>
           )}
         </div>
@@ -677,27 +676,27 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
       {/* ROW 1: CONTROLS & INPUT/OUTPUT CAPACITOR STRESS KPI CARDS */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5">
         {/* Left Controls (5 cols) */}
-        <div className="lg:col-span-5 bg-slate-50 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-lg p-3.5 space-y-3">
-          <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f5] flex items-center justify-between">
+        <div className="lg:col-span-5 bg-slate-50 dark:bg-[#0e1015] border border-slate-200 dark:border-white/[0.08] rounded-xl p-3.5 space-y-3">
+          <div className="text-[13px] font-medium text-slate-900 dark:text-[#eef0f6] flex items-center justify-between">
             <span className="inline-flex items-center gap-1.5">
-              <Sliders className="w-3.5 h-3.5 text-blue-500" /> Capacitor Dielectrics, ESR &amp; Thermal Controls
+              <Sliders className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" /> Capacitor Dielectrics, ESR &amp; Thermal Controls
             </span>
             {esrLock.locked && (
               <button
                 type="button"
                 onClick={() => esrLock.resetToAuto()}
-                className="text-[10px] text-amber-400 underline cursor-pointer"
+                className="text-[10px] text-amber-700 dark:text-amber-400 underline cursor-pointer"
               >
                 Reset ESR to Auto
               </button>
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <div>
-              <div className="flex items-center justify-between gap-1 mb-0.5">
-                <label className="text-[10px] font-mono text-slate-400">
-                  Output Capacitor Dielectric
+              <div className="flex items-center justify-between gap-1 mb-1">
+                <label className="text-[10px] font-mono font-medium text-slate-600 dark:text-[#a1a8b8]">
+                  Output Cap Dielectric
                 </label>
                 <LockToggleButton compact locked={outTechLock.locked} onToggle={outTechLock.toggleLock} label="Output Cap Dielectric" />
               </div>
@@ -707,7 +706,7 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
                   outTechLock.setManual(e.target.value as OutputCapTechId);
                   esrLock.resetToAuto();
                 }}
-                className="w-full px-2 py-1 text-xs font-mono bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded text-slate-200"
+                className="w-full px-2 py-1.5 text-xs font-mono bg-white dark:bg-[#14171f] border border-slate-300 dark:border-white/[0.12] rounded-md text-slate-900 dark:text-[#eef0f6]"
               >
                 <option value="polymer-solid">Conductive Polymer Solid (11mΩ, 4.2A)</option>
                 <option value="low-esr-elec">Low-ESR Wet Electrolytic (38mΩ, 1.95A)</option>
@@ -716,8 +715,8 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
             </div>
 
             <div>
-              <div className="flex items-center justify-between gap-1 mb-0.5">
-                <label className="text-[10px] font-mono text-slate-400">
+              <div className="flex items-center justify-between gap-1 mb-1">
+                <label className="text-[10px] font-mono font-medium text-slate-600 dark:text-[#a1a8b8]">
                   Input DC-Link Dielectric
                 </label>
                 <LockToggleButton compact locked={dcLinkTechLock.locked} onToggle={dcLinkTechLock.toggleLock} label="DC-Link Dielectric" />
@@ -725,7 +724,7 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
               <select
                 value={dcLinkTech}
                 onChange={(e) => dcLinkTechLock.setManual(e.target.value as DcLinkCapTechId)}
-                className="w-full px-2 py-1 text-xs font-mono bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded text-slate-200"
+                className="w-full px-2 py-1.5 text-xs font-mono bg-white dark:bg-[#14171f] border border-slate-300 dark:border-white/[0.12] rounded-md text-slate-900 dark:text-[#eef0f6]"
               >
                 <option value="mkp-film">MKP Polypropylene Film (3.2mΩ, 14.5A)</option>
                 <option value="hv-electrolytic">450V Snap-In Electrolytic (48mΩ, 2.85A)</option>
@@ -734,12 +733,12 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2.5 pt-1 border-t border-slate-200 dark:border-slate-800">
+          <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200 dark:border-white/[0.08]">
             <div>
-              <div className="flex justify-between items-center text-[10px] font-mono">
-                <span className="text-slate-400">Out Bulk (×{outPreset.unitCap_uF}µF)</span>
+              <div className="flex justify-between items-center text-[10px] font-mono mb-1">
+                <span className="text-slate-600 dark:text-[#a1a8b8]">Out Bulk (×{outPreset.unitCap_uF}µF)</span>
                 <div className="inline-flex items-center gap-1">
-                  <span className="text-emerald-400 font-bold tabular-nums">{nParallelBulkOut}× ({capAnalysis.C_bulk_eff_uF}µF)</span>
+                  <span className="text-emerald-700 dark:text-emerald-400 font-bold tabular-nums">{nParallelBulkOut}× ({capAnalysis.C_bulk_eff_uF}µF)</span>
                   <LockToggleButton compact locked={bulkOutLock.locked} onToggle={bulkOutLock.toggleLock} label="Output Bulk Count" />
                 </div>
               </div>
@@ -750,15 +749,15 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
                 step={1}
                 value={nParallelBulkOut}
                 onChange={(e) => bulkOutLock.setManual(Number(e.target.value))}
-                className="w-full accent-emerald-500 cursor-pointer"
+                className="w-full cursor-pointer"
               />
             </div>
 
             <div>
-              <div className="flex justify-between items-center text-[10px] font-mono">
-                <span className="text-slate-400">In DC-Link (×{inPreset.unitCap_uF}µF)</span>
+              <div className="flex justify-between items-center text-[10px] font-mono mb-1">
+                <span className="text-slate-600 dark:text-[#a1a8b8]">In DC-Link (×{inPreset.unitCap_uF}µF)</span>
                 <div className="inline-flex items-center gap-1">
-                  <span className="text-blue-400 font-bold tabular-nums">{dcLinkParallelCount}× ({capAnalysis.C_dclink_total_uF}µF)</span>
+                  <span className="text-blue-700 dark:text-blue-400 font-bold tabular-nums">{dcLinkParallelCount}× ({capAnalysis.C_dclink_total_uF}µF)</span>
                   <LockToggleButton compact locked={dcLinkCountLock.locked} onToggle={dcLinkCountLock.toggleLock} label="DC-Link Cap Count" />
                 </div>
               </div>
@@ -769,15 +768,15 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
                 step={1}
                 value={dcLinkParallelCount}
                 onChange={(e) => dcLinkCountLock.setManual(Number(e.target.value))}
-                className="w-full accent-blue-500 cursor-pointer"
+                className="w-full cursor-pointer"
               />
             </div>
 
             <div>
-              <div className="flex justify-between items-center text-[10px] font-mono">
-                <span className="text-slate-400">Unit Cap ESR (100kHz)</span>
+              <div className="flex justify-between items-center text-[10px] font-mono mb-1">
+                <span className="text-slate-600 dark:text-[#a1a8b8]">Unit Cap ESR (100kHz)</span>
                 <div className="inline-flex items-center gap-1">
-                  <span className="text-amber-400 font-bold tabular-nums">{capAnalysis.unitBulkEsr_mOhm.toFixed(1)} mΩ</span>
+                  <span className="text-amber-700 dark:text-amber-400 font-bold tabular-nums">{capAnalysis.unitBulkEsr_mOhm.toFixed(1)} mΩ</span>
                   <LockToggleButton compact locked={esrLock.locked} onToggle={esrLock.toggleLock} label="Unit Cap ESR" />
                 </div>
               </div>
@@ -788,15 +787,15 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
                 step={1}
                 value={capAnalysis.unitBulkEsr_mOhm}
                 onChange={(e) => esrLock.setManual(Number(e.target.value))}
-                className="w-full accent-amber-500 cursor-pointer"
+                className="w-full cursor-pointer"
               />
             </div>
 
             <div>
-              <div className="flex justify-between items-center text-[10px] font-mono">
-                <span className="text-slate-400">Ambient Temp T_amb</span>
+              <div className="flex justify-between items-center text-[10px] font-mono mb-1">
+                <span className="text-slate-600 dark:text-[#a1a8b8]">Ambient Temp T_amb</span>
                 <div className="inline-flex items-center gap-1">
-                  <span className="text-rose-400 font-bold tabular-nums">{state.Tamb_C} °C</span>
+                  <span className="text-rose-700 dark:text-rose-400 font-bold tabular-nums">{state.Tamb_C} °C</span>
                   <LockToggleButton
                     compact
                     locked={dcdcLocked.Tamb_C}
@@ -813,17 +812,17 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
                 step={5}
                 value={state.Tamb_C}
                 onChange={(e) => setDcdcField('Tamb_C', Number(e.target.value))}
-                className="w-full accent-rose-500 cursor-pointer"
+                className="w-full cursor-pointer"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2.5 pt-1 border-t border-slate-200 dark:border-slate-800">
+          <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-200 dark:border-white/[0.08]">
             <div>
-              <div className="flex justify-between items-center text-[10px] font-mono">
-                <span className="text-slate-400">Parallel HF MLCCs</span>
+              <div className="flex justify-between items-center text-[10px] font-mono mb-1">
+                <span className="text-slate-600 dark:text-[#a1a8b8]">Parallel HF MLCCs</span>
                 <div className="inline-flex items-center gap-1">
-                  <span className="text-purple-400 font-bold tabular-nums">{nParallelMlccOut}× {mlccUnitCap_uF}µF</span>
+                  <span className="text-blue-700 dark:text-blue-400 font-bold tabular-nums">{nParallelMlccOut}× {mlccUnitCap_uF}µF</span>
                   <LockToggleButton compact locked={mlccOutLock.locked} onToggle={mlccOutLock.toggleLock} label="Parallel HF MLCCs" />
                 </div>
               </div>
@@ -834,15 +833,15 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
                 step={2}
                 value={nParallelMlccOut}
                 onChange={(e) => mlccOutLock.setManual(Number(e.target.value))}
-                className="w-full accent-purple-500 cursor-pointer"
+                className="w-full cursor-pointer"
               />
             </div>
 
             <div>
-              <div className="flex justify-between items-center text-[10px] font-mono">
-                <span className="text-slate-400">Ripple Derating Margin</span>
+              <div className="flex justify-between items-center text-[10px] font-mono mb-1">
+                <span className="text-slate-600 dark:text-[#a1a8b8]">Ripple Derating Margin</span>
                 <div className="inline-flex items-center gap-1">
-                  <span className="text-blue-300 font-bold tabular-nums">{safetyMarginPct}%</span>
+                  <span className="text-blue-700 dark:text-blue-300 font-bold tabular-nums">{safetyMarginPct}%</span>
                   <LockToggleButton compact locked={safetyMarginLock.locked} onToggle={safetyMarginLock.toggleLock} label="Ripple Derating Margin" />
                 </div>
               </div>
@@ -853,7 +852,7 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
                 step={5}
                 value={safetyMarginPct}
                 onChange={(e) => safetyMarginLock.setManual(Number(e.target.value))}
-                className="w-full accent-blue-500 cursor-pointer"
+                className="w-full cursor-pointer"
               />
             </div>
           </div>
@@ -862,112 +861,156 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
         {/* Right KPI Cards (7 cols): Card 1 = Input DC-Link Stress, Card 2 = Output Filter Stress */}
         <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-3">
           {/* Card 1: Input Capacitor Bank Stress & Life-Expectancy */}
-          <div className="bg-slate-50 dark:bg-slate-900/70 border border-blue-500/30 rounded-lg p-3.5 flex flex-col justify-between space-y-2">
+          <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-white/[0.08] border-t-2 border-t-blue-500 rounded-xl p-3.5 flex flex-col justify-between space-y-2.5">
             <div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-slate-900 dark:text-[#eef0f5]">
-                  1. Input DC-Link Capacitor Stress ({state.Vin_nom_V}V)
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-slate-900 dark:text-[#eef0f6]">
+                  1. Input DC-Link ({state.Vin_nom_V}V)
                 </span>
                 <span
-                  className={`px-2 py-0.5 text-[10px] font-mono rounded border ${
-                    capAnalysis.inRippleStress_pct <= 100
-                      ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-                      : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+                  className={`px-2 py-0.5 text-[10px] font-mono font-semibold rounded border shrink-0 ${
+                    capAnalysis.inRippleStress_pct <= 85
+                      ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/30'
+                      : capAnalysis.inRippleStress_pct <= 100
+                      ? 'bg-amber-50 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-500/30'
+                      : 'bg-rose-50 dark:bg-rose-500/15 text-rose-800 dark:text-rose-300 border-rose-300 dark:border-rose-500/30'
                   }`}
                 >
-                  Stress: {capAnalysis.inRippleStress_pct.toFixed(0)}% of Rating
+                  {capAnalysis.inRippleStress_pct <= 100 ? 'PASS' : 'OVER'} · {capAnalysis.inRippleStress_pct.toFixed(0)}% Load
                 </span>
               </div>
 
-              <div className="mt-2 grid grid-cols-2 gap-2 text-xs font-mono">
-                <div className="p-2 rounded bg-slate-950/70 border border-slate-800">
-                  <div className="text-[10px] text-slate-400">Operating vs Required I_Cin,rms</div>
-                  <div className="text-sm font-bold text-blue-400">
-                    {capAnalysis.I_dclink_rms_A.toFixed(2)} A / {capAnalysis.I_dclink_req_rating_A.toFixed(2)} A
+              {/* Ripple Capacity Utilization Bar */}
+              <div className="mt-2">
+                <div className="flex justify-between text-[10px] font-mono text-slate-500 dark:text-[#727b8e] mb-1">
+                  <span>Ripple Utilization ({capAnalysis.I_dclink_rms_A.toFixed(2)}A / {capAnalysis.totalInBankRatedRipple_A.toFixed(1)}A rated)</span>
+                  <span>{dcLinkParallelCount}×{inPreset.rippleRating_A}A</span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-slate-200 dark:bg-white/[0.08] overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      capAnalysis.inRippleStress_pct <= 85
+                        ? 'bg-blue-600 dark:bg-blue-400'
+                        : capAnalysis.inRippleStress_pct <= 100
+                        ? 'bg-amber-500'
+                        : 'bg-rose-500'
+                    }`}
+                    style={{ width: `${Math.min(100, Math.max(4, capAnalysis.inRippleStress_pct))}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-2.5 grid grid-cols-2 gap-2 text-xs font-mono">
+                <div className="p-2 rounded-lg bg-slate-50 dark:bg-[#0e1015] border border-slate-200 dark:border-white/[0.08]">
+                  <div className="text-[10px] text-slate-500 dark:text-[#727b8e]">I_Cin,rms (Op / Req)</div>
+                  <div className="text-sm font-bold text-blue-700 dark:text-blue-400 mt-0.5 tabular-nums">
+                    {capAnalysis.I_dclink_rms_A.toFixed(2)} / {capAnalysis.I_dclink_req_rating_A.toFixed(2)} A
                   </div>
-                  <div className="text-[10px] text-slate-500">
-                    Bank Capacity: {capAnalysis.totalInBankRatedRipple_A.toFixed(1)} A ({dcLinkParallelCount}×{inPreset.rippleRating_A}A)
+                  <div className="text-[10px] text-slate-500 dark:text-[#727b8e] mt-0.5">
+                    C_total = {capAnalysis.C_dclink_total_uF} µF
                   </div>
                 </div>
-                <div className="p-2 rounded bg-slate-950/70 border border-slate-800">
-                  <div className="text-[10px] text-slate-400">Core Temp &amp; Life L_10,in</div>
-                  <div className="text-sm font-bold text-emerald-400">
-                    {capAnalysis.T_core_in_C.toFixed(1)} °C (+{capAnalysis.deltaT_core_in_C.toFixed(1)}°C)
+                <div className="p-2 rounded-lg bg-slate-50 dark:bg-[#0e1015] border border-slate-200 dark:border-white/[0.08]">
+                  <div className="text-[10px] text-slate-500 dark:text-[#727b8e]">Hotspot &amp; L10 Life</div>
+                  <div className="text-sm font-bold text-slate-900 dark:text-[#eef0f6] mt-0.5 tabular-nums">
+                    {capAnalysis.T_core_in_C.toFixed(1)} °C (+{capAnalysis.deltaT_core_in_C.toFixed(1)}°)
                   </div>
-                  <div className="text-[10px] text-emerald-300">
-                    {(capAnalysis.L10_in_hrs / 1e3).toFixed(1)}k hrs ({capAnalysis.L10_in_years.toFixed(1)} yrs)
+                  <div className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 mt-0.5">
+                    {(capAnalysis.L10_in_hrs / 1e3).toFixed(0)}k hrs ({capAnalysis.L10_in_years.toFixed(1)} yrs)
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="border-t border-slate-800 pt-2 text-xs font-mono space-y-1">
-              <div className="flex justify-between">
-                <span className="text-slate-400">Net Bank ESR &amp; Self-Heating Loss:</span>
-                <span className="text-amber-300 font-semibold">
-                  {capAnalysis.ESR_dclink_net_mOhm.toFixed(2)} mΩ | P_ESR = {(capAnalysis.P_dclink_loss_W * 1e3).toFixed(0)} mW
+            <div className="border-t border-slate-200 dark:border-white/[0.08] pt-2 text-[11px] font-mono space-y-1">
+              <div className="flex justify-between gap-2">
+                <span className="text-slate-600 dark:text-[#a1a8b8]">Net ESR &amp; Loss:</span>
+                <span className="text-amber-700 dark:text-amber-400 font-semibold tabular-nums">
+                  {capAnalysis.ESR_dclink_net_mOhm.toFixed(2)} mΩ · {(capAnalysis.P_dclink_loss_W * 1e3).toFixed(0)} mW
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">DC-Link Voltage Ripple &amp; Stored Energy:</span>
-                <span className="text-blue-300 font-semibold">
-                  ΔV_in = {capAnalysis.deltaV_dclink_Vpp.toFixed(2)} Vpp | E = {capAnalysis.E_stored_dclink_J.toFixed(2)} J
+              <div className="flex justify-between gap-2">
+                <span className="text-slate-600 dark:text-[#a1a8b8]">Bus Ripple &amp; Energy:</span>
+                <span className="text-blue-700 dark:text-blue-300 font-semibold tabular-nums">
+                  ΔV = {capAnalysis.deltaV_dclink_Vpp.toFixed(2)} Vpp · {capAnalysis.E_stored_dclink_J.toFixed(2)} J
                 </span>
               </div>
             </div>
           </div>
 
           {/* Card 2: Output Capacitor Bank Stress & Life-Expectancy */}
-          <div className="bg-slate-50 dark:bg-slate-900/70 border border-emerald-500/30 rounded-lg p-3.5 flex flex-col justify-between space-y-2">
+          <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-white/[0.08] border-t-2 border-t-emerald-500 rounded-xl p-3.5 flex flex-col justify-between space-y-2.5">
             <div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-slate-900 dark:text-[#eef0f5]">
-                  2. Output Filter Capacitor Stress ({state.Vout_V}V)
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-slate-900 dark:text-[#eef0f6]">
+                  2. Output Filter ({state.Vout_V}V)
                 </span>
                 <span
-                  className={`px-2 py-0.5 text-[10px] font-mono rounded border ${
-                    capAnalysis.outRippleStress_pct <= 100
-                      ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-                      : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
+                  className={`px-2 py-0.5 text-[10px] font-mono font-semibold rounded border shrink-0 ${
+                    capAnalysis.outRippleStress_pct <= 85
+                      ? 'bg-emerald-50 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-500/30'
+                      : capAnalysis.outRippleStress_pct <= 100
+                      ? 'bg-amber-50 dark:bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-500/30'
+                      : 'bg-rose-50 dark:bg-rose-500/15 text-rose-800 dark:text-rose-300 border-rose-300 dark:border-rose-500/30'
                   }`}
                 >
-                  Stress: {capAnalysis.outRippleStress_pct.toFixed(0)}% of Rating
+                  {capAnalysis.outRippleStress_pct <= 100 ? 'PASS' : 'OVER'} · {capAnalysis.outRippleStress_pct.toFixed(0)}% Load
                 </span>
               </div>
 
-              <div className="mt-2 grid grid-cols-2 gap-2 text-xs font-mono">
-                <div className="p-2 rounded bg-slate-950/70 border border-slate-800">
-                  <div className="text-[10px] text-slate-400">Operating vs Required I_Cout,rms</div>
-                  <div className="text-sm font-bold text-emerald-400">
-                    {capAnalysis.I_out_ripple_rms_A.toFixed(2)} A / {capAnalysis.I_out_req_rating_A.toFixed(2)} A
+              {/* Ripple Capacity Utilization Bar */}
+              <div className="mt-2">
+                <div className="flex justify-between text-[10px] font-mono text-slate-500 dark:text-[#727b8e] mb-1">
+                  <span>Ripple Utilization ({capAnalysis.I_bulk_bank_rms_A.toFixed(2)}A / {capAnalysis.totalOutBankRatedRipple_A.toFixed(1)}A rated)</span>
+                  <span>{nParallelBulkOut}×{outPreset.rippleRating_105C_A}A</span>
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-slate-200 dark:bg-white/[0.08] overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      capAnalysis.outRippleStress_pct <= 85
+                        ? 'bg-emerald-600 dark:bg-emerald-400'
+                        : capAnalysis.outRippleStress_pct <= 100
+                        ? 'bg-amber-500'
+                        : 'bg-rose-500'
+                    }`}
+                    style={{ width: `${Math.min(100, Math.max(4, capAnalysis.outRippleStress_pct))}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-2.5 grid grid-cols-2 gap-2 text-xs font-mono">
+                <div className="p-2 rounded-lg bg-slate-50 dark:bg-[#0e1015] border border-slate-200 dark:border-white/[0.08]">
+                  <div className="text-[10px] text-slate-500 dark:text-[#727b8e]">I_Cout,rms (Op / Req)</div>
+                  <div className="text-sm font-bold text-emerald-700 dark:text-emerald-400 mt-0.5 tabular-nums">
+                    {capAnalysis.I_out_ripple_rms_A.toFixed(2)} / {capAnalysis.I_out_req_rating_A.toFixed(2)} A
                   </div>
-                  <div className="text-[10px] text-slate-500">
-                    Bulk: {capAnalysis.I_bulk_bank_rms_A.toFixed(2)}A | MLCC: {capAnalysis.I_mlcc_bank_rms_A.toFixed(2)}A
+                  <div className="text-[10px] text-slate-500 dark:text-[#727b8e] mt-0.5">
+                    Bulk {capAnalysis.I_bulk_bank_rms_A.toFixed(1)}A · MLCC {capAnalysis.I_mlcc_bank_rms_A.toFixed(1)}A
                   </div>
                 </div>
-                <div className="p-2 rounded bg-slate-950/70 border border-slate-800">
-                  <div className="text-[10px] text-slate-400">Core Temp &amp; Life L_10,out</div>
-                  <div className="text-sm font-bold text-amber-400">
-                    {capAnalysis.T_core_out_C.toFixed(1)} °C (+{capAnalysis.deltaT_core_out_C.toFixed(1)}°C)
+                <div className="p-2 rounded-lg bg-slate-50 dark:bg-[#0e1015] border border-slate-200 dark:border-white/[0.08]">
+                  <div className="text-[10px] text-slate-500 dark:text-[#727b8e]">Hotspot &amp; L10 Life</div>
+                  <div className="text-sm font-bold text-slate-900 dark:text-[#eef0f6] mt-0.5 tabular-nums">
+                    {capAnalysis.T_core_out_C.toFixed(1)} °C (+{capAnalysis.deltaT_core_out_C.toFixed(1)}°)
                   </div>
-                  <div className="text-[10px] text-emerald-300">
-                    {(capAnalysis.L10_out_hrs / 1e3).toFixed(1)}k hrs ({capAnalysis.L10_out_years.toFixed(1)} yrs)
+                  <div className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 mt-0.5">
+                    {(capAnalysis.L10_out_hrs / 1e3).toFixed(0)}k hrs ({capAnalysis.L10_out_years.toFixed(1)} yrs)
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="border-t border-slate-800 pt-2 text-xs font-mono space-y-1">
-              <div className="flex justify-between">
-                <span className="text-slate-400">Net Bank ESR &amp; Self-Heating Loss:</span>
-                <span className="text-amber-300 font-semibold">
-                  {capAnalysis.atRipple.esrTot_mOhm.toFixed(2)} mΩ | P_ESR = {capAnalysis.P_loss_out_cap_total_W.toFixed(2)} W
+            <div className="border-t border-slate-200 dark:border-white/[0.08] pt-2 text-[11px] font-mono space-y-1">
+              <div className="flex justify-between gap-2">
+                <span className="text-slate-600 dark:text-[#a1a8b8]">Net ESR &amp; Loss:</span>
+                <span className="text-amber-700 dark:text-amber-400 font-semibold tabular-nums">
+                  {capAnalysis.atRipple.esrTot_mOhm.toFixed(2)} mΩ · {capAnalysis.P_loss_out_cap_total_W.toFixed(2)} W
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Decomposed Output Ripple ΔV_out,pp:</span>
-                <span className="text-purple-300 font-semibold">
-                  {capAnalysis.vRipple_total_mVpp.toFixed(0)} mVpp (ESR: {capAnalysis.vRipple_esr_mVpp.toFixed(0)}mV, ΔQ/C: {capAnalysis.vRipple_cap_mVpp.toFixed(0)}mV)
+              <div className="flex justify-between gap-2">
+                <span className="text-slate-600 dark:text-[#a1a8b8]">Output Ripple ΔV_out:</span>
+                <span className="text-slate-900 dark:text-[#eef0f6] font-semibold tabular-nums">
+                  {capAnalysis.vRipple_total_mVpp.toFixed(0)} mVpp <span className="text-slate-500 dark:text-[#727b8e] font-normal">(ESR {capAnalysis.vRipple_esr_mVpp.toFixed(0)}mV, ΔQ {capAnalysis.vRipple_cap_mVpp.toFixed(0)}mV)</span>
                 </span>
               </div>
             </div>
@@ -977,46 +1020,46 @@ export const CapacitorBankAnalyzer: React.FC<CapacitorBankAnalyzerProps> = ({
 
       {/* ROW 2: INTERACTIVE SVG CHARTS */}
       <div className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
-          <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-white/[0.08] pb-2.5">
+          <div className="flex flex-nowrap sm:flex-wrap items-center gap-1 bg-[#eceef2] dark:bg-[#090a0d] p-1 rounded-lg border border-slate-200/80 dark:border-white/[0.07] overflow-x-auto no-scrollbar max-w-full">
             <button
               type="button"
               onClick={() => setActiveChart('load-stress')}
-              className={`px-3 py-1.5 text-xs font-mono rounded inline-flex items-center gap-1.5 cursor-pointer ${
+              className={`px-2.5 py-1 text-xs font-mono rounded-md inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
                 activeChart === 'load-stress'
-                  ? 'bg-emerald-600 text-white font-semibold'
-                  : 'bg-slate-100 dark:bg-slate-900 text-slate-400 border border-slate-800'
+                  ? 'bg-white dark:bg-[#1c202b] text-blue-700 dark:text-blue-300 border border-slate-200 dark:border-white/[0.12] font-semibold shadow-2xs'
+                  : 'text-slate-600 dark:text-[#a1a8b8] hover:text-slate-900 dark:hover:text-[#eef0f6] border border-transparent'
               }`}
             >
-              <TrendingUp className="w-3.5 h-3.5" /> 1. Input &amp; Output RMS Ripple Current vs. Load (10% – 150%)
+              <TrendingUp className="w-3.5 h-3.5" /> 1. RMS Ripple vs. Load (10–150%)
             </button>
             <button
               type="button"
               onClick={() => setActiveChart('lifetime')}
-              className={`px-3 py-1.5 text-xs font-mono rounded inline-flex items-center gap-1.5 cursor-pointer ${
+              className={`px-2.5 py-1 text-xs font-mono rounded-md inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
                 activeChart === 'lifetime'
-                  ? 'bg-amber-600 text-white font-semibold'
-                  : 'bg-slate-100 dark:bg-slate-900 text-slate-400 border border-slate-800'
+                  ? 'bg-white dark:bg-[#1c202b] text-blue-700 dark:text-blue-300 border border-slate-200 dark:border-white/[0.12] font-semibold shadow-2xs'
+                  : 'text-slate-600 dark:text-[#a1a8b8] hover:text-slate-900 dark:hover:text-[#eef0f6] border border-transparent'
               }`}
             >
-              <Clock className="w-3.5 h-3.5" /> 2. Life-Expectancy L_10 (kHrs) vs. Operating Temperature
+              <Clock className="w-3.5 h-3.5" /> 2. L10 Life vs. Temperature
             </button>
             <button
               type="button"
               onClick={() => setActiveChart('impedance')}
-              className={`px-3 py-1.5 text-xs font-mono rounded inline-flex items-center gap-1.5 cursor-pointer ${
+              className={`px-2.5 py-1 text-xs font-mono rounded-md inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
                 activeChart === 'impedance'
-                  ? 'bg-blue-600 text-white font-semibold'
-                  : 'bg-slate-100 dark:bg-slate-900 text-slate-400 border border-slate-800'
+                  ? 'bg-white dark:bg-[#1c202b] text-blue-700 dark:text-blue-300 border border-slate-200 dark:border-white/[0.12] font-semibold shadow-2xs'
+                  : 'text-slate-600 dark:text-[#a1a8b8] hover:text-slate-900 dark:hover:text-[#eef0f6] border border-transparent'
               }`}
             >
-              <Activity className="w-3.5 h-3.5" /> 3. Composite Bank Impedance |Z(f)| &amp; Self-Resonance
+              <Activity className="w-3.5 h-3.5" /> 3. Bank Impedance |Z(f)|
             </button>
           </div>
 
-          <div className="text-[11px] font-mono text-slate-400">
-            Out MPN: <strong className="text-emerald-300">{outPreset.mpn}</strong> · In MPN:{' '}
-            <strong className="text-blue-300">{inPreset.mpn}</strong>
+          <div className="text-[11px] font-mono text-slate-600 dark:text-[#a1a8b8]">
+            Out: <strong className="text-emerald-700 dark:text-emerald-400">{outPreset.mpn}</strong> · In:{' '}
+            <strong className="text-blue-700 dark:text-blue-400">{inPreset.mpn}</strong>
           </div>
         </div>
 
