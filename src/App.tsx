@@ -22,6 +22,7 @@ import { SmallSignalDashboard } from './components/SmallSignalDashboard';
 import { CombinedSystemSchematicView } from './components/CircuitSchematics';
 import { ComponentSearchDrawer } from './components/ComponentSearchDrawer';
 import { DesignReportModal } from './components/DesignReportModal';
+import { CommandPaletteAction, CommandPaletteModal } from './components/CommandPaletteModal';
 import { AiChatMessage, AiEngineerDrawer } from './components/AiEngineerDrawer';
 import {
   AiAgentServerResponse,
@@ -113,6 +114,9 @@ import {
   Upload,
   Save,
   Trash2,
+  ChevronDown,
+  MoreHorizontal,
+  Clock,
 } from 'lucide-react';
 
 export default function App() {
@@ -161,6 +165,8 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
     updateCapacitorConfig,
     replaceCapacitorConfigs,
     resetCapacitorConfigs,
+    optimizeDcdcNow,
+    optimizeAcdcNow,
   } = useDesignSolver();
 
   const [domainTab, setDomainTab] = useState<'dcdc' | 'acdc' | 'combined' | 'small-signal'>('dcdc');
@@ -174,6 +180,21 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
   const [alertStageScope, setAlertStageScope] = useState<'all' | 'active'>('all');
   const alertPopoverRef = useRef<HTMLDivElement | null>(null);
   const [alertPopoverStyle, setAlertPopoverStyle] = useState<React.CSSProperties>({});
+
+  // Header Dropdowns, Command Palette & Toast Feedback
+  const [exportMenuOpen, setExportMenuOpen] = useState<boolean>(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState<boolean>(false);
+  const [cmdPaletteOpen, setCmdPaletteOpen] = useState<boolean>(false);
+  const exportMenuRef = useRef<HTMLDivElement | null>(null);
+  const moreMenuRef = useRef<HTMLDivElement | null>(null);
+  const [toasts, setToasts] = useState<{ id: number; message: string; tone: 'info' | 'success' | 'warn' }[]>([]);
+  const pushToast = (message: string, tone: 'info' | 'success' | 'warn' = 'success') => {
+    const id = Date.now() + Math.floor(Math.random() * 1000);
+    setToasts((prev) => [...prev.slice(-2), { id, message, tone }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 3200);
+  };
 
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     try {
@@ -338,6 +359,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
     const nextStack = undoHistory(historyStack);
     setHistoryStack(nextStack);
     applyWorkspaceSnapshot(nextStack.present);
+    pushToast('Undid last design change', 'info');
   };
 
   const handleRedo = () => {
@@ -345,10 +367,41 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
     const nextStack = redoHistory(historyStack);
     setHistoryStack(nextStack);
     applyWorkspaceSnapshot(nextStack.present);
+    pushToast('Redid design change', 'info');
   };
 
   useEffect(() => {
+    if (!exportMenuOpen && !moreMenuOpen) return;
+    const onPointerDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (exportMenuOpen && exportMenuRef.current && !exportMenuRef.current.contains(target)) {
+        setExportMenuOpen(false);
+      }
+      if (moreMenuOpen && moreMenuRef.current && !moreMenuRef.current.contains(target)) {
+        setMoreMenuOpen(false);
+      }
+    };
     const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setExportMenuOpen(false);
+        setMoreMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [exportMenuOpen, moreMenuOpen]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setCmdPaletteOpen((v) => !v);
+        return;
+      }
       const target = e.target as HTMLElement | null;
       const isInput =
         target?.tagName === 'INPUT' ||
@@ -869,6 +922,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
   };
 
   const handleApplyAlertFix = (fix: DesignAlertFix) => {
+    pushToast(`Applied fix: ${fix.label}`, 'success');
     if (fix.targetKind === 'dcdc' && fix.dcdcPatch) {
       applyDcdcPatch(fix.dcdcPatch, null, { bypassAutoOpt: true });
       return;
@@ -979,9 +1033,17 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
 
   const handlePinToggle = () => {
     if (domainTab === 'acdc') {
-      setPinnedAcdc((prev) => (prev ? null : { ...acdcState }));
+      setPinnedAcdc((prev) => {
+        const next = prev ? null : { ...acdcState };
+        pushToast(next ? 'Pinned AC-DC reference curve' : 'Unpinned AC-DC reference', 'info');
+        return next;
+      });
     } else {
-      setPinnedDcdc((prev) => (prev ? null : { ...dcdcState }));
+      setPinnedDcdc((prev) => {
+        const next = prev ? null : { ...dcdcState };
+        pushToast(next ? 'Pinned DC-DC reference curve' : 'Unpinned DC-DC reference', 'info');
+        return next;
+      });
     }
   };
 
@@ -992,12 +1054,14 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
       setPinnedAcdc(null);
       resetInductorConfigs(Object.keys(inductorConfigs).filter((k) => k.startsWith('acdc-')));
       resetCapacitorConfigs(Object.keys(capacitorConfigs).filter((k) => k.startsWith('acdc-')));
+      pushToast('Reset AC-DC PFC stage to default preset', 'info');
     } else {
       clearDcdcChanges();
       setDcdcState({ ...DCDC_PRESETS[0].state });
       setPinnedDcdc(null);
       resetInductorConfigs(Object.keys(inductorConfigs).filter((k) => k.startsWith('dcdc-')));
       resetCapacitorConfigs(Object.keys(capacitorConfigs).filter((k) => k.startsWith('dcdc-')));
+      pushToast('Reset DC-DC stage to default preset', 'info');
     }
   };
 
@@ -1006,13 +1070,15 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
       domainTab === 'acdc'
         ? { domain: 'ac-dc-pfc', state: acdcState, results: acdcRes }
         : { domain: 'dc-dc-isolated', state: dcdcState, results: dcdcRes };
+    const filename = `${domainTab}_design_spec.json`;
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${domainTab}_design_spec.json`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+    pushToast(`Downloaded ${filename}`);
   };
 
   const handleExportFullProjectJson = () => {
@@ -1030,6 +1096,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
     a.download = `voltcraft_project_v2.json`;
     a.click();
     URL.revokeObjectURL(url);
+    pushToast('Downloaded voltcraft_project_v2.json');
   };
 
   const effectiveDcdcSimTimeUs =
@@ -1038,6 +1105,13 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
     systemLink.acdcSimTime_ms ?? getDefaultAcDcSimTimeMs(acdcState.f_line_Hz);
   const effectiveCombinedSimTimeMs =
     systemLink.combinedSimTime_ms ?? getDefaultCombinedSimTimeMs(acdcState.f_line_Hz);
+
+  const activeExportScopeLabel =
+    domainTab === 'combined' || (outputMode === 'combined' && domainTab === 'small-signal')
+      ? `Combined · ${effectiveCombinedSimTimeMs} ms`
+      : domainTab === 'acdc'
+      ? `AC-DC PFC · ${effectiveAcdcSimTimeMs} ms`
+      : `DC-DC · ${effectiveDcdcSimTimeUs} µs`;
 
   const handleExportActiveSpice = () => {
     const isCombined = domainTab === 'combined' || (outputMode === 'combined' && domainTab === 'small-signal');
@@ -1053,17 +1127,19 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
       : domainTab === 'acdc'
       ? generateAcDcSpiceNetlist(acdcState, acdcRes, effectiveAcdcSimTimeMs)
       : generateDcDcSpiceNetlist(dcdcState, dcdcRes, effectiveDcdcSimTimeUs);
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = isCombined
+    const filename = isCombined
       ? `voltcraft_combined_${acdcState.topology}_to_${dcdcState.topology}.cir`
       : domainTab === 'acdc'
       ? `voltcraft_${acdcState.topology}.cir`
       : `voltcraft_${dcdcState.topology}.cir`;
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+    pushToast(`Downloaded ${filename} (${activeExportScopeLabel})`);
   };
 
   const handleExportActiveLtspiceAsc = () => {
@@ -1080,17 +1156,19 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
       : domainTab === 'acdc'
       ? generateAcDcLtspiceAsc(acdcState, acdcRes, effectiveAcdcSimTimeMs)
       : generateDcDcLtspiceAsc(dcdcState, dcdcRes, effectiveDcdcSimTimeUs);
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = isCombined
+    const filename = isCombined
       ? `voltcraft_combined_${acdcState.topology}_to_${dcdcState.topology}.asc`
       : domainTab === 'acdc'
       ? `voltcraft_${acdcState.topology}.asc`
       : `voltcraft_${dcdcState.topology}.asc`;
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+    pushToast(`Downloaded ${filename} (${activeExportScopeLabel})`);
   };
 
   const handleExportActiveQspiceZip = () => {
@@ -1107,13 +1185,15 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
       : domainTab === 'acdc'
       ? generateAcDcQspiceBundle(acdcState, acdcRes, effectiveAcdcSimTimeMs)
       : generateDcDcQspiceBundle(dcdcState, dcdcRes, effectiveDcdcSimTimeUs);
+    const filename = `${bundle.baseName}_qspice.zip`;
     const blob = new Blob([new Uint8Array(bundle.zipBytes)], { type: 'application/zip' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${bundle.baseName}_qspice.zip`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+    pushToast(`Downloaded ${filename} (${activeExportScopeLabel})`);
   };
 
   const handleExportActivePlecsZip = () => {
@@ -1130,13 +1210,15 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
       : domainTab === 'acdc'
       ? generateAcDcPlecsBundle(acdcState, acdcRes, effectiveAcdcSimTimeMs)
       : generateDcDcPlecsBundle(dcdcState, dcdcRes, effectiveDcdcSimTimeUs);
+    const filename = `${bundle.baseName}_plecs.zip`;
     const blob = new Blob([new Uint8Array(bundle.zipBytes)], { type: 'application/zip' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${bundle.baseName}_plecs.zip`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+    pushToast(`Downloaded ${filename} (${activeExportScopeLabel})`);
   };
 
   const handleExportFirmwareHeader = () => {
@@ -1148,6 +1230,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
     a.download = 'powerstage_control_cfg.h';
     a.click();
     URL.revokeObjectURL(url);
+    pushToast('Downloaded powerstage_control_cfg.h');
   };
 
   const handleSaveNamedProject = () => {
@@ -1235,6 +1318,196 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
   };
 
   const isPinned = domainTab === 'acdc' ? Boolean(pinnedAcdc) : Boolean(pinnedDcdc);
+
+  const commandPaletteActions: CommandPaletteAction[] = useMemo(() => {
+    const acts: CommandPaletteAction[] = [
+      // Domains
+      ...(outputMode !== 'dcdc-only'
+        ? [
+            {
+              id: 'domain-acdc',
+              category: 'Workbench',
+              label: 'Switch to AC-DC PFC Stage',
+              keywords: 'pfc totem boost acdc',
+              run: () => setDomainTab('acdc'),
+            },
+          ]
+        : []),
+      ...(outputMode !== 'acdc-only'
+        ? [
+            {
+              id: 'domain-dcdc',
+              category: 'Workbench',
+              label: 'Switch to DC-DC Converter Stage',
+              keywords: 'psfb llc transformer dcdc',
+              run: () => setDomainTab('dcdc'),
+            },
+          ]
+        : []),
+      ...(outputMode === 'combined'
+        ? [
+            {
+              id: 'domain-combined',
+              category: 'Workbench',
+              label: 'Open Combined 2-Stage Circuit',
+              keywords: 'cascade system bus link',
+              run: () => setDomainTab('combined'),
+            },
+          ]
+        : []),
+      {
+        id: 'domain-small-signal',
+        category: 'Workbench',
+        label: 'Open Small-Signal & Bode Lab',
+        keywords: 'bode phase margin compensator',
+        run: () => setDomainTab('small-signal'),
+      },
+      // DC-DC Sub-views
+      ...(
+        [
+          ['schematic', 'DC-DC: Schematic & Equations', 'katex circuit'],
+          ['scope-sim', 'DC-DC: Scope & Sim (ODE / Monte Carlo / SPICE)', 'qspice ltspice plecs transient'],
+          ['graphs', 'DC-DC: ZVS & Tank Graphs', 'waveform primary'],
+          ['magnetics', 'DC-DC: Tx Magnetics (iGSE)', 'core loss transformer'],
+          ['saturation', 'DC-DC: Core Saturation & BH Loop', 'flux bsat'],
+          ['winding', 'DC-DC: Winding Window & Litz', 'copper fill'],
+          ['all-inductors', 'DC-DC: All Inductors Designer', 'lo shim'],
+          ['thermal', 'DC-DC: Electro-Thermal & Heatsink', 'tj mosfet'],
+          ['gatedrive', 'DC-DC: Gate Drive Analysis', 'rg qg'],
+          ['protection', 'DC-DC: OCP & Desat Protection', 'current sense'],
+          ['capacitors', 'DC-DC: All Capacitors & Hybrid Bank', 'cout mlcc'],
+          ['emi', 'DC-DC: EMI Filter Design', 'cm dm'],
+          ['control', 'DC-DC: Control & DSP Firmware', '2p2z pcmc'],
+        ] as [DcDcSubTab, string, string][]
+      ).map(([tab, label, keywords]) => ({
+        id: `dcdc-${tab}`,
+        category: 'DC-DC View',
+        label,
+        keywords,
+        run: () => {
+          setDomainTab('dcdc');
+          setDcdcSubTab(tab);
+        },
+      })),
+      // AC-DC Sub-views
+      ...(
+        [
+          ['schematic', 'AC-DC: Schematic & Variants', 'totem pole'],
+          ['graphs', 'AC-DC: Ripple, Hold-Up & Bode', 'waveform'],
+          ['scope-sim', 'AC-DC: SPICE / QSPICE / PLECS Sim', 'export qspice'],
+          ['harmonics', 'AC-DC: Harmonics & ZCD', 'thdi'],
+          ['magnetics', 'AC-DC: PFC DC-Bias Curves', 'kool mu'],
+          ['all-inductors', 'AC-DC: All Inductors Designer', 'lpfc'],
+          ['dc-link', 'AC-DC: All Capacitors & Life', 'cdc holdup'],
+          ['inrush', 'AC-DC: Inrush & Pre-Charge', 'relay'],
+          ['emi', 'AC-DC: EMI & Earth Leakage', 'cy'],
+          ['efficiency', 'AC-DC: Efficiency & Thermal', 'tj'],
+          ['control', 'AC-DC: Control & DSP', 'acmc'],
+        ] as [AcDcSubTab, string, string][]
+      ).map(([tab, label, keywords]) => ({
+        id: `acdc-${tab}`,
+        category: 'AC-DC View',
+        label,
+        keywords,
+        run: () => {
+          setDomainTab('acdc');
+          setAcdcSubTab(tab);
+        },
+      })),
+      // Actions & Exports
+      {
+        id: 'action-opt-dcdc',
+        category: 'Optimize',
+        label: 'Auto-Optimize DC-DC Stage Now',
+        keywords: 'solve fixes',
+        run: () => {
+          optimizeDcdcNow();
+          pushToast('Ran DC-DC Auto-Optimizer');
+        },
+      },
+      {
+        id: 'action-opt-acdc',
+        category: 'Optimize',
+        label: 'Auto-Optimize AC-DC Stage Now',
+        keywords: 'solve fixes',
+        run: () => {
+          optimizeAcdcNow();
+          pushToast('Ran AC-DC Auto-Optimizer');
+        },
+      },
+      {
+        id: 'export-qspice',
+        category: 'Export',
+        label: 'Download QSPICE Simulation Suite (.zip)',
+        hint: activeExportScopeLabel,
+        keywords: 'qsch qraw',
+        run: handleExportActiveQspiceZip,
+      },
+      {
+        id: 'export-ltspice',
+        category: 'Export',
+        label: 'Download LTspice Schematic (.asc)',
+        hint: activeExportScopeLabel,
+        keywords: 'ltspice',
+        run: handleExportActiveLtspiceAsc,
+      },
+      {
+        id: 'export-plecs',
+        category: 'Export',
+        label: 'Download PLECS Standalone Bundle (.zip)',
+        hint: activeExportScopeLabel,
+        keywords: 'plecs',
+        run: handleExportActivePlecsZip,
+      },
+      {
+        id: 'export-cir',
+        category: 'Export',
+        label: 'Download SPICE Netlist (.cir)',
+        hint: activeExportScopeLabel,
+        keywords: 'ngspice cir',
+        run: handleExportActiveSpice,
+      },
+      {
+        id: 'export-dsp',
+        category: 'Export',
+        label: 'Download DSP Firmware Header (.h)',
+        keywords: 'c header code',
+        run: handleExportFirmwareHeader,
+      },
+      {
+        id: 'tool-report',
+        category: 'Workspace',
+        label: 'Open Engineering Design Report (PDF)',
+        keywords: 'print pdf',
+        run: () => setReportOpen(true),
+      },
+      {
+        id: 'tool-db',
+        category: 'Workspace',
+        label: 'Open Component DB (LCSC / DigiKey)',
+        keywords: 'mosfet search',
+        run: () => setDrawerOpen(true),
+      },
+      {
+        id: 'tool-projects',
+        category: 'Workspace',
+        label: 'Open Projects & JSON Import',
+        keywords: 'save load',
+        run: () => {
+          setProjectImportStatus(null);
+          setProjectsModalOpen(true);
+        },
+      },
+      {
+        id: 'tool-ai',
+        category: 'Workspace',
+        label: aiEnabled ? 'Hide AI Engineer Agent' : 'Open AI Engineer Agent',
+        keywords: 'audit assistant',
+        run: handleToggleAiEngineer,
+      },
+    ];
+    return acts;
+  }, [outputMode, activeExportScopeLabel, aiEnabled]);
 
   return (
     <div className="min-h-screen bg-[#f5f7fa] dark:bg-[#0b0d14] text-[#111827] dark:text-[#eef0f5] flex flex-col transition-colors duration-150">
@@ -1587,30 +1860,201 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
             )}
           </div>
 
+          {/* Command Palette Trigger (Ctrl+K) */}
           <button
             type="button"
-            onClick={() => setAiKeysModalOpen(true)}
-            aria-expanded={aiKeysModalOpen}
-            className={`h-8 px-2.5 text-xs font-medium rounded-lg border transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
-              aiKeysModalOpen
-                ? 'bg-[#eceff4] dark:bg-[#1a1e28] border-cyan-500/60 text-cyan-700 dark:text-cyan-300'
-                : validateAiProviderConfig(aiConfig)
-                ? 'bg-amber-500/10 border-amber-500/50 text-amber-700 dark:text-amber-300 hover:bg-amber-500/15'
-                : 'bg-white dark:bg-[#1a1e28] border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-[#a3a9b8] hover:border-slate-300 dark:hover:border-white/[0.16]'
-            }`}
-            title={`Configure AI API Keys & Provider (${AI_PROVIDER_META[aiConfig.provider].label} · ${aiConfig.model})`}
+            onClick={() => setCmdPaletteOpen(true)}
+            className="h-8 px-2 text-xs font-medium rounded-lg bg-white dark:bg-[#1a1e28] border border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-[#a3a9b8] hover:border-cyan-500/50 hover:text-slate-900 dark:hover:text-[#eef0f5] transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+            title="Quick jump to any view, preset, optimizer, or export (Ctrl+K / Cmd+K)"
           >
-            <KeyRound className="w-3.5 h-3.5 shrink-0" />
-            <span>AI Keys · {AI_PROVIDER_META[aiConfig.provider].shortLabel}</span>
-            <span
-              className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                validateAiProviderConfig(aiConfig)
-                  ? 'bg-amber-500'
-                  : aiConfig.apiKey
-                  ? 'bg-emerald-500'
-                  : 'bg-cyan-500'
+            <Search className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
+            <span className="hidden xl:inline">Jump</span>
+            <kbd className="text-[10px] font-mono px-1 py-0.2 rounded bg-slate-100 dark:bg-[#0b0d14] border border-slate-200 dark:border-white/[0.08] text-slate-500 dark:text-[#7a8296]">
+              Ctrl+K
+            </kbd>
+          </button>
+
+          {/* Unified Export Menu (SPICE, QSPICE, LTspice, PLECS, DSP .h, JSON + Stop Time) */}
+          <div ref={exportMenuRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setExportMenuOpen((v) => !v)}
+              aria-expanded={exportMenuOpen}
+              className={`h-8 px-2.5 text-xs font-medium rounded-lg border transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
+                exportMenuOpen
+                  ? 'bg-[#eceff4] dark:bg-[#1a1e28] border-cyan-500/60 text-cyan-700 dark:text-cyan-300'
+                  : 'bg-white dark:bg-[#1a1e28] border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-[#eef0f5] hover:border-slate-300 dark:hover:border-white/[0.16]'
               }`}
-            />
+              title={`Export QSPICE, LTspice, PLECS, SPICE, DSP .h or JSON (${activeExportScopeLabel})`}
+            >
+              <Download className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>Export</span>
+              <ChevronDown className="w-3 h-3 opacity-70" />
+            </button>
+
+            {exportMenuOpen && (
+              <div
+                role="menu"
+                aria-label="Simulation and file exports"
+                className="absolute right-0 mt-2 w-80 rounded-xl bg-white dark:bg-[#11141c] border border-slate-200 dark:border-white/[0.12] shadow-2xl z-50 overflow-hidden"
+              >
+                <div className="px-3.5 py-2.5 border-b border-slate-200 dark:border-white/[0.08] bg-[#f5f7fa] dark:bg-[#0b0d14]">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold text-slate-900 dark:text-[#eef0f5]">
+                      Simulation &amp; CAD Exports
+                    </span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/30 text-cyan-700 dark:text-cyan-300">
+                      {activeExportScopeLabel}
+                    </span>
+                  </div>
+                  {/* Inline Simulation Stop Time */}
+                  <div className="mt-2 flex items-center justify-between gap-2 text-[11px] font-mono">
+                    <span className="inline-flex items-center gap-1 text-slate-500 dark:text-[#7a8296]">
+                      <Clock className="w-3 h-3" /> Stop Time:
+                    </span>
+                    {domainTab === 'combined' ||
+                    (outputMode === 'combined' && domainTab === 'small-signal') ? (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min={1}
+                          max={500}
+                          step={5}
+                          value={effectiveCombinedSimTimeMs}
+                          onChange={(e) => {
+                            const v = Number(e.target.value);
+                            setSystemLink((s) => ({
+                              ...s,
+                              combinedSimTime_ms: Number.isFinite(v) && v > 0 ? v : undefined,
+                            }));
+                          }}
+                          className="w-20 px-2 py-0.5 text-right rounded border border-slate-300 dark:border-white/[0.12] bg-white dark:bg-[#11141c] text-slate-900 dark:text-white"
+                        />
+                        <span className="text-slate-500">ms</span>
+                      </div>
+                    ) : domainTab === 'acdc' ? (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min={1}
+                          max={500}
+                          step={5}
+                          value={effectiveAcdcSimTimeMs}
+                          onChange={(e) => {
+                            const v = Number(e.target.value);
+                            setSystemLink((s) => ({
+                              ...s,
+                              acdcSimTime_ms: Number.isFinite(v) && v > 0 ? v : undefined,
+                            }));
+                          }}
+                          className="w-20 px-2 py-0.5 text-right rounded border border-slate-300 dark:border-white/[0.12] bg-white dark:bg-[#11141c] text-slate-900 dark:text-white"
+                        />
+                        <span className="text-slate-500">ms</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min={50}
+                          max={50000}
+                          step={100}
+                          value={effectiveDcdcSimTimeUs}
+                          onChange={(e) => {
+                            const v = Number(e.target.value);
+                            setSystemLink((s) => ({
+                              ...s,
+                              dcdcSimTime_us:
+                                Number.isFinite(v) && v >= 50 ? Math.round(v) : undefined,
+                            }));
+                          }}
+                          className="w-20 px-2 py-0.5 text-right rounded border border-slate-300 dark:border-white/[0.12] bg-white dark:bg-[#11141c] text-slate-900 dark:text-white"
+                        />
+                        <span className="text-slate-500">µs</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-1.5 space-y-1 text-xs">
+                  {(
+                    [
+                      {
+                        label: 'QSPICE Suite (.zip)',
+                        sub: '.qsch, C-Block, .qsym, .lib, .qraw',
+                        color: 'text-violet-600 dark:text-violet-400',
+                        onClick: handleExportActiveQspiceZip,
+                      },
+                      {
+                        label: 'LTspice Schematic (.asc)',
+                        sub: 'Grid-aligned schematic + .SUBCKTs',
+                        color: 'text-emerald-600 dark:text-emerald-400',
+                        onClick: handleExportActiveLtspiceAsc,
+                      },
+                      {
+                        label: 'PLECS Standalone (.zip)',
+                        sub: '.plecs, init_params.m, thermal XML',
+                        color: 'text-sky-600 dark:text-sky-400',
+                        onClick: handleExportActivePlecsZip,
+                      },
+                      {
+                        label: 'SPICE Netlist (.cir)',
+                        sub: 'Standalone ngspice / QSPICE / LTspice',
+                        color: 'text-cyan-600 dark:text-cyan-400',
+                        onClick: handleExportActiveSpice,
+                      },
+                      {
+                        label: 'DSP Control Header (.h)',
+                        sub: `${sharedMcu ? 'Shared MCU' : 'Dual MCU'} Tustin coefficients`,
+                        color: 'text-amber-600 dark:text-amber-400',
+                        onClick: handleExportFirmwareHeader,
+                      },
+                      {
+                        label: 'Active Stage Spec (.json)',
+                        sub: 'Design parameters + analytical results',
+                        color: 'text-slate-500 dark:text-slate-400',
+                        onClick: handleExportJson,
+                      },
+                      {
+                        label: 'Full 2-Stage Project (.json)',
+                        sub: 'Includes custom magnetics, caps & sim times',
+                        color: 'text-slate-500 dark:text-slate-400',
+                        onClick: handleExportFullProjectJson,
+                      },
+                    ] as const
+                  ).map((item) => (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={() => {
+                        item.onClick();
+                        setExportMenuOpen(false);
+                      }}
+                      className="w-full px-2.5 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-[#1a1e28] text-left flex items-center justify-between gap-2 cursor-pointer transition-colors"
+                    >
+                      <div className="min-w-0">
+                        <div className="font-medium text-slate-900 dark:text-[#eef0f5] truncate">
+                          {item.label}
+                        </div>
+                        <div className="text-[10px] font-mono text-slate-500 dark:text-[#7a8296] truncate">
+                          {item.sub}
+                        </div>
+                      </div>
+                      <Download className={`w-3.5 h-3.5 shrink-0 ${item.color}`} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setReportOpen(true)}
+            className="h-8 px-3 text-xs font-medium rounded-lg bg-[#111827] dark:bg-cyan-500 hover:bg-slate-800 dark:hover:bg-cyan-400 text-white dark:text-[#07080d] transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
+            title="Generate engineering design report with derivations, graphs & PDF print"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            Report
           </button>
 
           <button
@@ -1622,21 +2066,19 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
                 ? 'bg-cyan-500/12 border-cyan-500/60 text-cyan-700 dark:text-cyan-300'
                 : 'bg-white dark:bg-[#1a1e28] border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-[#a3a9b8] hover:border-slate-300 dark:hover:border-white/[0.16]'
             }`}
-            title="Toggle AI Engineer Assistant to audit converter state, propose verified fixes, and verify safety"
+            title={`Toggle AI Engineer Assistant (${AI_PROVIDER_META[aiConfig.provider].label} · ${aiConfig.model})`}
           >
             <Bot className="w-3.5 h-3.5 shrink-0" />
             <span>AI Agent</span>
-            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${aiEnabled ? 'bg-cyan-500' : 'bg-slate-400 dark:bg-slate-600'}`} />
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setReportOpen(true)}
-            className="h-8 px-3 text-xs font-medium rounded-lg bg-[#111827] dark:bg-cyan-500 hover:bg-slate-800 dark:hover:bg-cyan-400 text-white dark:text-[#07080d] transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
-            title="Generate engineering design report with derivations, graphs & PDF print"
-          >
-            <FileText className="w-3.5 h-3.5" />
-            Generate Report
+            <span
+              className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                aiEnabled
+                  ? 'bg-cyan-500'
+                  : validateAiProviderConfig(aiConfig)
+                  ? 'bg-amber-500'
+                  : 'bg-emerald-500'
+              }`}
+            />
           </button>
 
           <button
@@ -1645,44 +2087,8 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
             className="h-8 px-2.5 text-xs font-medium rounded-lg bg-white dark:bg-[#1a1e28] border border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-[#eef0f5] hover:border-slate-300 dark:hover:border-white/[0.16] transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
             title="Open LCSC / DigiKey Component Database and BOM Exporter"
           >
-            <Search className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
-            Component DB
-          </button>
-
-          <button
-            type="button"
-            onClick={handlePinToggle}
-            className={`h-8 px-2.5 text-xs font-medium rounded-lg border transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer ${
-              isPinned
-                ? 'bg-amber-500/10 border-amber-500/50 text-amber-700 dark:text-amber-300'
-                : 'bg-white dark:bg-[#1a1e28] border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-[#a3a9b8] hover:border-slate-300 dark:hover:border-white/[0.16]'
-            }`}
-            title="Pin current curves as reference overlay"
-          >
-            <Pin className="w-3.5 h-3.5" />
-            {isPinned ? 'Pinned' : 'Pin Ref'}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleUndo}
-            disabled={historyStack.past.length === 0}
-            className="h-8 w-8 rounded-lg bg-white dark:bg-[#1a1e28] border border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-[#a3a9b8] hover:border-slate-300 dark:hover:border-white/[0.16] disabled:opacity-40 inline-flex items-center justify-center shrink-0 cursor-pointer transition-colors"
-            title="Undo last design edit (Ctrl+Z)"
-            aria-label="Undo"
-          >
-            <Undo2 className="w-3.5 h-3.5" />
-          </button>
-
-          <button
-            type="button"
-            onClick={handleRedo}
-            disabled={historyStack.future.length === 0}
-            className="h-8 w-8 rounded-lg bg-white dark:bg-[#1a1e28] border border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-[#a3a9b8] hover:border-slate-300 dark:hover:border-white/[0.16] disabled:opacity-40 inline-flex items-center justify-center shrink-0 cursor-pointer transition-colors"
-            title="Redo design edit (Ctrl+Shift+Z)"
-            aria-label="Redo"
-          >
-            <Redo2 className="w-3.5 h-3.5" />
+            <Cpu className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
+            <span className="hidden sm:inline">Parts DB</span>
           </button>
 
           <button
@@ -1692,31 +2098,34 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
               setProjectsModalOpen(true);
             }}
             className="h-8 px-2.5 text-xs font-medium rounded-lg bg-white dark:bg-[#1a1e28] border border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-[#a3a9b8] hover:border-slate-300 dark:hover:border-white/[0.16] inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-colors"
-            title="Save/Load Projects, Import JSON, Export LTspice (.asc), SPICE (.cir) & Embedded C Header (.h)"
+            title="Save/Load Projects & Import JSON"
           >
             <FolderOpen className="w-3.5 h-3.5 text-slate-500 dark:text-[#7a8296]" />
-            <span>Projects</span>
+            <span className="hidden sm:inline">Projects</span>
           </button>
 
-          <button
-            type="button"
-            onClick={handleExportJson}
-            className="h-8 px-2.5 text-xs font-medium rounded-lg bg-white dark:bg-[#1a1e28] border border-slate-200 dark:border-white/[0.08] text-slate-700 dark:text-[#a3a9b8] hover:border-slate-300 dark:hover:border-white/[0.16] inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-colors"
-            title="Export active domain specification as JSON"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Export
-          </button>
-
-          <button
-            type="button"
-            onClick={handleReset}
-            className="h-8 w-8 rounded-lg bg-white dark:bg-[#1a1e28] border border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-[#a3a9b8] hover:border-slate-300 dark:hover:border-white/[0.16] inline-flex items-center justify-center shrink-0 cursor-pointer transition-colors"
-            title="Reset current tab to default preset"
-            aria-label="Reset current tab to default preset"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </button>
+          <div className="inline-flex items-center rounded-lg border border-slate-200 dark:border-white/[0.08] bg-white dark:bg-[#1a1e28] overflow-hidden shrink-0">
+            <button
+              type="button"
+              onClick={handleUndo}
+              disabled={historyStack.past.length === 0}
+              className="h-8 w-8 text-slate-600 dark:text-[#a3a9b8] hover:bg-slate-100 dark:hover:bg-white/[0.06] disabled:opacity-35 inline-flex items-center justify-center cursor-pointer transition-colors"
+              title="Undo last design edit (Ctrl+Z)"
+              aria-label="Undo"
+            >
+              <Undo2 className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={handleRedo}
+              disabled={historyStack.future.length === 0}
+              className="h-8 w-8 border-l border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-[#a3a9b8] hover:bg-slate-100 dark:hover:bg-white/[0.06] disabled:opacity-35 inline-flex items-center justify-center cursor-pointer transition-colors"
+              title="Redo design edit (Ctrl+Shift+Z)"
+              aria-label="Redo"
+            >
+              <Redo2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
 
           <button
             type="button"
@@ -1731,6 +2140,85 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
               <Moon className="w-3.5 h-3.5 text-slate-700" />
             )}
           </button>
+
+          {/* Secondary Actions Overflow Menu (Pin Ref, AI Keys, Reset) */}
+          <div ref={moreMenuRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setMoreMenuOpen((v) => !v)}
+              aria-expanded={moreMenuOpen}
+              aria-label="More workspace tools"
+              className={`h-8 w-8 rounded-lg border inline-flex items-center justify-center shrink-0 cursor-pointer transition-colors ${
+                moreMenuOpen || isPinned
+                  ? 'bg-amber-500/10 border-amber-500/50 text-amber-700 dark:text-amber-300'
+                  : 'bg-white dark:bg-[#1a1e28] border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-[#a3a9b8] hover:border-slate-300 dark:hover:border-white/[0.16]'
+              }`}
+              title="More tools: Pin Reference, AI API Keys, Reset Stage"
+            >
+              <MoreHorizontal className="w-4 h-4" />
+            </button>
+
+            {moreMenuOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 mt-2 w-60 rounded-xl bg-white dark:bg-[#11141c] border border-slate-200 dark:border-white/[0.12] shadow-2xl z-50 p-1.5 space-y-1 text-xs"
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    handlePinToggle();
+                    setMoreMenuOpen(false);
+                  }}
+                  className="w-full px-2.5 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-[#1a1e28] flex items-center justify-between gap-2 text-left cursor-pointer"
+                >
+                  <span className="inline-flex items-center gap-2 font-medium text-slate-800 dark:text-[#eef0f5]">
+                    <Pin className={`w-3.5 h-3.5 ${isPinned ? 'text-amber-500' : 'text-slate-400'}`} />
+                    {isPinned ? 'Unpin Reference Curve' : 'Pin Curve as Reference'}
+                  </span>
+                  {isPinned && (
+                    <span className="text-[10px] font-mono text-amber-600 dark:text-amber-400">
+                      Active
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAiKeysModalOpen(true);
+                    setMoreMenuOpen(false);
+                  }}
+                  className="w-full px-2.5 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-[#1a1e28] flex items-center justify-between gap-2 text-left cursor-pointer"
+                >
+                  <span className="inline-flex items-center gap-2 font-medium text-slate-800 dark:text-[#eef0f5]">
+                    <KeyRound className="w-3.5 h-3.5 text-cyan-500" />
+                    AI Keys ({AI_PROVIDER_META[aiConfig.provider].shortLabel})
+                  </span>
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      validateAiProviderConfig(aiConfig)
+                        ? 'bg-amber-500'
+                        : aiConfig.apiKey
+                        ? 'bg-emerald-500'
+                        : 'bg-cyan-500'
+                    }`}
+                  />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleReset();
+                    setMoreMenuOpen(false);
+                  }}
+                  className="w-full px-2.5 py-2 rounded-lg hover:bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center gap-2 font-medium text-left cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Reset Active Stage Preset
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -1877,13 +2365,103 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
 
       {/* WORKBENCH + COLLAPSIBLE RIGHT-SIDE AI ENGINEER DRAWER */}
       <div className="flex-1 flex items-start min-w-0">
-        <main className="flex-1 min-w-0 max-w-[1640px] w-full mx-auto p-3 sm:p-4 lg:p-5">
+        <main className="flex-1 min-w-0 max-w-[1640px] w-full mx-auto p-3 sm:p-4 lg:p-5 space-y-3">
+          {/* Pinned Reference Comparison Chip */}
+          {domainTab === 'acdc' && pinnedAcdc && pinnedAcdcRes && (
+            <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg border border-amber-500/40 bg-amber-500/10 text-xs font-mono">
+              <div className="flex flex-wrap items-center gap-2 text-amber-800 dark:text-amber-200">
+                <Pin className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                <span>
+                  Pinned Ref: <strong>{pinnedAcdc.Vac_rms_V}Vac → {pinnedAcdc.Vdc_bus_V}V @ {pinnedAcdc.Pout_W}W</strong> ({pinnedAcdcRes.efficiency_pct.toFixed(2)}%)
+                </span>
+                <span className="text-slate-500 dark:text-slate-400">·</span>
+                <span>
+                  Δη ={' '}
+                  <strong className={acdcRes.efficiency_pct >= pinnedAcdcRes.efficiency_pct ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
+                    {acdcRes.efficiency_pct - pinnedAcdcRes.efficiency_pct >= 0 ? '+' : ''}
+                    {(acdcRes.efficiency_pct - pinnedAcdcRes.efficiency_pct).toFixed(2)}%
+                  </strong>
+                  {' '}· ΔPloss ={' '}
+                  <strong>
+                    {acdcRes.Ptotal_loss_W - pinnedAcdcRes.Ptotal_loss_W >= 0 ? '+' : ''}
+                    {(acdcRes.Ptotal_loss_W - pinnedAcdcRes.Ptotal_loss_W).toFixed(1)}W
+                  </strong>
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPinnedAcdc(null);
+                  pushToast('Unpinned AC-DC reference', 'info');
+                }}
+                className="px-2 py-0.5 rounded border border-amber-500/40 hover:bg-amber-500/20 text-amber-800 dark:text-amber-200 text-[11px] cursor-pointer"
+              >
+                Unpin
+              </button>
+            </div>
+          )}
+
+          {domainTab !== 'acdc' && domainTab !== 'combined' && pinnedDcdc && pinnedDcdcRes && (
+            <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-lg border border-amber-500/40 bg-amber-500/10 text-xs font-mono">
+              <div className="flex flex-wrap items-center gap-2 text-amber-800 dark:text-amber-200">
+                <Pin className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                <span>
+                  Pinned Ref: <strong>{pinnedDcdc.Vin_nom_V}V → {pinnedDcdc.Vout_V}V @ {pinnedDcdc.Pout_W}W</strong> ({pinnedDcdcRes.efficiency_pct.toFixed(2)}%)
+                </span>
+                <span className="text-slate-500 dark:text-slate-400">·</span>
+                <span>
+                  Δη ={' '}
+                  <strong className={dcdcRes.efficiency_pct >= pinnedDcdcRes.efficiency_pct ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
+                    {dcdcRes.efficiency_pct - pinnedDcdcRes.efficiency_pct >= 0 ? '+' : ''}
+                    {(dcdcRes.efficiency_pct - pinnedDcdcRes.efficiency_pct).toFixed(2)}%
+                  </strong>
+                  {' '}· ΔPloss ={' '}
+                  <strong>
+                    {dcdcRes.Ptotal_loss_W - pinnedDcdcRes.Ptotal_loss_W >= 0 ? '+' : ''}
+                    {(dcdcRes.Ptotal_loss_W - pinnedDcdcRes.Ptotal_loss_W).toFixed(1)}W
+                  </strong>
+                  {' '}· ΔTj,pri ={' '}
+                  <strong>
+                    {dcdcRes.Tj_pri_C - pinnedDcdcRes.Tj_pri_C >= 0 ? '+' : ''}
+                    {(dcdcRes.Tj_pri_C - pinnedDcdcRes.Tj_pri_C).toFixed(1)}°C
+                  </strong>
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPinnedDcdc(null);
+                  pushToast('Unpinned DC-DC reference', 'info');
+                }}
+                className="px-2 py-0.5 rounded border border-amber-500/40 hover:bg-amber-500/20 text-amber-800 dark:text-amber-200 text-[11px] cursor-pointer"
+              >
+                Unpin
+              </button>
+            </div>
+          )}
+
           {domainTab === 'acdc' ? (
             <AcDcWorkbench
               state={acdcState}
               onChange={setAcdcState}
               res={acdcRes}
               pinnedRes={pinnedAcdcRes}
+              dcdcState={dcdcState}
+              dcdcRes={dcdcRes}
+              outputMode={outputMode}
+              sharedMcu={sharedMcu}
+              dcdcSimTimeUs={systemLink.dcdcSimTime_us}
+              onChangeDcdcSimTimeUs={(v) =>
+                setSystemLink((s) => ({ ...s, dcdcSimTime_us: v }))
+              }
+              acdcSimTimeMs={systemLink.acdcSimTime_ms}
+              onChangeAcdcSimTimeMs={(v) =>
+                setSystemLink((s) => ({ ...s, acdcSimTime_ms: v }))
+              }
+              combinedSimTimeMs={systemLink.combinedSimTime_ms}
+              onChangeCombinedSimTimeMs={(v) =>
+                setSystemLink((s) => ({ ...s, combinedSimTime_ms: v }))
+              }
               onOpenPartDrawer={() => setDrawerOpen(true)}
               onOpenSmallSignalLab={() => setDomainTab('small-signal')}
               requestedSubTab={acdcSubTab}
@@ -1922,6 +2500,78 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
             />
           ) : domainTab === 'combined' ? (
             <div className="space-y-4">
+              {/* Combined Simulation & Export Action Bar */}
+              <div className="bg-white dark:bg-[#11141c] border border-slate-200 dark:border-white/[0.08] rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-3 text-xs font-mono">
+                  <span className="font-semibold text-slate-900 dark:text-[#eef0f5] font-sans">
+                    2-Stage Combined Simulation Export
+                  </span>
+                  <label className="inline-flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-[#7a8296]">
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>Stop Time:</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={500}
+                      step={5}
+                      value={effectiveCombinedSimTimeMs}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        setSystemLink((s) => ({
+                          ...s,
+                          combinedSimTime_ms: Number.isFinite(v) && v > 0 ? v : undefined,
+                        }));
+                      }}
+                      className="w-16 px-2 py-0.5 text-right rounded border border-slate-300 dark:border-white/[0.12] bg-slate-50 dark:bg-[#0b0d14] text-slate-900 dark:text-white font-bold"
+                    />
+                    <span>ms</span>
+                  </label>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5 text-xs font-mono">
+                  <button
+                    type="button"
+                    onClick={handleExportActiveQspiceZip}
+                    className="px-2.5 py-1.5 rounded-lg border border-violet-500/40 bg-violet-500/10 hover:bg-violet-500/20 text-violet-700 dark:text-violet-300 inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Combined QSPICE .zip
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportActiveLtspiceAsc}
+                    className="px-2.5 py-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    LTspice .asc
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportActivePlecsZip}
+                    className="px-2.5 py-1.5 rounded-lg border border-sky-500/40 bg-sky-500/10 hover:bg-sky-500/20 text-sky-700 dark:text-sky-300 inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    PLECS .zip
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportActiveSpice}
+                    className="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-white/[0.12] bg-slate-50 dark:bg-[#1a1e28] hover:border-cyan-500/50 text-slate-700 dark:text-[#eef0f5] inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    SPICE .cir
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportFirmwareHeader}
+                    className="px-2.5 py-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 inline-flex items-center gap-1.5 cursor-pointer transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    DSP .h
+                  </button>
+                </div>
+              </div>
+
               <CombinedSystemSchematicView
                 acdcRes={acdcRes}
                 dcdcRes={dcdcRes}
@@ -2352,6 +3002,45 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* COMMAND PALETTE (Ctrl+K / Cmd+K) */}
+      <CommandPaletteModal
+        isOpen={cmdPaletteOpen}
+        onClose={() => setCmdPaletteOpen(false)}
+        actions={commandPaletteActions}
+      />
+
+      {/* NON-BLOCKING TOAST FEEDBACK STACK */}
+      {toasts.length > 0 && (
+        <div
+          aria-live="polite"
+          className="no-print fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm pointer-events-none"
+        >
+          {toasts.map((t) => (
+            <div
+              key={t.id}
+              className={`pointer-events-auto px-3.5 py-2 rounded-lg border shadow-lg text-xs font-medium flex items-center gap-2 backdrop-blur-md ${
+                t.tone === 'warn'
+                  ? 'bg-amber-50/95 dark:bg-[#1a1610]/95 border-amber-500/50 text-amber-800 dark:text-amber-200'
+                  : t.tone === 'info'
+                  ? 'bg-white/95 dark:bg-[#11141c]/95 border-cyan-500/40 text-slate-800 dark:text-[#eef0f5]'
+                  : 'bg-emerald-50/95 dark:bg-[#0e1a15]/95 border-emerald-500/50 text-emerald-800 dark:text-emerald-200'
+              }`}
+            >
+              <CheckCircle2
+                className={`w-3.5 h-3.5 shrink-0 ${
+                  t.tone === 'warn'
+                    ? 'text-amber-500'
+                    : t.tone === 'info'
+                    ? 'text-cyan-500'
+                    : 'text-emerald-500'
+                }`}
+              />
+              <span className="truncate">{t.message}</span>
+            </div>
+          ))}
         </div>
       )}
     </div>

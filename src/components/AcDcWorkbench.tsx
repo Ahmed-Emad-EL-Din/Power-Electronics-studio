@@ -1,16 +1,22 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ACDC_PRESETS,
+  DCDC_PRESETS,
   AcDcControlType,
   AcDcDesignState,
   AcDcTopologyType,
   SEMICONDUCTOR_DATABASE,
 } from '../data/databases';
 import { AcDcResults } from '../engine/acdcEngine';
+import { DcDcResults, solveDcDcDesign } from '../engine/dcdcEngine';
+import type { AcDcDesignState as _AcDcDesignState, DcDcDesignState } from '../data/databases';
+import type { ProjectOutputMode } from '../engine/systemCascadeEngine';
+import { TransientAndMonteCarloLab } from './TransientAndMonteCarloLab';
 import { AcDcSchematicView } from './CircuitSchematics';
 import { InteractiveChart } from './InteractiveChart';
 import { MathFormula } from './MathFormula';
 import { ResizableSidebarWindow } from './ResizableSidebarWindow';
+import { SidebarSection } from './SidebarSection';
 import { AutoSolverBanner, LockToggleButton } from './AutoSolverControls';
 import { useDesignSolver } from './DesignSolverContext';
 import { AcDcLockableKey } from '../engine/autoOptimizer';
@@ -40,6 +46,16 @@ interface AcDcWorkbenchProps {
   onChange: (next: AcDcDesignState) => void;
   res: AcDcResults;
   pinnedRes: AcDcResults | null;
+  dcdcState?: DcDcDesignState;
+  dcdcRes?: DcDcResults;
+  outputMode?: ProjectOutputMode;
+  sharedMcu?: boolean;
+  dcdcSimTimeUs?: number;
+  onChangeDcdcSimTimeUs?: (v: number | undefined) => void;
+  acdcSimTimeMs?: number;
+  onChangeAcdcSimTimeMs?: (v: number | undefined) => void;
+  combinedSimTimeMs?: number;
+  onChangeCombinedSimTimeMs?: (v: number | undefined) => void;
   onOpenPartDrawer?: () => void;
   onOpenSmallSignalLab?: () => void;
   requestedSubTab?: AcDcSubTab;
@@ -50,6 +66,7 @@ interface AcDcWorkbenchProps {
 
 export type AcDcSubTab =
   | 'schematic'
+  | 'scope-sim'
   | 'graphs'
   | 'control'
   | 'harmonics'
@@ -65,6 +82,16 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
   onChange,
   res,
   pinnedRes,
+  dcdcState,
+  dcdcRes,
+  outputMode = 'combined',
+  sharedMcu = true,
+  dcdcSimTimeUs,
+  onChangeDcdcSimTimeUs,
+  acdcSimTimeMs,
+  onChangeAcdcSimTimeMs,
+  combinedSimTimeMs,
+  onChangeCombinedSimTimeMs,
   onOpenPartDrawer,
   onOpenSmallSignalLab,
   requestedSubTab,
@@ -185,10 +212,11 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
         />
 
         {/* Topology & Control Architecture */}
-        <div className="border-t border-slate-200 dark:border-slate-800 pt-3 space-y-2.5">
-          <div className="text-xs font-semibold text-slate-900 dark:text-slate-100">
-            PFC Topology &amp; Control
-          </div>
+        <SidebarSection
+          title="PFC Topology & Switch"
+          summary={`${res.nPhases}-Ph · ${state.controlType.toUpperCase()}`}
+          defaultOpen={true}
+        >
 
           <div>
             <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
@@ -283,13 +311,14 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
               </div>
             )}
           </div>
-        </div>
+        </SidebarSection>
 
         {/* AC Grid & DC Bus Specs */}
-        <div className="border-t border-slate-200 dark:border-slate-800 pt-3 space-y-2.5">
-          <div className="text-xs font-semibold text-slate-900 dark:text-slate-100">
-            AC Grid &amp; DC Bus Specs
-          </div>
+        <SidebarSection
+          title="AC Grid & DC Bus Specs"
+          summary={`${state.Vac_rms_V}Vac→${state.Vdc_bus_V}V · ${state.Pout_W}W`}
+          defaultOpen={true}
+        >
 
           <div className="grid grid-cols-2 gap-2.5">
             <div>
@@ -472,13 +501,15 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
               />
             </div>
           </div>
-        </div>
+        </SidebarSection>
 
         {/* Magnetics & Hold-Up Capacitor */}
-        <div className="border-t border-slate-200 dark:border-slate-800 pt-3 space-y-2.5">
-          <div className="text-xs font-semibold text-slate-900 dark:text-slate-100">
-            Boost Inductors &amp; DC-Link Cap
-          </div>
+        <SidebarSection
+          title="Boost Inductors & DC-Link Cap"
+          summary={`${state.Lpfc_uH}µH · ${state.Cdc_uF}µF`}
+          defaultOpen={false}
+          alertStatus={res.saturationCheck.status}
+        >
 
           <div className="grid grid-cols-2 gap-2.5">
             <div>
@@ -689,14 +720,15 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
               />
             </div>
           </div>
-        </div>
+        </SidebarSection>
 
         {/* Control Loop Tuning */}
-        <div className="border-t border-slate-200 dark:border-slate-800 pt-3 space-y-2.5">
-          <div className="flex items-center justify-between">
-            <div className="text-xs font-semibold text-slate-900 dark:text-slate-100">
-              Loop Bandwidth &amp; Phase Margin
-            </div>
+        <SidebarSection
+          title="Loop Bandwidth & Phase Margin"
+          summary={`fci ${state.fc_i_kHz}kHz · fcv ${state.fc_v_Hz}Hz`}
+          defaultOpen={false}
+        >
+          <div className="flex items-center justify-end">
             {onOpenSmallSignalLab && (
               <button
                 type="button"
@@ -877,7 +909,7 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
               />
             </div>
           )}
-        </div>
+        </SidebarSection>
       </ResizableSidebarWindow>
 
       {/* ===================================================================== */}
@@ -975,43 +1007,154 @@ export const AcDcWorkbench: React.FC<AcDcWorkbenchProps> = ({
           </div>
         </div>
 
-        {/* Sub-Tab Navigation */}
-        <div
-          ref={subTabNavRef}
-          className="scroll-mt-20 flex flex-wrap items-center gap-1.5 border-b border-slate-200 dark:border-white/[0.08] pb-2.5"
-        >
-          {(
-            [
-              { id: 'schematic', label: 'Schematic & Variants', icon: <Zap className="w-3.5 h-3.5" /> },
-              { id: 'graphs', label: 'Ripple, Hold-Up & Bode', icon: <Activity className="w-3.5 h-3.5" /> },
-              { id: 'control', label: 'Control & DSP', icon: <Cpu className="w-3.5 h-3.5" /> },
-              { id: 'harmonics', label: 'Harmonics & ZCD', icon: <BarChart3 className="w-3.5 h-3.5" /> },
-              { id: 'all-inductors', label: 'All Inductors', icon: <Magnet className="w-3.5 h-3.5" /> },
-              { id: 'dc-link', label: 'All Capacitors & Life', icon: <BatteryCharging className="w-3.5 h-3.5" /> },
-              { id: 'magnetics', label: 'PFC DC-Bias Curves', icon: <Magnet className="w-3.5 h-3.5" />, alert: res.saturationCheck.status === 'critical' },
-              { id: 'inrush', label: 'Inrush & Pre-Charge', icon: <ShieldAlert className="w-3.5 h-3.5" /> },
-              { id: 'emi', label: 'EMI & Earth Leakage', icon: <Radio className="w-3.5 h-3.5" /> },
-              { id: 'efficiency', label: 'Efficiency & Thermal', icon: <Flame className="w-3.5 h-3.5" /> },
-            ] as { id: AcDcSubTab; label: string; icon: React.ReactNode; alert?: boolean }[]
-          ).map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveSubTab(tab.id)}
-              className={`px-3 py-1.5 rounded-lg border text-xs font-medium inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
-                activeSubTab === tab.id
-                  ? 'bg-[#eceff4] dark:bg-[#1a1e28] border-cyan-500/50 text-cyan-700 dark:text-cyan-300 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
-                  : tab.alert
-                  ? 'bg-rose-500/10 border-rose-500/40 text-rose-600 dark:text-rose-400'
-                  : 'bg-white dark:bg-[#11141c] border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-[#a3a9b8] hover:border-slate-300 dark:hover:border-white/[0.16] hover:text-slate-900 dark:hover:text-[#eef0f5]'
-              }`}
-            >
-              {tab.icon}
-              <span>{tab.label}</span>
-              {tab.alert && <AlertTriangle className="w-3.5 h-3.5 shrink-0" />}
-            </button>
-          ))}
-        </div>
+        {/* Grouped 6-Tab Sub-Navigation Bar (1 crisp row + contextual sub-views) */}
+        {(() => {
+          const acdcGroups: {
+            id: string;
+            label: string;
+            icon: React.ReactNode;
+            alert?: boolean;
+            views: { id: AcDcSubTab; label: string; alert?: boolean }[];
+          }[] = [
+            {
+              id: 'overview',
+              label: 'Overview',
+              icon: <Zap className="w-3.5 h-3.5" />,
+              views: [{ id: 'schematic', label: 'Schematic & Variants' }],
+            },
+            {
+              id: 'waveforms',
+              label: 'Waveforms & Sim',
+              icon: <Activity className="w-3.5 h-3.5" />,
+              views: [
+                { id: 'graphs', label: 'Ripple, Hold-Up & Bode' },
+                { id: 'scope-sim', label: 'SPICE / QSPICE / PLECS Sim' },
+                { id: 'harmonics', label: 'Harmonics & ZCD' },
+              ],
+            },
+            {
+              id: 'magnetics-grp',
+              label: 'Magnetics',
+              icon: <Magnet className="w-3.5 h-3.5" />,
+              alert: res.saturationCheck.status === 'critical',
+              views: [
+                {
+                  id: 'magnetics',
+                  label: 'PFC DC-Bias Curves',
+                  alert: res.saturationCheck.status === 'critical',
+                },
+                { id: 'all-inductors', label: 'All Inductors' },
+              ],
+            },
+            {
+              id: 'dclink-inrush',
+              label: 'DC-Link & Inrush',
+              icon: <BatteryCharging className="w-3.5 h-3.5" />,
+              views: [
+                { id: 'dc-link', label: 'All Capacitors & Life' },
+                { id: 'inrush', label: 'Inrush & Pre-Charge' },
+              ],
+            },
+            {
+              id: 'emi-thermal',
+              label: 'EMI & Thermal',
+              icon: <Flame className="w-3.5 h-3.5" />,
+              views: [
+                { id: 'efficiency', label: 'Efficiency & Thermal' },
+                { id: 'emi', label: 'EMI & Earth Leakage' },
+              ],
+            },
+            {
+              id: 'control-grp',
+              label: 'Control & DSP',
+              icon: <Cpu className="w-3.5 h-3.5" />,
+              views: [{ id: 'control', label: 'Control & DSP' }],
+            },
+          ];
+
+          const activeGroup =
+            acdcGroups.find((g) => g.views.some((v) => v.id === activeSubTab)) ?? acdcGroups[0];
+
+          return (
+            <div ref={subTabNavRef} className="scroll-mt-20 space-y-2 border-b border-slate-200 dark:border-white/[0.08] pb-2.5">
+              <div className="flex flex-wrap items-center gap-1.5">
+                {acdcGroups.map((grp) => {
+                  const isActive = grp.id === activeGroup.id;
+                  return (
+                    <button
+                      key={grp.id}
+                      type="button"
+                      onClick={() => setActiveSubTab(grp.views[0].id)}
+                      className={`px-3 py-1.5 rounded-lg border text-xs font-medium inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+                        isActive
+                          ? 'bg-[#eceff4] dark:bg-[#1a1e28] border-cyan-500/60 text-cyan-700 dark:text-cyan-300 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
+                          : grp.alert
+                          ? 'bg-rose-500/10 border-rose-500/40 text-rose-600 dark:text-rose-400'
+                          : 'bg-white dark:bg-[#11141c] border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-[#a3a9b8] hover:border-slate-300 dark:hover:border-white/[0.16] hover:text-slate-900 dark:hover:text-[#eef0f5]'
+                      }`}
+                    >
+                      {grp.icon}
+                      <span>{grp.label}</span>
+                      {grp.views.length > 1 && (
+                        <span className="text-[10px] font-mono opacity-65">
+                          ({grp.views.length})
+                        </span>
+                      )}
+                      {grp.alert && <AlertTriangle className="w-3.5 h-3.5 shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {activeGroup.views.length > 1 && (
+                <div className="flex flex-wrap items-center gap-1 bg-[#eceff4]/75 dark:bg-[#07080d] p-1 rounded-lg border border-slate-200/80 dark:border-white/[0.07]">
+                  {activeGroup.views.map((view) => {
+                    const active = activeSubTab === view.id;
+                    return (
+                      <button
+                        key={view.id}
+                        type="button"
+                        onClick={() => setActiveSubTab(view.id)}
+                        className={`px-2.5 py-1 text-[11px] font-medium rounded-md inline-flex items-center gap-1.5 whitespace-nowrap cursor-pointer transition-colors ${
+                          active
+                            ? 'bg-white dark:bg-[#1a1e28] text-cyan-700 dark:text-cyan-300 border border-slate-200 dark:border-white/[0.12] shadow-xs'
+                            : view.alert
+                            ? 'text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 border border-transparent'
+                            : 'text-slate-600 dark:text-[#a3a9b8] hover:text-slate-900 dark:hover:text-[#eef0f5] border border-transparent'
+                        }`}
+                      >
+                        <span>{view.label}</span>
+                        {view.alert && <AlertTriangle className="w-3 h-3 shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* SPICE / QSPICE / PLECS SIMULATION EXPORT & LAB VIEW FOR AC-DC */}
+        {activeSubTab === 'scope-sim' && (() => {
+          const fallbackDcdcState = dcdcState ?? DCDC_PRESETS[0].state;
+          const fallbackDcdcRes = dcdcRes ?? solveDcDcDesign(fallbackDcdcState);
+          return (
+            <TransientAndMonteCarloLab
+              dcdcState={fallbackDcdcState}
+              dcdcRes={fallbackDcdcRes}
+              acdcState={state}
+              acdcRes={res}
+              outputMode={outputMode}
+              sharedMcu={sharedMcu}
+              dcdcSimTimeUs={dcdcSimTimeUs}
+              onChangeDcdcSimTimeUs={onChangeDcdcSimTimeUs}
+              acdcSimTimeMs={acdcSimTimeMs}
+              onChangeAcdcSimTimeMs={onChangeAcdcSimTimeMs}
+              combinedSimTimeMs={combinedSimTimeMs}
+              onChangeCombinedSimTimeMs={onChangeCombinedSimTimeMs}
+            />
+          );
+        })()}
 
         {/* =================================================================== */}
         {/* SUB-TAB 1: DYNAMIC SCHEMATIC, VARIANT MATRIX & EQUATIONS            */}
