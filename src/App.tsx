@@ -393,6 +393,9 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
   const acdcRes = useMemo(() => solveAcDcDesign(acdcState), [acdcState, dbVersion]);
   const dcdcRes = useMemo(() => solveDcDcDesign(dcdcState), [dcdcState, dbVersion]);
 
+  const preLinkBusRef = useRef<{ Vin_nom_V: number; Vin_min_V: number; Vin_max_V: number } | null>(null);
+  const preLinkLoadRef = useRef<{ Pout_W: number } | null>(null);
+
   const systemCascade = useMemo(
     () => solveSystemCascade(acdcState, acdcRes, dcdcState, dcdcRes),
     [acdcState, acdcRes, dcdcState, dcdcRes]
@@ -442,6 +445,8 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
 
   const applyWorkspaceSnapshot = (snap: StudioWorkspaceSnapshot) => {
     isApplyingHistoryRef.current = true;
+    preLinkBusRef.current = null;
+    preLinkLoadRef.current = null;
     clearDcdcChanges();
     clearAcdcChanges();
     setDcdcState({ ...snap.dcdcState });
@@ -980,24 +985,43 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
     setOpenAlertFilter((prev) => (prev === filter ? null : filter));
   };
 
+  const setStageLinks = (nextBus: boolean, nextLoad: boolean, nextOutputMode: ProjectOutputMode = outputMode) => {
+    if (nextBus && !systemLink.linkBusVoltage && !preLinkBusRef.current) {
+      preLinkBusRef.current = {
+        Vin_nom_V: dcdcState.Vin_nom_V,
+        Vin_min_V: dcdcState.Vin_min_V,
+        Vin_max_V: dcdcState.Vin_max_V,
+      };
+    } else if (!nextBus && systemLink.linkBusVoltage && preLinkBusRef.current) {
+      applyDcdcPatch(preLinkBusRef.current, null, { bypassAutoOpt: true });
+      preLinkBusRef.current = null;
+    }
+
+    if (nextLoad && !systemLink.linkLoadPower && !preLinkLoadRef.current) {
+      preLinkLoadRef.current = {
+        Pout_W: acdcState.Pout_W,
+      };
+    } else if (!nextLoad && systemLink.linkLoadPower && preLinkLoadRef.current) {
+      applyAcdcPatch(preLinkLoadRef.current, null, { bypassAutoOpt: true });
+      preLinkLoadRef.current = null;
+    }
+
+    setSystemLink((s) => ({
+      ...s,
+      outputMode: nextOutputMode,
+      linkBusVoltage: nextBus,
+      linkLoadPower: nextLoad,
+    }));
+  };
+
   const handleChangeOutputMode = (nextMode: ProjectOutputMode) => {
     if (nextMode === 'dcdc-only') {
-      setSystemLink((s) => ({
-        ...s,
-        outputMode: 'dcdc-only',
-        linkBusVoltage: false,
-        linkLoadPower: false,
-      }));
+      setStageLinks(false, false, 'dcdc-only');
       if (domainTab === 'acdc' || domainTab === 'combined') {
         setDomainTab('dcdc');
       }
     } else if (nextMode === 'acdc-only') {
-      setSystemLink((s) => ({
-        ...s,
-        outputMode: 'acdc-only',
-        linkBusVoltage: false,
-        linkLoadPower: false,
-      }));
+      setStageLinks(false, false, 'acdc-only');
       if (domainTab === 'dcdc' || domainTab === 'combined') {
         setDomainTab('acdc');
       }
@@ -1009,19 +1033,12 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
   const handleConnectTogether = () => {
     const bothOn = outputMode === 'combined' && systemLink.linkBusVoltage && systemLink.linkLoadPower;
     if (bothOn) {
-      setSystemLink((s) => ({
-        ...s,
-        outputMode: 'combined',
-        linkBusVoltage: false,
-        linkLoadPower: false,
-      }));
+      setStageLinks(false, false, 'combined');
+      pushToast('Unlinked stages & restored standalone bus/power setpoints', 'info');
     } else {
-      setSystemLink({
-        outputMode: 'combined',
-        linkBusVoltage: true,
-        linkLoadPower: true,
-      });
+      setStageLinks(true, true, 'combined');
       setDomainTab('combined');
+      pushToast('Linked Stage 1 bus voltage & Stage 2 load power together', 'success');
     }
   };
 
@@ -1186,6 +1203,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
 
   const handleReset = () => {
     if (domainTab === 'acdc') {
+      preLinkLoadRef.current = null;
       clearAcdcChanges();
       setAcdcState({ ...ACDC_PRESETS[0].state });
       setPinnedAcdc(null);
@@ -1193,6 +1211,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
       resetCapacitorConfigs(Object.keys(capacitorConfigs).filter((k) => k.startsWith('acdc-')));
       pushToast('Reset AC-DC PFC stage to default preset', 'info');
     } else {
+      preLinkBusRef.current = null;
       clearDcdcChanges();
       setDcdcState({ ...DCDC_PRESETS[0].state });
       setPinnedDcdc(null);
@@ -1649,14 +1668,14 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
   const handleAutoOptimizeActive = () => {
     if (domainTab === 'acdc') {
       optimizeAcdcNow();
-      pushToast('Auto-optimized AC-DC PFC stage');
+      pushToast('Auto-optimized AC-DC PFC parameters (specs & links preserved)');
     } else if (domainTab === 'combined') {
       optimizeAcdcNow();
       optimizeDcdcNow();
-      pushToast('Auto-optimized both AC-DC & DC-DC stages');
+      pushToast('Auto-optimized both AC-DC & DC-DC stages (specs & links preserved)');
     } else {
       optimizeDcdcNow();
-      pushToast('Auto-optimized DC-DC stage');
+      pushToast('Auto-optimized DC-DC parameters (specs & links preserved)');
     }
   };
 
@@ -1791,9 +1810,10 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
                   ? 'bg-white dark:bg-[#1c202b] text-emerald-700 dark:text-emerald-300 border border-emerald-500/40 shadow-2xs'
                   : 'text-slate-600 dark:text-[#a1a8b8] hover:text-slate-900 dark:hover:text-[#eef0f6] border border-transparent'
               }`}
+              title="View full 2-stage coupled AC-DC + DC-DC circuit diagram & export bundle"
             >
               <Layers className="w-3.5 h-3.5" aria-hidden="true" />
-              Combined
+              2-Stage View
             </button>
           )}
           <button
@@ -1878,7 +1898,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
             type="button"
             onClick={handleAutoOptimizeActive}
             className="h-8 px-2.5 text-xs font-medium rounded-lg bg-blue-50 dark:bg-blue-600/15 hover:bg-blue-100 dark:hover:bg-blue-600/25 border border-blue-300 dark:border-blue-500/35 text-blue-700 dark:text-blue-300 transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer"
-            title="Automatically recalculate unlocked parameters for optimal operation"
+            title="Auto-tune unlocked components & control loops while keeping input specs and stage links intact"
           >
             <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
             <span className="hidden lg:inline">Optimize</span>
@@ -2543,12 +2563,18 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
       <div className="no-print bg-[#eceef2]/80 dark:bg-[#090a0d] border-b border-slate-200 dark:border-white/[0.07] px-3 sm:px-4 lg:px-6 py-1.5 flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-1.5 sm:gap-2 text-[11px] font-mono">
         <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar min-w-0">
           {/* Project Output Scope Selector */}
-          <div className="inline-flex items-center bg-white/90 dark:bg-[#14171f] p-0.5 rounded-lg border border-slate-300/80 dark:border-white/[0.08] shrink-0">
+          <span className="text-[10px] font-sans font-semibold uppercase tracking-wide text-slate-500 dark:text-[#727b8e] shrink-0">
+            Scope:
+          </span>
+          <div
+            className="inline-flex items-center bg-white/90 dark:bg-[#14171f] p-0.5 rounded-lg border border-slate-300/80 dark:border-white/[0.08] shrink-0"
+            title="Choose whether this project builds a single standalone stage or a 2-stage AC-DC + DC-DC system"
+          >
             {(
               [
-                { id: 'dcdc-only', label: 'DC-DC Only' },
-                { id: 'acdc-only', label: 'AC-DC Only' },
-                { id: 'combined', label: 'Combined (AC-DC + DC-DC)' },
+                { id: 'dcdc-only', label: 'Single: DC-DC' },
+                { id: 'acdc-only', label: 'Single: AC-DC' },
+                { id: 'combined', label: '2-Stage System' },
               ] as { id: ProjectOutputMode; label: string }[]
             ).map((m) => (
               <button
@@ -2568,6 +2594,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
 
           {outputMode === 'combined' && (
             <>
+              <span className="text-slate-300 dark:text-white/[0.12] select-none hidden sm:inline">|</span>
               <button
                 type="button"
                 onClick={handleConnectTogether}
@@ -2576,42 +2603,42 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
                     ? 'bg-emerald-600 border-emerald-500 text-white font-semibold shadow-xs'
                     : 'bg-blue-600/10 hover:bg-blue-600/20 border-blue-500/45 text-blue-700 dark:text-blue-300 font-medium'
                 }`}
-                title="Connect AC-DC PFC output bus & DC-DC load power together and open unified circuit view"
+                title="Couple AC-DC Vdc_bus & DC-DC Pout into a unified 2-stage system (disconnecting restores standalone bus/power setpoints)"
               >
                 <Link2 className="w-3.5 h-3.5" aria-hidden="true" />
                 {systemLink.linkBusVoltage && systemLink.linkLoadPower
-                  ? 'Connected'
-                  : 'Connect Together'}
+                  ? 'Stages Linked'
+                  : 'Link Stages'}
               </button>
               <button
                 type="button"
                 onClick={() =>
-                  setSystemLink((s) => ({ ...s, linkBusVoltage: !s.linkBusVoltage }))
+                  setStageLinks(!systemLink.linkBusVoltage, systemLink.linkLoadPower, 'combined')
                 }
                 className={`px-2 py-0.5 rounded-md border cursor-pointer transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                   systemLink.linkBusVoltage
                     ? 'bg-white dark:bg-[#1c202b] border-blue-500/50 text-blue-700 dark:text-blue-300 font-medium'
                     : 'bg-white/70 dark:bg-[#14171f] border-slate-300 dark:border-white/[0.08] text-slate-600 dark:text-[#727b8e]'
                 }`}
-                title="Propagate AC-DC Vdc_bus & ripple directly into DC-DC Vin_nom/min/max"
+                title="Sync AC-DC Vdc_bus & hold-up into DC-DC Vin_nom/min/max (unlinking restores previous DC-DC Vin range)"
               >
                 <span className={`w-1.5 h-1.5 rounded-full ${systemLink.linkBusVoltage ? 'bg-blue-500' : 'bg-slate-400 dark:bg-slate-600'}`} />
-                Link Bus V ({acdcState.Vdc_bus_V}V → {dcdcState.Vin_nom_V}V)
+                Bus V ({acdcState.Vdc_bus_V}V → {dcdcState.Vin_nom_V}V)
               </button>
               <button
                 type="button"
                 onClick={() =>
-                  setSystemLink((s) => ({ ...s, linkLoadPower: !s.linkLoadPower }))
+                  setStageLinks(systemLink.linkBusVoltage, !systemLink.linkLoadPower, 'combined')
                 }
                 className={`px-2 py-0.5 rounded-md border cursor-pointer transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                   systemLink.linkLoadPower
                     ? 'bg-white dark:bg-[#1c202b] border-emerald-500/50 text-emerald-700 dark:text-emerald-300 font-medium'
                     : 'bg-white/70 dark:bg-[#14171f] border-slate-300 dark:border-white/[0.08] text-slate-600 dark:text-[#727b8e]'
                 }`}
-                title="Propagate DC-DC Pout / η_dcdc back into AC-DC PFC output power"
+                title="Sync DC-DC Pout / η_dcdc into AC-DC PFC output power (unlinking restores previous PFC Pout)"
               >
                 <span className={`w-1.5 h-1.5 rounded-full ${systemLink.linkLoadPower ? 'bg-emerald-500' : 'bg-slate-400 dark:bg-slate-600'}`} />
-                Link Load P ({systemCascade.P_pfc_required_W.toFixed(0)}W)
+                Load P ({systemCascade.P_pfc_required_W.toFixed(0)}W)
               </button>
               <div
                 className="inline-flex items-center rounded-md border border-slate-300 dark:border-white/[0.1] overflow-hidden shrink-0"
@@ -2905,6 +2932,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
                     onToggleSharedMcu={(shared) =>
                       setSystemLink((s) => ({ ...s, sharedMcu: shared }))
                     }
+                    embeddedInCombinedTab
                   />
                 </Suspense>
               </ErrorBoundary>
@@ -2928,7 +2956,7 @@ function AppContent({ acdcState, setAcdcState, dcdcState, setDcdcState }: AppCon
                     {acdcState.Vdc_bus_V}V · ΔV={acdcRes.Vdc_ripple_pp_V.toFixed(1)}Vpp · t_hold={acdcRes.tHold_actual_ms.toFixed(1)}ms
                   </div>
                   <div className="mt-1 text-[10px] text-slate-500">
-                    {systemLink.linkBusVoltage ? 'Bus Voltage Synchronized' : 'Click Connect Together to sync'}
+                    {systemLink.linkBusVoltage ? 'Bus Voltage Synchronized' : 'Click Link Stages to sync'}
                   </div>
                 </div>
                 <div className="bg-white dark:bg-[#14171f] border border-slate-200 dark:border-white/[0.08] rounded-lg p-3">

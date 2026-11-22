@@ -1471,20 +1471,20 @@ const AcDcSchematicSvgContent: React.FC<{
   const isDualBoostBridgeless = state.topology === 'dual-boost-bridgeless';
 
   const stage2Title = isTotem2Ph
-    ? 'INTERLEAVED BOOST INDUCTORS (L1 @ 0°, L2 @ 180°)'
+    ? 'BOOST L1/L2 (0° / 180°)'
     : isTotem1Ph
-    ? 'SINGLE-PHASE CCM BOOST INDUCTOR (L1)'
+    ? 'CCM BOOST INDUCTOR (L1)'
     : isDiodeBoost2Ph
-    ? 'DIODE BRIDGE (DB1–DB4) + INTERLEAVED L1, L2'
-    : 'DUAL-BOOST INDUCTORS (L1 POS, L2 NEG)';
+    ? 'BRIDGE (DB1–DB4) + L1, L2'
+    : 'DUAL-BOOST INDUCTORS (L1, L2)';
 
   const stage3Title = isTotem2Ph
-    ? '2-PH SiC/GaN LEGS (Q1–Q4) + 50/60Hz SYNC LEG (S1, S2)'
+    ? '2-PH SiC/GaN (Q1–Q4) + SYNC LEG (S1, S2)'
     : isTotem1Ph
-    ? 'FAST SiC/GaN LEG (Q1, Q2) + 50/60Hz SYNC LEG (S1, S2)'
+    ? 'FAST SiC/GaN (Q1, Q2) + SYNC LEG (S1, S2)'
     : isDiodeBoost2Ph
-    ? 'INTERLEAVED BOOST FETs (Q1, Q2) & SiC DIODES (D1, D2)'
-    : 'DUAL-BOOST CELLS (Q1/D1, Q2/D2) + CM RETURN DIODES (DR1, DR2)';
+    ? 'INTERLEAVED FETs (Q1, Q2) & DIODES (D1, D2)'
+    : 'DUAL-BOOST CELLS (Q1/D1, Q2/D2) + DR1, DR2';
 
   return (
     <>
@@ -1517,17 +1517,17 @@ const AcDcSchematicSvgContent: React.FC<{
             />
 
             {/* Section Header Callouts */}
-            <text x="30" y="23" fill="#06b6d4" fontSize="9" fontWeight="bold">
-              1. INPUT EMI FILTER (DM/CM) & PRE-CHARGE NODES
+            <text x="30" y="23" fill="#06b6d4" fontSize="8.5" fontWeight="bold">
+              1. INPUT EMI FILTER &amp; PRE-CHARGE
             </text>
-            <text x="305" y="23" fill="#38bdf8" fontSize="9" fontWeight="bold">
+            <text x="305" y="23" fill="#38bdf8" fontSize="8.5" fontWeight="bold">
               2. {stage2Title}
             </text>
-            <text x="545" y="23" fill="#a855f7" fontSize="9" fontWeight="bold">
+            <text x="545" y="23" fill="#a855f7" fontSize="8.5" fontWeight="bold">
               3. {stage3Title}
             </text>
-            <text x="872" y="23" fill="#10b981" fontSize="9" fontWeight="bold">
-              4. DC-LINK BUS CAPACITOR NETWORK (C_HF || C_DC1..N)
+            <text x="872" y="23" fill="#10b981" fontSize="8.5" fontWeight="bold">
+              4. DC-LINK BUS CAPS (C_HF || C_DC1..N)
             </text>
 
             {/* Half-Cycle Conduction Indicator Banner if active */}
@@ -2831,6 +2831,7 @@ export const CombinedSystemSchematicView: React.FC<{
   isConnected?: boolean;
   sharedMcu?: boolean;
   onToggleSharedMcu?: (shared: boolean) => void;
+  embeddedInCombinedTab?: boolean;
   reportOnly?: boolean;
 }> = ({
   acdcRes,
@@ -2838,6 +2839,7 @@ export const CombinedSystemSchematicView: React.FC<{
   isConnected = true,
   sharedMcu = true,
   onToggleSharedMcu,
+  embeddedInCombinedTab = false,
   reportOnly = false,
 }) => {
   const acdcState = acdcRes.state;
@@ -2872,40 +2874,41 @@ export const CombinedSystemSchematicView: React.FC<{
               Unified 2-Stage System Circuit Diagram (Exact Stage 1 + Stage 2 + Connected Control)
             </span>
             <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${isConnected && !vdcMismatch ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border-emerald-500/30' : 'bg-amber-500/10 text-amber-600 dark:text-amber-300 border-amber-500/30'}`}>
-              {isConnected ? 'DC-LINK CONNECTED TOGETHER' : 'LINKED BUS VIEW'} · {acdcState.Vac_rms_V}Vac → {acdcState.Vdc_bus_V}Vdc → {dcdcState.Vout_V}V @ {dcdcState.Pout_W}W
+              {isConnected ? 'STAGES LINKED (BUS + LOAD)' : 'INDEPENDENT BUS PREVIEW'} · {acdcState.Vac_rms_V}Vac → {acdcState.Vdc_bus_V}Vdc → {dcdcState.Vout_V}V @ {dcdcState.Pout_W}W
             </span>
           </div>
 
           <div className="flex items-center gap-1.5 flex-wrap">
-            {/* Same MCU vs Separate MCUs Selector */}
-            <div className="inline-flex rounded border border-slate-300 dark:border-slate-700 overflow-hidden text-[10px] font-mono">
-              <button
-                type="button"
-                onClick={() => onToggleSharedMcu?.(true)}
-                disabled={!onToggleSharedMcu}
-                className={`px-2 py-1 cursor-pointer ${
-                  sharedMcu
-                    ? 'bg-emerald-600 text-white font-bold'
-                    : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-                title="Single shared MCU runs both PFC and DC-DC control loops with PWM sync & direct Vdc feedforward"
-              >
-                Same MCU
-              </button>
-              <button
-                type="button"
-                onClick={() => onToggleSharedMcu?.(false)}
-                disabled={!onToggleSharedMcu}
-                className={`px-2 py-1 cursor-pointer border-l border-slate-300 dark:border-slate-700 ${
-                  !sharedMcu
-                    ? 'bg-amber-600 text-white font-bold'
-                    : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-                title="Two separate MCUs linked across an isolated PG_OK / Fault_Trip handshake"
-              >
-                Separate MCUs
-              </button>
-            </div>
+            {!embeddedInCombinedTab && (
+              <div className="inline-flex rounded border border-slate-300 dark:border-slate-700 overflow-hidden text-[10px] font-mono">
+                <button
+                  type="button"
+                  onClick={() => onToggleSharedMcu?.(true)}
+                  disabled={!onToggleSharedMcu}
+                  className={`px-2 py-1 cursor-pointer ${
+                    sharedMcu
+                      ? 'bg-emerald-600 text-white font-bold'
+                      : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                  title="Single shared MCU runs both PFC and DC-DC control loops with PWM sync & direct Vdc feedforward"
+                >
+                  Same MCU
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onToggleSharedMcu?.(false)}
+                  disabled={!onToggleSharedMcu}
+                  className={`px-2 py-1 cursor-pointer border-l border-slate-300 dark:border-slate-700 ${
+                    !sharedMcu
+                      ? 'bg-amber-600 text-white font-bold'
+                      : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                  title="Two separate MCUs linked across an isolated PG_OK / Fault_Trip handshake"
+                >
+                  Separate MCUs
+                </button>
+              </div>
+            )}
 
             <button
               type="button"
@@ -2945,61 +2948,65 @@ export const CombinedSystemSchematicView: React.FC<{
             >
               <Download className="w-3 h-3" /> SVG
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                const asc = generateCombinedSystemLtspiceAsc(acdcState, acdcRes, dcdcState, dcdcRes, sharedMcu);
-                const blob = new Blob([asc], { type: 'text/plain;charset=us-ascii' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `voltcraft_combined_${acdcState.topology}_to_${dcdcState.topology}.asc`;
-                a.click();
-                URL.revokeObjectURL(url);
-              }}
-              className="px-2.5 py-1 text-[11px] font-mono bg-emerald-600 hover:bg-emerald-500 text-white rounded inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
-              title="Download Combined 2-Stage LTspice .asc Schematic"
-            >
-              <FileCode className="w-3 h-3" /> LTspice .asc
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const bundle = generateCombinedSystemQspiceBundle(acdcState, acdcRes, dcdcState, dcdcRes, sharedMcu);
-                const copy = new Uint8Array(bundle.zipBytes.length);
-                copy.set(bundle.zipBytes);
-                const blob = new Blob([copy.buffer], { type: 'application/zip' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${bundle.baseName}_qspice.zip`;
-                a.click();
-                URL.revokeObjectURL(url);
-              }}
-              className="px-2.5 py-1 text-[11px] font-mono bg-amber-600 hover:bg-amber-500 text-white rounded inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
-              title="Download Combined 2-Stage QSPICE Bundle (.zip)"
-            >
-              <Archive className="w-3 h-3" /> QSPICE .zip
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const bundle = generateCombinedSystemPlecsBundle(acdcState, acdcRes, dcdcState, dcdcRes, sharedMcu);
-                const copy = new Uint8Array(bundle.zipBytes.length);
-                copy.set(bundle.zipBytes);
-                const blob = new Blob([copy.buffer], { type: 'application/zip' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `${bundle.baseName}_plecs.zip`;
-                a.click();
-                URL.revokeObjectURL(url);
-              }}
-              className="px-2.5 py-1 text-[11px] font-mono bg-indigo-600 hover:bg-indigo-500 text-white rounded inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
-              title="Download Combined 2-Stage PLECS Bundle (.zip)"
-            >
-              <Archive className="w-3 h-3" /> PLECS .zip
-            </button>
+            {!embeddedInCombinedTab && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const asc = generateCombinedSystemLtspiceAsc(acdcState, acdcRes, dcdcState, dcdcRes, sharedMcu);
+                    const blob = new Blob([asc], { type: 'text/plain;charset=us-ascii' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `voltcraft_combined_${acdcState.topology}_to_${dcdcState.topology}.asc`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="px-2.5 py-1 text-[11px] font-mono bg-emerald-600 hover:bg-emerald-500 text-white rounded inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
+                  title="Download Combined 2-Stage LTspice .asc Schematic"
+                >
+                  <FileCode className="w-3 h-3" /> LTspice .asc
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const bundle = generateCombinedSystemQspiceBundle(acdcState, acdcRes, dcdcState, dcdcRes, sharedMcu);
+                    const copy = new Uint8Array(bundle.zipBytes.length);
+                    copy.set(bundle.zipBytes);
+                    const blob = new Blob([copy.buffer], { type: 'application/zip' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${bundle.baseName}_qspice.zip`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="px-2.5 py-1 text-[11px] font-mono bg-amber-600 hover:bg-amber-500 text-white rounded inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
+                  title="Download Combined 2-Stage QSPICE Bundle (.zip)"
+                >
+                  <Archive className="w-3 h-3" /> QSPICE .zip
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const bundle = generateCombinedSystemPlecsBundle(acdcState, acdcRes, dcdcState, dcdcRes, sharedMcu);
+                    const copy = new Uint8Array(bundle.zipBytes.length);
+                    copy.set(bundle.zipBytes);
+                    const blob = new Blob([copy.buffer], { type: 'application/zip' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${bundle.baseName}_plecs.zip`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="px-2.5 py-1 text-[11px] font-mono bg-indigo-600 hover:bg-indigo-500 text-white rounded inline-flex items-center gap-1 whitespace-nowrap shrink-0 cursor-pointer"
+                  title="Download Combined 2-Stage PLECS Bundle (.zip)"
+                >
+                  <Archive className="w-3 h-3" /> PLECS .zip
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
