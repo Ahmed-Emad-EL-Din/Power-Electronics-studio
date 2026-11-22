@@ -155,10 +155,12 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
       >
         {/* Preset Selector */}
         <div>
-          <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+          <label htmlFor="dcdc-preset-select" className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
             Reference Design Preset
           </label>
           <select
+            id="dcdc-preset-select"
+            aria-label="DC-DC Reference Design Preset"
             value={DCDC_PRESETS.find((p) => p.state.presetName === state.presetName)?.id || ''}
             onChange={(e) => {
               const found = DCDC_PRESETS.find((p) => p.id === e.target.value);
@@ -1401,7 +1403,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
       <div className="flex-1 min-w-0 w-full space-y-4">
         {/* Compact 6-Card KPI Strip */}
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2.5">
-          <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg p-3">
+          <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 border-t-2 border-t-emerald-500/70 rounded-lg p-3">
             <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Efficiency η</div>
             <div className="text-xl font-mono font-semibold tabular-nums text-emerald-600 dark:text-emerald-400 mt-0.5">
               {res.efficiency_pct.toFixed(2)}%
@@ -1411,7 +1413,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
             </div>
           </div>
 
-          <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg p-3">
+          <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 border-t-2 border-t-cyan-500/70 rounded-lg p-3">
             <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
               {res.isLLC ? 'Voltage Gain M(fn)' : 'Effective Duty Deff'}
             </div>
@@ -1427,7 +1429,11 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
             </div>
           </div>
 
-          <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg p-3">
+          <div
+            className={`bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 border-t-2 rounded-lg p-3 ${
+              res.zvsAchieved ? 'border-t-emerald-500/70' : 'border-t-amber-500/70'
+            }`}
+          >
             <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Lag / Lead ZVS</div>
             <div
               className={`text-xl font-mono font-semibold tabular-nums mt-0.5 ${
@@ -1445,7 +1451,9 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
             type="button"
             onClick={() => setSubTab('thermal')}
             title="Open Semiconductor Thermal Derating & Heatsink Calculator"
-            className="text-left bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 rounded-lg p-3 cursor-pointer transition-colors"
+            className={`text-left bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 border-t-2 hover:border-slate-300 dark:hover:border-slate-700 rounded-lg p-3 cursor-pointer transition-colors ${
+              res.thermalStable ? 'border-t-amber-500/60' : 'border-t-rose-500/80'
+            }`}
           >
             <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 flex items-center justify-between gap-1">
               <span>MOSFET Tj (Pri / Sec)</span>
@@ -1469,12 +1477,12 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
             type="button"
             onClick={() => setSubTab('saturation')}
             title="Open Core Saturation Headroom & B(t) vs BH Panel"
-            className={`text-left rounded-lg p-3 cursor-pointer transition-colors border ${
+            className={`text-left rounded-lg p-3 cursor-pointer transition-colors border border-t-2 ${
               res.saturationCheck.status === 'critical'
-                ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-500/70'
+                ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-500/70 border-t-rose-500'
                 : res.saturationCheck.status === 'warning'
-                ? 'bg-amber-50 dark:bg-amber-950/25 border-amber-500/60'
-                : 'bg-white dark:bg-[#0E131D] border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                ? 'bg-amber-50 dark:bg-amber-950/25 border-amber-500/60 border-t-amber-500'
+                : 'bg-white dark:bg-[#0E131D] border-slate-200 dark:border-slate-800 border-t-emerald-500/60 hover:border-slate-300 dark:hover:border-slate-700'
             }`}
           >
             <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400 flex items-center justify-between gap-1">
@@ -1515,7 +1523,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
             </div>
           </button>
 
-          <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 rounded-lg p-3">
+          <div className="bg-white dark:bg-[#0E131D] border border-slate-200 dark:border-slate-800 border-t-2 border-t-cyan-500/70 rounded-lg p-3">
             <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
               Control ({state.controlType.toUpperCase()})
             </div>
@@ -1605,13 +1613,15 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
 
           return (
             <div ref={subTabNavRef} className="scroll-mt-20 space-y-2 border-b border-slate-200 dark:border-white/[0.08] pb-2.5">
-              <div className="flex flex-wrap items-center gap-1.5">
+              <div role="tablist" aria-label="DC-DC Analysis Groups" className="flex flex-wrap items-center gap-1.5">
                 {dcdcGroups.map((grp) => {
                   const isActive = grp.id === activeGroup.id;
                   return (
                     <button
                       key={grp.id}
                       type="button"
+                      role="tab"
+                      aria-selected={isActive}
                       onClick={() => setSubTab(grp.views[0].id)}
                       className={`px-3 py-1.5 text-xs font-medium rounded-lg border inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
                         isActive
@@ -1621,27 +1631,29 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                           : 'bg-white dark:bg-[#11141c] border-slate-200 dark:border-white/[0.08] text-slate-600 dark:text-[#a3a9b8] hover:border-slate-300 dark:hover:border-white/[0.16] hover:text-slate-900 dark:hover:text-[#eef0f5]'
                       }`}
                     >
-                      {grp.icon}
+                      <span aria-hidden="true">{grp.icon}</span>
                       <span>{grp.label}</span>
                       {grp.views.length > 1 && (
                         <span className="text-[10px] font-mono opacity-65">
                           ({grp.views.length})
                         </span>
                       )}
-                      {grp.alert && <AlertTriangle className="w-3.5 h-3.5 shrink-0" />}
+                      {grp.alert && <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />}
                     </button>
                   );
                 })}
               </div>
 
               {activeGroup.views.length > 1 && (
-                <div className="flex flex-wrap items-center gap-1 bg-[#eceff4]/75 dark:bg-[#07080d] p-1 rounded-lg border border-slate-200/80 dark:border-white/[0.07]">
+                <div role="tablist" aria-label={`${activeGroup.label} views`} className="flex flex-wrap items-center gap-1 bg-[#eceff4]/75 dark:bg-[#07080d] p-1 rounded-lg border border-slate-200/80 dark:border-white/[0.07]">
                   {activeGroup.views.map((view) => {
                     const active = subTab === view.id;
                     return (
                       <button
                         key={view.id}
                         type="button"
+                        role="tab"
+                        aria-selected={active}
                         onClick={() => setSubTab(view.id)}
                         className={`px-2.5 py-1 text-[11px] font-medium rounded-md inline-flex items-center gap-1.5 whitespace-nowrap cursor-pointer transition-colors ${
                           active
@@ -1652,7 +1664,7 @@ export const DcDcWorkbench: React.FC<DcDcWorkbenchProps> = ({
                         }`}
                       >
                         <span>{view.label}</span>
-                        {view.alert && <AlertTriangle className="w-3 h-3 shrink-0" />}
+                        {view.alert && <AlertTriangle className="w-3 h-3 shrink-0" aria-hidden="true" />}
                       </button>
                     );
                   })}

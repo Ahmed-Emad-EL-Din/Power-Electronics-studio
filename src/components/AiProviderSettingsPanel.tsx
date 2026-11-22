@@ -178,7 +178,7 @@ export const AiProviderSettingsPanel: React.FC<AiProviderSettingsPanelProps> = (
             placeholder={meta.keyPlaceholder}
             autoComplete="off"
             spellCheck={false}
-            className="flex-1 min-w-0 px-2.5 py-1.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0E131D] text-xs font-mono text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-cyan-500"
+            className="flex-1 min-w-0 px-2.5 py-1.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0E131D] text-xs font-mono text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 focus-visible:border-cyan-500"
           />
           <button
             type="button"
@@ -207,7 +207,7 @@ export const AiProviderSettingsPanel: React.FC<AiProviderSettingsPanelProps> = (
           onChange={(e) => handleFieldChange({ model: e.target.value })}
           placeholder={meta.defaultModel}
           spellCheck={false}
-          className="w-full px-2.5 py-1.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0E131D] text-xs font-mono text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-cyan-500"
+          className="w-full px-2.5 py-1.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0E131D] text-xs font-mono text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 focus-visible:border-cyan-500"
         />
         <div className="flex flex-wrap gap-1 pt-0.5">
           {MODEL_SUGGESTIONS[aiConfig.provider].map((m) => (
@@ -244,7 +244,7 @@ export const AiProviderSettingsPanel: React.FC<AiProviderSettingsPanelProps> = (
             onChange={(e) => handleFieldChange({ baseUrl: e.target.value })}
             placeholder={meta.defaultBaseUrl}
             spellCheck={false}
-            className="w-full px-2.5 py-1.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0E131D] text-xs font-mono text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-cyan-500"
+            className="w-full px-2.5 py-1.5 rounded border border-slate-300 dark:border-slate-700 bg-white dark:bg-[#0E131D] text-xs font-mono text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/70 focus-visible:border-cyan-500"
           />
           <div className="flex flex-wrap gap-1 pt-0.5">
             {COMPATIBLE_ENDPOINT_PRESETS.map((preset) => (

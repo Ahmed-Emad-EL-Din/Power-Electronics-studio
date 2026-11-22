@@ -619,7 +619,7 @@ export const DesignReportModal: React.FC<DesignReportModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-label="Engineering Design Report Book"
-      className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex flex-col report-print-root"
+      className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex flex-col report-print-root overscroll-contain"
     >
       {/* STICKY TOOLBAR (Hidden when printing) */}
       <div className="no-print bg-slate-950 text-slate-100 border-b border-slate-800 px-4 lg:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 shrink-0">

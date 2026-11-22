@@ -74,7 +74,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
 
   return (
     <div
-      className="no-print fixed inset-0 z-50 flex items-start justify-center pt-[12vh] p-4 bg-[#07080d]/65 backdrop-blur-[2px]"
+      className="no-print fixed inset-0 z-50 flex items-start justify-center pt-[12vh] p-4 bg-[#07080d]/65 backdrop-blur-[2px] overscroll-contain"
       role="dialog"
       aria-modal="true"
       aria-label="Quick command palette"
@@ -84,15 +84,19 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
         className="w-full max-w-xl rounded-xl shadow-2xl bg-white dark:bg-[#11141c] border border-slate-200 dark:border-white/[0.12] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-3.5 py-2.5 border-b border-slate-200 dark:border-white/[0.08] flex items-center gap-2.5 bg-[#f5f7fa] dark:bg-[#0b0d14]">
-          <Search className="w-4 h-4 text-cyan-600 dark:text-cyan-400 shrink-0" />
+        <div className="px-3.5 py-2.5 border-b border-slate-200 dark:border-white/[0.08] flex items-center gap-2.5 bg-[#f5f7fa] dark:bg-[#0b0d14] focus-within:ring-2 focus-within:ring-inset focus-within:ring-cyan-500/60">
+          <Search className="w-4 h-4 text-cyan-600 dark:text-cyan-400 shrink-0" aria-hidden="true" />
           <input
             ref={inputRef}
             type="text"
+            name="command-palette-query"
+            aria-label="Search views, presets, optimizers, or exports"
+            autoComplete="off"
+            spellCheck={false}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Jump to view, switch preset, optimize, or export (e.g. 'qspice', 'saturation', 'bode')..."
-            className="flex-1 bg-transparent text-xs sm:text-sm text-slate-900 dark:text-[#eef0f5] placeholder:text-slate-400 outline-none"
+            placeholder="Jump to view, switch preset, optimize, or export…"
+            className="flex-1 bg-transparent text-xs sm:text-sm text-slate-900 dark:text-[#eef0f5] placeholder:text-slate-400 focus:outline-none"
           />
           <button
             type="button"
@@ -104,7 +108,7 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
           </button>
         </div>
 
-        <div className="max-h-[55vh] overflow-y-auto divide-y divide-slate-100 dark:divide-white/[0.05]">
+        <div className="max-h-[55vh] overflow-y-auto overscroll-contain divide-y divide-slate-100 dark:divide-white/[0.05]">
           {filtered.length === 0 ? (
             <div className="p-6 text-center text-xs text-slate-500 dark:text-[#7a8296]">
               No matching views or actions for &quot;{query}&quot;.
