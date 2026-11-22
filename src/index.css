@@ -355,8 +355,23 @@ html:not(.dark) svg rect[fill="#111827" i] {
 
 html:not(.dark) svg rect[fill="#0f172a" i],
 html:not(.dark) svg rect[fill="#020617" i],
-html:not(.dark) svg circle[fill="#0f172a" i] {
+html:not(.dark) svg rect[fill="#14171f" i]:not([fill-opacity]),
+html:not(.dark) svg circle[fill="#0f172a" i],
+html:not(.dark) svg circle[fill="#14171f" i] {
   fill: #ffffff;
+}
+
+html:not(.dark) svg rect[fill="#14171f" i][fill-opacity] {
+  fill: #f1f5f9;
+}
+
+html:not(.dark) svg rect[fill="#064e3b" i] {
+  fill: #ecfdf5;
+}
+
+html:not(.dark) svg rect[fill="#451a03" i],
+html:not(.dark) svg rect[fill="#78350f" i] {
+  fill: #fffbeb;
 }
 
 html:not(.dark) svg rect[fill="#1e293b" i],
@@ -397,23 +412,35 @@ html:not(.dark) svg .fill-slate-500 {
 
 html:not(.dark) svg text[fill="#22d3ee" i],
 html:not(.dark) svg text[fill="#06b6d4" i],
-html:not(.dark) svg text[fill="#38bdf8" i] {
+html:not(.dark) svg text[fill="#38bdf8" i],
+html:not(.dark) svg text[fill="#67e8f9" i],
+html:not(.dark) svg text[fill="#a5f3fc" i] {
   fill: #0369a1;
 }
 
 html:not(.dark) svg text[fill="#34d399" i],
-html:not(.dark) svg text[fill="#10b981" i] {
+html:not(.dark) svg text[fill="#10b981" i],
+html:not(.dark) svg text[fill="#6ee7b7" i],
+html:not(.dark) svg text[fill="#a7f3d0" i],
+html:not(.dark) svg text[fill="#d1fae5" i] {
   fill: #047857;
 }
 
 html:not(.dark) svg text[fill="#fbbf24" i],
-html:not(.dark) svg text[fill="#f59e0b" i] {
+html:not(.dark) svg text[fill="#f59e0b" i],
+html:not(.dark) svg text[fill="#fcd34d" i],
+html:not(.dark) svg text[fill="#fde68a" i] {
   fill: #b45309;
 }
 
 html:not(.dark) svg text[fill="#c084fc" i],
 html:not(.dark) svg text[fill="#a855f7" i] {
   fill: #6d28d9;
+}
+
+html:not(.dark) svg text[fill="#f87171" i],
+html:not(.dark) svg text[fill="#fca5a5" i] {
+  fill: #be123c;
 }
 
 html:not(.dark) .recharts-cartesian-grid line {

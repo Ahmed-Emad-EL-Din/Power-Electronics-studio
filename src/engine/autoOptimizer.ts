@@ -82,8 +82,8 @@ export interface AutoOptChange<K extends string> {
 
 export const DCDC_DEFAULT_LOCKS: Record<DcDcLockableKey, boolean> = {
   Vin_nom_V: true,
-  Vin_min_V: false,
-  Vin_max_V: false,
+  Vin_min_V: true,
+  Vin_max_V: true,
   Vout_V: true,
   Pout_W: true,
   fsw_kHz: true,
@@ -123,8 +123,8 @@ export const DCDC_DEFAULT_LOCKS: Record<DcDcLockableKey, boolean> = {
 
 export const ACDC_DEFAULT_LOCKS: Record<AcDcLockableKey, boolean> = {
   Vac_rms_V: true,
-  Vac_min_V: false,
-  Vac_max_V: false,
+  Vac_min_V: true,
+  Vac_max_V: true,
   Vdc_bus_V: true,
   Pout_W: true,
   fsw_kHz: true,
@@ -134,7 +134,7 @@ export const ACDC_DEFAULT_LOCKS: Record<AcDcLockableKey, boolean> = {
   Cdc_uF: false,
   ESR_Cdc_mOhm: false,
   tHold_ms: true,
-  Vdc_min_hold_V: false,
+  Vdc_min_hold_V: true,
   fc_i_kHz: false,
   pm_i_deg: false,
   fc_v_Hz: false,
@@ -1129,7 +1129,8 @@ export function optimizeDcDcUnlocked(
     const dPrimeWc = Math.max(0.05, 1 - (isLLC ? Deff_wc_est * 0.5 : Deff_wc_est));
     const mcNom = (0.5 + 1 / (Math.PI * 1.15)) / dPrimeNom;
     const mcWc = (0.5 + 1 / (Math.PI * 1.2)) / dPrimeWc;
-    const mcOpt = clamp(Number(roundTo(Math.max(1.5, mcNom, mcWc), 0.05).toFixed(2)), 1.5, 6.5);
+    const mcRaw = Math.max(1.5, mcNom, mcWc, preSlopeRes.mc_min_recommended);
+    const mcOpt = clamp(Number((Math.ceil(mcRaw * 20) / 20).toFixed(2)), 1.5, 14.0);
     applyNum(
       'slopeFactor_mc',
       'Slope mc',

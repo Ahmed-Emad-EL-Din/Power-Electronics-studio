@@ -380,4 +380,91 @@ describe('Power Electronics Studio — Automated UI, Button, Theme & Code-Splitt
     });
     host.remove();
   });
+
+  it('2-Stage Link/Unlink restores standalone specs on disconnect, and Optimize permanently fixes Danger alerts across disconnect/reconnect', async () => {
+    window.localStorage.clear();
+    window.localStorage.setItem('pe-studio-theme-mode', 'light');
+    document.documentElement.classList.remove('dark');
+
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    const root = createRoot(host);
+
+    await act(async () => {
+      root.render(React.createElement(App));
+    });
+    await flushAsync(80);
+
+    const getDangerCount = () => {
+      const btn = host.querySelector('button[title*="Critical danger alerts"]');
+      return Number((btn?.textContent || '').replace(/\D+/g, '') || '0');
+    };
+
+    // 0. Baseline before linking: 0 Danger alerts
+    assert.equal(getDangerCount(), 0, 'baseline should start with 0 Danger alerts');
+
+    // 1. Click "Link Stages" -> links Bus V (320V min hold-up) + Load P, triggering PCMC low-line Danger alert
+    const linkBtn = findButtonByText(host, 'Link Stages');
+    assert.ok(linkBtn, 'expected Link Stages button');
+    await act(async () => {
+      linkBtn.click();
+    });
+    await flushAsync(150);
+
+    assert.ok(findButtonByText(host, 'Stages Linked'), 'button should reflect Stages Linked state');
+    assert.equal(getDangerCount(), 1, 'linking 320V hold-up into 360V DC-DC should surface the PCMC slope Danger alert');
+    assert.ok((host.textContent || '').includes('STAGES LINKED (BUS + LOAD)'));
+
+    // Verify no duplicate "Same MCU" toggle inside CombinedSystemSchematicView when embedded
+    const sameMcuButtons = Array.from(host.querySelectorAll('button')).filter(
+      (b) => (b.textContent || '').trim() === 'Same MCU'
+    );
+    assert.equal(sameMcuButtons.length, 1, 'should only render one Same MCU toggle in 2-Stage View');
+
+    // 2. Disconnect without fixing -> standalone Vin_min_V (360V) restores and Danger alert clears
+    const linkedBtn = findButtonByText(host, 'Stages Linked');
+    assert.ok(linkedBtn);
+    await act(async () => {
+      linkedBtn.click();
+    });
+    await flushAsync(80);
+    assert.equal(getDangerCount(), 0, 'disconnecting must restore pre-link standalone Vin_min_V and clear the Danger alert');
+
+    // 3. Reconnect, then click Optimize -> must genuinely fix slopeFactor_mc (keeping Vin_min_V=320V)
+    const linkBtnAgain = findButtonByText(host, 'Link Stages');
+    assert.ok(linkBtnAgain);
+    await act(async () => {
+      linkBtnAgain.click();
+    });
+    await flushAsync(80);
+    assert.equal(getDangerCount(), 1);
+
+    const optimizeBtn = findButtonByText(host, 'Optimize');
+    assert.ok(optimizeBtn, 'expected Optimize button');
+    await act(async () => {
+      optimizeBtn.click();
+    });
+    await flushAsync(120);
+    assert.equal(getDangerCount(), 0, 'Optimize must resolve the Danger alert while keeping linked 320V Vin_min_V');
+
+    // 4. Disconnect and reconnect again -> Danger alert MUST NOT come back
+    const linkedAfterOpt = findButtonByText(host, 'Stages Linked');
+    assert.ok(linkedAfterOpt);
+    await act(async () => {
+      linkedAfterOpt.click();
+    });
+    await flushAsync(60);
+    const linkBtnThird = findButtonByText(host, 'Link Stages');
+    assert.ok(linkBtnThird);
+    await act(async () => {
+      linkBtnThird.click();
+    });
+    await flushAsync(80);
+    assert.equal(getDangerCount(), 0, 'reconnecting after Optimize must remain at 0 Danger alerts');
+
+    await act(async () => {
+      root.unmount();
+    });
+    host.remove();
+  });
 });
